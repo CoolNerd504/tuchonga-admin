@@ -21,7 +21,33 @@ export const _myAccount = {
 
 // ----------------------------------------------------------------------
 
+// ----------------------------------------------------------------------
+
+// ----------------------------------------------------------------------
+
+// export const _users = [...Array(24)].map((_, index) => ({
+
+
+//   id: _id(index),
+//   email: _email(index),
+//   isVerified: _boolean(index),
+//   location: _location(index),
+//   logo: `/assets/images/avatar/avatar-${index + 1}.webp`,
+//   name: _fullName(index),
+//   poc_firstname: _poc_firstname(index),
+//   poc_lastname: _poc_lastname(index),
+//   poc_phone: _poc_phone(index),
+//   status: index % 4 ? 'active' : 'banned',
+ 
+// }));
+
+// ----------------------------------------------------------------------
+
+// ----------------------------------------------------------------------
+
 export const _users = [...Array(24)].map((_, index) => ({
+
+  
   id: _id(index),
   name: _fullName(index),
   company: _company(index),

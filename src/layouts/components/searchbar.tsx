@@ -33,14 +33,14 @@ export function Searchbar({ sx, ...other }: BoxProps) {
   return (
     <ClickAwayListener onClickAway={handleClose}>
       <div>
-        {!open && (
+        {/* {!open && (
           <IconButton onClick={handleOpen}>
             <Iconify icon="eva:search-fill" />
           </IconButton>
-        )}
+        )} */}
 
-        <Slide direction="down" in={open} mountOnEnter unmountOnExit>
-          <Box
+           {/* <Slide direction="down" in={open} mountOnEnter unmountOnExit>
+       <Box
             sx={{
               ...bgBlur({
                 color: theme.vars.palette.background.default,
@@ -77,8 +77,8 @@ export function Searchbar({ sx, ...other }: BoxProps) {
             <Button variant="contained" onClick={handleClose}>
               Search
             </Button>
-          </Box>
-        </Slide>
+          </Box> 
+        </Slide> */}
       </div>
     </ClickAwayListener>
   );

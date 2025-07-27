@@ -1,7 +1,8 @@
 import type { IconButtonProps } from '@mui/material/IconButton';
 
 import { useState, useCallback } from 'react';
-
+import { getAuth } from 'firebase/auth';
+import { app } from 'src/firebaseConfig';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Avatar from '@mui/material/Avatar';
@@ -15,6 +16,7 @@ import MenuItem, { menuItemClasses } from '@mui/material/MenuItem';
 import { useRouter, usePathname } from 'src/routes/hooks';
 
 import { _myAccount } from 'src/_mock';
+
 
 // ----------------------------------------------------------------------
 
@@ -49,7 +51,12 @@ export function AccountPopover({ data = [], sx, ...other }: AccountPopoverProps)
     },
     [handleClosePopover, router]
   );
+  const handleSignOut = () => {
+    auth.signOut()
+ }
 
+ const auth = getAuth(app);
+console.log("Current User",auth.currentUser?.email);
   return (
     <>
       <IconButton
@@ -82,12 +89,12 @@ export function AccountPopover({ data = [], sx, ...other }: AccountPopoverProps)
         }}
       >
         <Box sx={{ p: 2, pb: 1.5 }}>
-          <Typography variant="subtitle2" noWrap>
+          {/* <Typography variant="subtitle2" noWrap>
             {_myAccount?.displayName}
-          </Typography>
+          </Typography> */}
 
           <Typography variant="body2" sx={{ color: 'text.secondary' }} noWrap>
-            {_myAccount?.email}
+            {auth.currentUser?.email}
           </Typography>
         </Box>
 
@@ -129,7 +136,7 @@ export function AccountPopover({ data = [], sx, ...other }: AccountPopoverProps)
         <Divider sx={{ borderStyle: 'dashed' }} />
 
         <Box sx={{ p: 1 }}>
-          <Button fullWidth color="error" size="medium" variant="text">
+          <Button  onClick={() => handleSignOut()} fullWidth color="error" size="medium" variant="text">
             Logout
           </Button>
         </Box>

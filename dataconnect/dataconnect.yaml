@@ -1,0 +1,12 @@
+specVersion: "v1beta"
+serviceId: "tuchonga"
+location: "asia-south1"
+schema:
+  source: "./schema"
+  datasource:
+    postgresql:
+      database: "tuchonga-db"
+      cloudSql:
+        instanceId: "tuchonga-fdc"
+      # schemaValidation: "COMPATIBLE"
+connectorDirs: ["./connector"]

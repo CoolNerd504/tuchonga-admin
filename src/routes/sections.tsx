@@ -7,17 +7,29 @@ import LinearProgress, { linearProgressClasses } from '@mui/material/LinearProgr
 import { varAlpha } from 'src/theme/styles';
 import { AuthLayout } from 'src/layouts/auth';
 import { DashboardLayout } from 'src/layouts/dashboard';
+import { BusinessDetail } from 'src/sections/owner/view/owner-view-selected';
+import { ProductDetail } from 'src/sections/product/view/product-view-selected';
+import { ServiceDetail } from 'src/sections/service/view/service-view-selected';
+import { app } from 'src/firebaseConfig';
+import { getAuth } from 'firebase/auth';
 
 // ----------------------------------------------------------------------
 
 export const HomePage = lazy(() => import('src/pages/home'));
 export const BlogPage = lazy(() => import('src/pages/blog'));
 export const UserPage = lazy(() => import('src/pages/user'));
+export const StaffPage = lazy(() => import('src/pages/staff'));
+export const BusinessOwnerPage = lazy(() => import('src/pages/business/business'));
+export const CategoryPage = lazy(() => import('src/pages/categories'));
+export const ServicesPage = lazy(() => import('src/pages/services'));
 export const SignInPage = lazy(() => import('src/pages/sign-in'));
 export const ProductsPage = lazy(() => import('src/pages/products'));
 export const Page404 = lazy(() => import('src/pages/page-not-found'));
 
 // ----------------------------------------------------------------------
+
+const auth = getAuth(app);
+console.log("Current User", auth.currentUser?.uid);
 
 const renderFallback = (
   <Box display="flex" alignItems="center" justifyContent="center" flex="1 1 auto">
@@ -43,20 +55,20 @@ export function Router() {
         </DashboardLayout>
       ),
       children: [
-        { element: <HomePage />, index: true },
+        { path: '/', element: <HomePage /> },
         { path: 'user', element: <UserPage /> },
         { path: 'products', element: <ProductsPage /> },
+        { path: 'products/:id', element: <ProductDetail /> },
+        { path: 'services', element: <ServicesPage /> },
+        { path: 'services/:id', element: <ServiceDetail /> },
+        { path: 'staff', element: <StaffPage /> },
+        { path: 'business', element: <BusinessOwnerPage /> },
+        { path: 'categories', element: <CategoryPage /> },
+        { path: 'business/:id', element: <BusinessDetail /> },
         { path: 'blog', element: <BlogPage /> },
       ],
     },
-    {
-      path: 'sign-in',
-      element: (
-        <AuthLayout>
-          <SignInPage />
-        </AuthLayout>
-      ),
-    },
+
     {
       path: '404',
       element: <Page404 />,

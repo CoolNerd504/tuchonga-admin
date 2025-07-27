@@ -52,7 +52,7 @@ export function LanguagePopover({ data = [], sx, ...other }: LanguagePopoverProp
 
   return (
     <>
-      <IconButton
+      {/* <IconButton
         onClick={handleOpenPopover}
         sx={{
           width: 40,
@@ -63,7 +63,7 @@ export function LanguagePopover({ data = [], sx, ...other }: LanguagePopoverProp
         {...other}
       >
         {renderFlag(currentLang?.label, currentLang?.icon)}
-      </IconButton>
+      </IconButton> */}
 
       <Popover
         open={!!openPopover}

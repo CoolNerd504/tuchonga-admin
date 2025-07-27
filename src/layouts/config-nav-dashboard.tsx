@@ -14,33 +14,49 @@ export const navData = [
     icon: icon('ic-analytics'),
   },
   {
-    title: 'User',
+    title: 'Staff Member',
+    path: '/staff',
+    icon: icon('ic-user'),
+  },
+  {
+    title: 'Users ',
     path: '/user',
     icon: icon('ic-user'),
+  },
+  {
+    title: 'Categories',
+    path: '/categories',
+    icon: icon('ic-glass-bag'),
+    // info: (
+    //   <Label color="error" variant="inverted">
+    //     +3
+    //   </Label>
+    // ),
   },
   {
     title: 'Product',
     path: '/products',
     icon: icon('ic-cart'),
-    info: (
-      <Label color="error" variant="inverted">
-        +3
-      </Label>
-    ),
+    // info: (
+    //   <Label color="error" variant="inverted">
+    //     +3
+    //   </Label>
+    // ),
   },
   {
-    title: 'Blog',
-    path: '/blog',
-    icon: icon('ic-blog'),
+    title: 'Services',
+    path: '/services',
+    icon: icon('ic-cart'),
+    // info: (
+    //   <Label color="error" variant="inverted">
+    //     +3
+    //   </Label>
+    // ),
   },
   {
-    title: 'Sign in',
-    path: '/sign-in',
-    icon: icon('ic-lock'),
+    title: 'Business Owners ',
+    path: '/business',
+    icon: icon('ic-user'),
   },
-  {
-    title: 'Not found',
-    path: '/404',
-    icon: icon('ic-disabled'),
-  },
+
 ];
