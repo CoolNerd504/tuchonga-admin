@@ -1,6 +1,7 @@
 import React from "react";
+import { Pie, Cell, Tooltip, PieChart } from "recharts";
+
 import { Box, Typography } from "@mui/material";
-import { PieChart, Pie, Cell, Tooltip } from "recharts";
 
 interface Service {
     total_views: number;

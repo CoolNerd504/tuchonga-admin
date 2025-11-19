@@ -1,46 +1,47 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
+import React, { useMemo, useState, useEffect, useCallback } from 'react';
+import {
+  doc,
+  query,
+  where,
+  addDoc, getDocs, updateDoc, collection, serverTimestamp
+  // deleteDoc,
+} from 'firebase/firestore';
+
+import CheckIcon from '@mui/icons-material/Check';
 import {
   Box,
   Grid,
-  Paper,
-  Typography,
-  TextField,
   Chip,
-  Checkbox,
-  TableContainer,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
+  Paper,
   Table,
-  TableHead,
-  CircularProgress,
+  Alert,
+  Dialog,
+  Button,
+  Select,
   TableRow,
+  MenuItem,
+  Snackbar,
+  TextField,
+  TableHead,
   TableCell,
   TableBody,
+  Typography,
   IconButton,
-  Button,
-  TablePagination,
-  Avatar,
-  MenuItem,
-  FormControl,
   InputLabel,
-  Select,
+  DialogTitle,
+  FormControl,
+  DialogActions,
+  DialogContent,
+  TableContainer,
+  TablePagination,
+  CircularProgress,
 } from '@mui/material';
+
 import { Iconify } from 'src/components/iconify';
-import {
-  getDocs,
-  collection,
-  addDoc,
-  doc, getDoc, query, where
-  // deleteDoc,
-  // updateDoc,
-} from 'firebase/firestore';
-import CheckIcon from '@mui/icons-material/Check';
-import { UserTableToolbar } from '../product-table-toolbar';
-import { firebaseDB } from '../../../firebaseConfig';
+
 import ProductStats from '../stats/product-stats';
+import { firebaseDB } from '../../../firebaseConfig';
 // ----------------------------------------------------------------------
 // Types & Interfaces
 // ----------------------------------------------------------------------
@@ -60,7 +61,8 @@ interface Product {
   mainImage: string;
   additionalImages: string[];
   productOwner: string
-  createdAt?: Date;
+  createdAt?: any; // Firestore Timestamp or Date
+  updatedAt?: any; // Firestore Timestamp or Date
 }
 
 // Interface for a Comment that can belong to a Product or a Service
@@ -101,7 +103,7 @@ export function TableNoData({ isNotFound }: TableNoDataProps) {
 function useTable() {
   const [page, setPage] = useState(0);
   const [orderBy, setOrderBy] = useState('name');
-  const [rowsPerPage, setRowsPerPage] = useState(5);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
   const [selected, setSelected] = useState<string[]>([]);
   const [order, setOrder] = useState<'asc' | 'desc'>('asc');
 
@@ -180,10 +182,19 @@ export function ProductsView() {
       try {
         const productOwnersCollection = collection(firebaseDB, 'businesses');
         const querySnapshot = await getDocs(productOwnersCollection);
-        const productOwners = querySnapshot.docs
-          .map(docPO => docPO.data())
-          .map(owner => owner.name || owner.owner_name || owner.id); // Handle different field names
-        setAvailableProductOwners(['SetLater', ...productOwners]);
+        // Store as objects with id and name to avoid duplicate key issues
+        const productOwners = querySnapshot.docs.map((docPO) => {
+          const data = docPO.data();
+          return {
+            id: docPO.id,
+            name: data.name || data.owner_name || docPO.id,
+          };
+        });
+        // Remove duplicates by name, keeping the first occurrence
+        const uniqueOwners = Array.from(
+          new Map(productOwners.map(owner => [owner.name, owner])).values()
+        );
+        setAvailableProductOwners(['SetLater', ...uniqueOwners.map(owner => owner.name)]);
       } catch (error) {
         console.error('Error fetching product owners:', error);
         setAvailableProductOwners(['SetLater']); // Fallback to just SetLater
@@ -196,6 +207,7 @@ export function ProductsView() {
 
   // Product list from Firestore
   const [productList, setProductList] = useState<Product[]>([]);
+  const [productThumbnailFile, setProductThumbnailFile] = useState<File | null>(null);
   const [productData, setProductData] = useState<Product>({
     id: '',
     product_name: '',
@@ -211,12 +223,12 @@ export function ProductsView() {
     isActive: true,
     productOwner: 'SetLater',
   });
-  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
-  const [filterName, setFilterName] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string>('all');
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
   const [snackbarSeverity, setSnackbarSeverity] = useState<'success' | 'error'>('success');
+  const [duplicateError, setDuplicateError] = useState<string | null>(null);
   const table = useTable();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false); // State to control dialog visibility
@@ -227,11 +239,6 @@ export function ProductsView() {
   // const productsCollection = collection(firebaseDB, 'products');
   const handleSelectRow = (product: Product) => {
     navigate(`/products/${product?.id}`, { state: { product } });
-    console.log('Selected row:', selectedProduct);
-    // if (selectedBusiness === null) {
-    //   console.log('First CLick :', selectedBusiness);
-    // } else 
-    // {};
   }
 
 
@@ -257,10 +264,42 @@ export function ProductsView() {
       setSnackbarOpen(true);
       return;
     }
+
     setIsAddingProduct(true);
     try {
-      // Log the data being sent
-      console.log('Adding product:', {
+      // Check for duplicate product name (case-insensitive)
+      const productNameLower = productData.product_name.trim().toLowerCase();
+      
+      // First check against current productList
+      let hasDuplicate = productList.some((product) => {
+        const existingName = product.product_name?.toLowerCase().trim();
+        return existingName === productNameLower;
+      });
+
+      // If not found in list, double-check against Firestore to be sure
+      if (!hasDuplicate) {
+        const allProductsSnapshot = await getDocs(productsCollection);
+        hasDuplicate = allProductsSnapshot.docs.some((docSnapshot) => {
+          const existingName = docSnapshot.data().product_name?.toLowerCase().trim();
+          return existingName === productNameLower;
+        });
+      }
+
+      if (hasDuplicate) {
+        const errorMsg = `Product name "${productData.product_name}" already exists! Please choose a different name.`;
+        setDuplicateError(errorMsg);
+        setSnackbarMessage(`❌ ${errorMsg}`);
+        setSnackbarSeverity('error');
+        setSnackbarOpen(true);
+        setIsAddingProduct(false);
+        return;
+      }
+
+      // Clear any previous duplicate errors
+      setDuplicateError(null);
+
+      // Create a product data object to submit
+      const productDataToSubmit: any = {
         product_name: productData.product_name,
         category: productData.category,
         description: productData.description,
@@ -271,21 +310,25 @@ export function ProductsView() {
         comments: [],
         isActive: true,
         productOwner: productData.productOwner,
-        createdAt: new Date(),
-      });
-      const docRef = await addDoc(productsCollection, {
-        product_name: productData.product_name,
-        category: productData.category,
-        description: productData.description,
-        reviews: 0,
-        positive_reviews: 0,
-        total_reviews: 0,
-        total_views: 0,
-        comments: [],
-        isActive: true,
-        productOwner: productData.productOwner,
-      });
-      console.log('Product added with ID:', docRef);
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      };
+      
+      // Upload thumbnail if provided
+      if (productThumbnailFile) {
+        const { ref, uploadBytes, getDownloadURL } = await import('firebase/storage');
+        const { storage } = await import('../../../firebaseConfig');
+        const storageRef = ref(storage, `product_thumbnails/${Date.now()}_${productThumbnailFile.name}`);
+        const snapshot = await uploadBytes(storageRef, productThumbnailFile);
+        const url = await getDownloadURL(snapshot.ref);
+        productDataToSubmit.mainImage = url;
+      }
+      
+
+      
+      // Submit data to Firestore
+      await addDoc(productsCollection, productDataToSubmit);
+      
       // Reset form and close dialog
       setProductData({
         id: '',
@@ -302,7 +345,10 @@ export function ProductsView() {
         isActive: true,
         productOwner: 'SetLater'
       });
+      setProductThumbnailFile(null);
+      setDuplicateError(null); // Clear any duplicate errors
       setOpen(false);
+      
       // Refresh the product list
       getProducts();
       setSnackbarMessage('Product added successfully!');
@@ -319,7 +365,97 @@ export function ProductsView() {
   };
 
 
-  console.log('Selected List:', productList);
+
+
+  // Helper function to get the most recent timestamp for a product
+  const getMostRecentTimestamp = (product: Product): { timestamp: any; type: 'updated' | 'created' } => {
+    if (product.updatedAt) {
+      return { timestamp: product.updatedAt, type: 'updated' };
+    }
+    if (product.createdAt) {
+      return { timestamp: product.createdAt, type: 'created' };
+    }
+    return { timestamp: null, type: 'created' };
+  };
+
+  // Helper function to convert Firestore timestamp to Date
+  const convertToDate = (timestamp: any): Date | null => {
+    if (!timestamp) return null;
+    
+    try {
+      // Handle Firestore Timestamp objects
+      if (timestamp && typeof timestamp === 'object' && timestamp.toDate) {
+        return timestamp.toDate();
+      }
+      // Handle JavaScript Date objects
+      if (timestamp instanceof Date) {
+        return timestamp;
+      }
+      // Handle string or number timestamps
+      const date = new Date(timestamp);
+      return Number.isNaN(date.getTime()) ? null : date;
+    } catch (error) {
+      console.error('Error converting timestamp:', error, 'Value:', timestamp);
+      return null;
+    }
+  };
+
+  // Utility function to format dates in a readable way
+  const formatReadableDate = (date: Date | string | any) => {
+    if (!date) return 'N/A';
+    
+    try {
+      const dateObj = convertToDate(date);
+      if (!dateObj) {
+        return 'N/A';
+      }
+      
+      const now = new Date();
+      const diffInMs = now.getTime() - dateObj.getTime();
+      const diffInMinutes = Math.floor(diffInMs / (1000 * 60));
+      const diffInHours = Math.floor(diffInMs / (1000 * 60 * 60));
+      const diffInDays = Math.floor(diffInMs / (1000 * 60 * 60 * 24));
+      
+      if (diffInMinutes < 1) {
+        return 'Just now';
+      }
+      if (diffInMinutes < 60) {
+        return `${diffInMinutes} minute${diffInMinutes > 1 ? 's' : ''} ago`;
+      }
+      if (diffInHours < 24) {
+        return `${diffInHours} hour${diffInHours > 1 ? 's' : ''} ago`;
+      }
+      if (diffInDays < 7) {
+        return `${diffInDays} day${diffInDays > 1 ? 's' : ''} ago`;
+      }
+      // For older dates, show the actual date
+      return dateObj.toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    } catch (error) {
+      console.error('Error formatting date:', error, 'Date value:', date);
+      return 'N/A';
+    }
+  };
+
+  // Utility function to update product's updatedAt field
+  // Note: Currently unused but kept for future use
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const updateProductTimestamp = async (productId: string) => {
+    try {
+      const productRef = doc(firebaseDB, 'products', productId);
+      await updateDoc(productRef, {
+        updatedAt: serverTimestamp()
+      });
+      console.log(`Updated timestamp for product: ${productId}`);
+    } catch (error) {
+      console.error('Error updating product timestamp:', error);
+    }
+  };
 
   // Fetch products from Firestore
   // Move productsCollection to useMemo
@@ -328,6 +464,7 @@ export function ProductsView() {
   // Update getProducts with productsCollection dependency
   const getProducts = useCallback(async () => {
     try {
+      // First try to get all products without ordering to ensure we get all products
       const querySnapshot = await getDocs(productsCollection);
       const fetchedData: Product[] = querySnapshot.docs.map((docProducts) => {
         const docData = docProducts.data() as Omit<Product, 'id'>;
@@ -336,15 +473,37 @@ export function ProductsView() {
           id: docProducts.id,
         };
       });
-      // Sort by createdAt descending
+      
+      // Sort by updatedAt descending (latest updated first) with fallback to createdAt
       fetchedData.sort((a, b) => {
-        const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-        const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-        return dateB - dateA;
+        // Use updatedAt if available, otherwise fall back to createdAt
+        const dateA = convertToDate(a.updatedAt || a.createdAt);
+        const dateB = convertToDate(b.updatedAt || b.createdAt);
+        
+        const timeA = dateA ? dateA.getTime() : 0;
+        const timeB = dateB ? dateB.getTime() : 0;
+        
+        return timeB - timeA;
       });
+      
       setProductList(fetchedData);
     } catch (err) {
       console.error('Error fetching products:', err);
+      // Fallback: try to get products without sorting
+      try {
+        const querySnapshot = await getDocs(productsCollection);
+        const fetchedData: Product[] = querySnapshot.docs.map((docProducts) => {
+          const docData = docProducts.data() as Omit<Product, 'id'>;
+          return {
+            ...docData,
+            id: docProducts.id,
+          };
+        });
+        setProductList(fetchedData);
+      } catch (fallbackErr) {
+        console.error('Fallback error fetching products:', fallbackErr);
+        setProductList([]);
+      }
     }
   }, [productsCollection]);
 
@@ -369,51 +528,300 @@ export function ProductsView() {
     };
     fetchAllProductComments();
   }, [getProducts]);
-  
-  
-  
-  // Derived data
-  const filteredProducts = productList.filter((prod: Product) =>
-    prod.product_name.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+
+  // Debug useEffect to monitor productData changes
+  useEffect(() => {
+    console.log('productData changed:', productData);
+    console.log('productData.productOwner:', productData.productOwner);
+  }, [productData]);
+
+  // Derived data with search and category filtering
+  const filteredProducts = useMemo(() => productList.filter((prod: Product) => {
+    const matchesSearch = prod.product_name.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesCategory = selectedCategoryFilter === 'all' || 
+      (prod.category && prod.category.includes(selectedCategoryFilter));
+    return matchesSearch && matchesCategory;
+  }), [productList, searchTerm, selectedCategoryFilter]);
+
+  // Pagination: Calculate paginated products
+  const paginatedProducts = useMemo(() => {
+    const startIndex = table.page * table.rowsPerPage;
+    const endIndex = startIndex + table.rowsPerPage;
+    return filteredProducts.slice(startIndex, endIndex);
+  }, [filteredProducts, table.page, table.rowsPerPage]);
+
+  // Reset page when search term or category filter changes
+  useEffect(() => {
+    table.onResetPage();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchTerm, selectedCategoryFilter]);
+
 
 
   return (
-    <Box sx={{ p: 2 }}>
+    <Box sx={{ p: { xs: 1, sm: 2 } }}>
       <Grid container spacing={2}>
         {/* Left Section (Products Table) */}
         <Grid item xs={12} md={9}>
 
-          {/* Add product button */}
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
-            <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
-              Products
-            </Typography>
-            <Button
-              variant="contained"
-              color="warning"
-              sx={{ textTransform: 'none' }}
-              onClick={() => setOpen(true)}
-            >
-              Add Product
-            </Button>
-          </Box>
+          {/* Modern Top Section */}
+          <Paper 
+            elevation={0}
+            sx={{ 
+              p: { xs: 2, sm: 3 },
+              mb: 3,
+              borderRadius: 3,
+              background: 'linear-gradient(135deg, #FF7E00 0%, #FFD700 100%)',
+              color: 'white',
+            }}
+          >
+            <Box sx={{ 
+              display: 'flex', 
+              flexDirection: { xs: 'column', sm: 'row' },
+              justifyContent: 'space-between', 
+              alignItems: { xs: 'flex-start', sm: 'center' },
+              gap: 2,
+              mb: 3
+            }}>
+              <Box>
+                <Typography 
+                  variant="h4" 
+                  sx={{ 
+                    mb: 0.5, 
+                    fontWeight: 700,
+                    fontSize: { xs: '1.5rem', sm: '2rem' },
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 1.5,
+                    flexWrap: 'wrap'
+                  }}
+                >
+                  Products
+                  <Box
+                    component="span"
+                    sx={{
+                      bgcolor: 'rgba(255, 255, 255, 0.2)',
+                      backdropFilter: 'blur(10px)',
+                      borderRadius: 2,
+                      px: 1.5,
+                      py: 0.5,
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      minWidth: 32,
+                    }}
+                  >
+                    <Typography
+                      component="span"
+                      sx={{
+                        fontWeight: 700,
+                        fontSize: { xs: '0.875rem', sm: '1rem' },
+                        color: 'white',
+                      }}
+                    >
+                      {productList.length}
+                    </Typography>
+                  </Box>
+                </Typography>
+                <Typography 
+                  variant="body2" 
+                  sx={{ 
+                    opacity: 0.9,
+                    fontSize: { xs: '0.75rem', sm: '0.875rem' }
+                  }}
+                >
+                  Manage and organize your product catalog
+                </Typography>
+              </Box>
+              <Box sx={{ 
+                display: 'flex', 
+                gap: 1.5, 
+                width: { xs: '100%', sm: 'auto' }, 
+                flexDirection: { xs: 'column', sm: 'row' } 
+              }}>
+                <Button
+                  variant="contained"
+                  color="inherit"
+                  sx={{ 
+                    textTransform: 'none',
+                    bgcolor: 'rgba(255, 255, 255, 0.2)',
+                    backdropFilter: 'blur(10px)',
+                    color: 'white',
+                    '&:hover': {
+                      bgcolor: 'rgba(255, 255, 255, 0.3)',
+                    },
+                    width: { xs: '100%', sm: 'auto' },
+                    minWidth: { xs: '100%', sm: 120 }
+                  }}
+                  startIcon={<Iconify icon="eva:refresh-fill" />}
+                  onClick={() => {
+                    console.log('Manual refresh triggered');
+                    getProducts();
+                  }}
+                >
+                  Refresh
+                </Button>
+                <Button
+                  variant="contained"
+                  sx={{ 
+                    textTransform: 'none',
+                    bgcolor: 'white',
+                    color: '#FF7E00',
+                    fontWeight: 600,
+                    '&:hover': {
+                      bgcolor: 'rgba(255, 255, 255, 0.9)',
+                    },
+                    width: { xs: '100%', sm: 'auto' },
+                    minWidth: { xs: '100%', sm: 140 }
+                  }}
+                  startIcon={<Iconify icon="eva:plus-fill" />}
+                  onClick={() => setOpen(true)}
+                >
+                  Add Product
+                </Button>
+              </Box>
+            </Box>
 
-
+            {/* Search and Filter Section */}
+            <Box sx={{ 
+              display: 'flex', 
+              gap: 1.5,
+              width: '100%',
+              flexDirection: { xs: 'column', sm: 'row' }
+            }}>
+              <TextField
+                variant="outlined"
+                placeholder="Search products..."
+                size="small"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                InputProps={{
+                  startAdornment: (
+                    <Iconify 
+                      icon="eva:search-fill" 
+                      sx={{ mr: 1, color: 'text.secondary' }} 
+                    />
+                  ),
+                  sx: { 
+                    borderRadius: 2,
+                    bgcolor: 'rgba(255, 255, 255, 0.95)',
+                    '& .MuiOutlinedInput-notchedOutline': {
+                      border: 'none',
+                    },
+                    '&:hover .MuiOutlinedInput-notchedOutline': {
+                      border: 'none',
+                    },
+                    '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                      border: '2px solid rgba(255, 255, 255, 0.5)',
+                    },
+                  },
+                }}
+                sx={{ 
+                  flex: { xs: '1 1 100%', sm: '1 1 auto' },
+                  minWidth: { xs: '100%', sm: 250 }
+                }}
+              />
+              <FormControl 
+                size="small"
+                sx={{ 
+                  minWidth: { xs: '100%', sm: 180 },
+                  bgcolor: 'rgba(255, 255, 255, 0.95)',
+                  borderRadius: 2,
+                  '& .MuiOutlinedInput-notchedOutline': {
+                    border: 'none',
+                  },
+                  '&:hover .MuiOutlinedInput-notchedOutline': {
+                    border: 'none',
+                  },
+                  '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                    border: '2px solid rgba(255, 255, 255, 0.5)',
+                  },
+                }}
+              >
+                <InputLabel 
+                  id="category-filter-label"
+                  sx={{ 
+                    color: 'text.primary',
+                    '&.Mui-focused': {
+                      color: 'text.primary',
+                    }
+                  }}
+                 />
+                <Select
+                  labelId="category-filter-label"
+                  value={selectedCategoryFilter}
+                  onChange={(e) => setSelectedCategoryFilter(e.target.value)}
+                  label="Category"
+                  sx={{
+                    borderRadius: 2,
+                    '& .MuiSelect-select': {
+                      py: 1.25,
+                    }
+                  }}
+                >
+                  <MenuItem value="all">
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <Iconify icon="eva:grid-fill" width={18} />
+                      All Categories
+                    </Box>
+                  </MenuItem>
+                  {availableCategories.map((category) => (
+                    <MenuItem key={category} value={category}>
+                      {category}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Box>
+          </Paper>
 
           {/* Dialog Start */}
 
-          <Dialog open={open} onClose={() => setOpen(false)}>
-            <DialogTitle>Add Product</DialogTitle>
-            <DialogContent>
+          <Dialog 
+            open={open} 
+            onClose={() => {
+              setOpen(false);
+              setDuplicateError(null); // Clear error when dialog closes
+            }}
+            fullWidth
+            maxWidth="sm"
+            PaperProps={{
+              sx: {
+                m: { xs: 1, sm: 2 },
+                maxHeight: { xs: '95vh', sm: '90vh' },
+                width: { xs: '100%', sm: 'auto' }
+              }
+            }}
+          >
+            <DialogTitle sx={{ pb: 1 }}>Add Product</DialogTitle>
+            <DialogContent sx={{ 
+              overflowY: 'auto',
+              '&::-webkit-scrollbar': {
+                width: '8px',
+              },
+              '&::-webkit-scrollbar-thumb': {
+                backgroundColor: 'rgba(0,0,0,0.2)',
+                borderRadius: '4px',
+              },
+            }}>
+              {duplicateError && (
+                <Alert severity="error" sx={{ mb: 2 }} onClose={() => setDuplicateError(null)}>
+                  {duplicateError}
+                </Alert>
+              )}
               <TextField
                 margin="dense"
                 label="Product Name"
                 name="product_name"
                 fullWidth
                 value={productData.product_name}
-                onChange={handleChange}
+                onChange={(e) => {
+                  handleChange(e as React.ChangeEvent<HTMLInputElement>);
+                  setDuplicateError(null); // Clear error when user types
+                }}
                 required
+                error={!!duplicateError}
+                helperText={duplicateError || 'Enter a unique product name'}
               />
               <FormControl fullWidth margin="dense" required>
                 <InputLabel id="category-multiselect-label">Category</InputLabel>
@@ -470,9 +878,13 @@ export function ProductsView() {
                 <InputLabel id="product-owner-select-label">Product Owner</InputLabel>
                 <Select
                   labelId="product-owner-select-label"
-                  value={productData.productOwner}
+                  value={productData.productOwner || ''}
                   onChange={(e) => {
-                    setProductData({ ...productData, productOwner: e.target.value });
+                    const newValue = e.target.value as string;
+                    console.log('Product Owner changed to:', newValue);
+                    console.log('Previous productData.productOwner:', productData.productOwner);
+                    setProductData({ ...productData, productOwner: newValue });
+                    console.log('Updated productData.productOwner should be:', newValue);
                   }}
                   MenuProps={{
                     PaperProps: {
@@ -484,22 +896,100 @@ export function ProductsView() {
                   }}
                   label="Product Owner"
                 >
-                  {availableProductOwners.map((owner) => (
-                    <MenuItem key={owner} value={owner}>
+                  {availableProductOwners.map((owner, index) => (
+                    <MenuItem key={`${owner}-${index}`} value={owner}>
                       {owner}
                     </MenuItem>
                   ))}
                 </Select>
               </FormControl>
+              
+              <Box sx={{ mt: 2, mb: 1 }}>
+                <Typography variant="subtitle2" gutterBottom>Product Thumbnail</Typography>
+                <Box sx={{ border: '1px dashed grey', p: { xs: 1, sm: 2 }, borderRadius: 1, textAlign: 'center' }}>
+                  {productThumbnailFile || productData.mainImage ? (
+                    <Box sx={{ position: 'relative', width: '100%', height: { xs: 200, sm: 300 }, mb: 1, overflow: 'hidden' }}>
+                      <Box
+                        component="img"
+                        src={productThumbnailFile ? URL.createObjectURL(productThumbnailFile) : productData.mainImage}
+                        alt="Product thumbnail"
+                        sx={{
+                          width: '100%',
+                          height: '100%',
+                          objectFit: 'cover',
+                          borderRadius: 1,
+                          position: 'absolute',
+                          top: 0,
+                          left: 0
+                        }}
+                      />
+                    </Box>
+                  ) : (
+                    <Box 
+                      sx={{ 
+                        width: '100%', 
+                        height: { xs: 120, sm: 150 }, 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        justifyContent: 'center',
+                        bgcolor: 'background.neutral',
+                        borderRadius: 1,
+                        mb: 1
+                      }}
+                    >
+                      <Typography variant="body2" color="text.secondary" sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>
+                        No image selected
+                      </Typography>
+                    </Box>
+                  )}
+                  
+                  <input
+                    accept="image/*"
+                    type="file"
+                    style={{ display: 'none' }}
+                    id="product-thumbnail-upload"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        setProductThumbnailFile(file);
+                      }
+                    }}
+                  />
+                  <label htmlFor="product-thumbnail-upload" style={{ width: '100%', display: 'block' }}>
+                    <Button
+                      variant="outlined"
+                      component="span"
+                      size="small"
+                      fullWidth
+                      startIcon={<Iconify icon="eva:cloud-upload-fill" />}
+                      sx={{ mt: 1 }}
+                    >
+                      {productThumbnailFile || productData.mainImage ? 'Change Image' : 'Upload Image'}
+                    </Button>
+                  </label>
+                </Box>
+              </Box>
             </DialogContent>
-            <DialogActions>
-              <Button onClick={() => setOpen(false)} disabled={isAddingProduct}>Cancel</Button>
+            <DialogActions sx={{ 
+              flexDirection: { xs: 'column', sm: 'row' },
+              gap: { xs: 1, sm: 0 },
+              px: { xs: 2, sm: 3 },
+              pb: { xs: 2, sm: 2 }
+            }}>
+              <Button 
+                onClick={() => setOpen(false)} 
+                disabled={isAddingProduct}
+                sx={{ width: { xs: '100%', sm: 'auto' }, order: { xs: 2, sm: 1 } }}
+              >
+                Cancel
+              </Button>
               <Button
                 onClick={handleAddProduct}
                 variant="contained"
                 color="primary"
                 disabled={isAddingProduct}
                 startIcon={isAddingProduct ? <CircularProgress color="inherit" size={20} /> : null}
+                sx={{ width: { xs: '100%', sm: 'auto' }, order: { xs: 1, sm: 2 } }}
               >
                 {isAddingProduct ? 'Adding...' : 'Add'}
               </Button>
@@ -508,38 +998,37 @@ export function ProductsView() {
 
           {/* Dialog End  */}
 
-          {/* Search bar */}
-          <Paper sx={{ p: 1, mb: 2 }}>
-            <TextField
-              variant="outlined"
-              fullWidth
-              placeholder="Search"
-              size="small"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              InputProps={{
-                sx: { borderRadius: 2 },
-              }}
-            />
-          </Paper>
-
           {/* Table */}
-          <TableContainer component={Paper} sx={{ borderRadius: 2, overflow: 'hidden' }}>
-            <Table>
+          <TableContainer 
+            component={Paper} 
+            sx={{ 
+              borderRadius: 2, 
+              overflowX: 'auto',
+              '&::-webkit-scrollbar': {
+                height: '8px',
+              },
+              '&::-webkit-scrollbar-thumb': {
+                backgroundColor: 'rgba(0,0,0,0.2)',
+                borderRadius: '4px',
+              },
+            }}
+          >
+            <Table sx={{ minWidth: 800 }}>
               <TableHead>
                 <TableRow>
-                  <TableCell>THUMBNAIL</TableCell>
-                  <TableCell>NAME</TableCell>
-                  <TableCell>CATEGORY</TableCell>
-                  <TableCell>TOTAL COMMENTS</TableCell>
-                  <TableCell>POSITIVE REVIEWS</TableCell>
+                  <TableCell sx={{ minWidth: 100 }}>THUMBNAIL</TableCell>
+                  <TableCell sx={{ minWidth: 150 }}>NAME</TableCell>
+                  <TableCell sx={{ minWidth: 150 }}>CATEGORY</TableCell>
+                  <TableCell sx={{ minWidth: 120 }}>TOTAL COMMENTS</TableCell>
+                  <TableCell sx={{ minWidth: 120 }}>POSITIVE REVIEWS</TableCell>
+                  <TableCell sx={{ minWidth: 150 }}>LAST MODIFIED</TableCell>
                   {/* <TableCell>TOTAL VIEWS</TableCell> */}
-                  <TableCell>STATUS</TableCell>
-                  <TableCell align="right" />
+                  <TableCell sx={{ minWidth: 100 }}>STATUS</TableCell>
+                  <TableCell align="right" sx={{ minWidth: 80 }} />
                 </TableRow>
               </TableHead>
               <TableBody>
-                {filteredProducts.map((product) => (
+                {paginatedProducts.map((product) => (
                   <TableRow
                     hover
                     key={product.id}
@@ -547,17 +1036,62 @@ export function ProductsView() {
                     style={{ cursor: 'pointer' }}
                   >
                     <TableCell>
-                    <img 
-          src={product?.mainImage || '/placeholder.svg?height=300&width=600&text='}
-          alt={product?.product_name}
-          style={{
-            width: '100%',
-            height: 'auto',
-            maxHeight: '80%',
-            objectFit: 'cover',
-            borderRadius: '8px'
-          }}
-        />
+                      <Box
+                        sx={{
+                          width: '100%',
+                          height: '80px',
+                          borderRadius: '8px',
+                          overflow: 'hidden',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          bgcolor: 'grey.100',
+                          position: 'relative'
+                        }}
+                      >
+                        {product?.mainImage ? (
+                          <img 
+                            src={product.mainImage}
+                            alt={product.product_name}
+                            style={{
+                              width: '100%',
+                              height: '100%',
+                              objectFit: 'cover'
+                            }}
+                            onError={(e) => {
+                              // Fallback to placeholder if image fails to load
+                              const target = e.target as HTMLImageElement;
+                              target.style.display = 'none';
+                              target.nextElementSibling?.setAttribute('style', 'display: flex');
+                            }}
+                          />
+                        ) : null}
+                        <Box
+                          sx={{
+                            display: product?.mainImage ? 'none' : 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            width: '100%',
+                            height: '100%',
+                            bgcolor: 'grey.200'
+                          }}
+                        >
+                          <Iconify 
+                            icon="eva:shopping-bag-fill" 
+                            width={24} 
+                            height={24} 
+                            sx={{ color: 'grey.500', mb: 0.5 }}
+                          />
+                          <Typography 
+                            variant="caption" 
+                            color="text.secondary"
+                            sx={{ fontSize: '0.7rem', textAlign: 'center' }}
+                          >
+                            No Image
+                          </Typography>
+                        </Box>
+                      </Box>
                     </TableCell>
                     <TableCell>
                         {product.product_name}
@@ -587,6 +1121,32 @@ export function ProductsView() {
                         .filter(comment => comment.parentId === product.id)
                         .filter(comment => comment.userSentiment === "Agree").length}
                     </TableCell>
+                    <TableCell>
+                      <Box>
+                        {(() => {
+                          const { timestamp, type } = getMostRecentTimestamp(product);
+                          if (!timestamp) {
+                            return (
+                              <Typography variant="body2" color="text.secondary">
+                                N/A
+                              </Typography>
+                            );
+                          }
+                          return (
+                            <Box>
+                              <Typography variant="body2" color="text.secondary">
+                                {formatReadableDate(timestamp)}
+                              </Typography>
+                              {type === 'created' && (
+                                <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.7rem' }}>
+                                  (created)
+                                </Typography>
+                              )}
+                            </Box>
+                          );
+                        })()}
+                      </Box>
+                    </TableCell>
             
                     {/* <TableCell>{product.total_views}</TableCell> */}
                     <TableCell>
@@ -603,10 +1163,12 @@ export function ProductsView() {
                     </TableCell>
                   </TableRow>
                 ))}
-                {filteredProducts.length === 0 && (
+                {paginatedProducts.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={5} align="center">
-                      <Typography variant="body2">No products found</Typography>
+                    <TableCell colSpan={8} align="center">
+                      <Typography variant="body2">
+                        {filteredProducts.length === 0 ? 'No products found' : 'No products on this page'}
+                      </Typography>
                     </TableCell>
                   </TableRow>
                 )}
@@ -615,24 +1177,48 @@ export function ProductsView() {
 
             {/* Pagination */}
             <TablePagination
-              rowsPerPageOptions={[5, 10, 25]}
+              rowsPerPageOptions={[5, 10, 25, 50, 100]}
               component="div"
               count={filteredProducts.length}
               rowsPerPage={table.rowsPerPage}
               page={table.page}
               onPageChange={table.onChangePage}
               onRowsPerPageChange={table.onChangeRowsPerPage}
+              labelRowsPerPage="Rows per page:"
+              labelDisplayedRows={({ from, to, count }) => `${from}-${to} of ${count !== -1 ? count : `more than ${to}`}`}
+              sx={{
+                '& .MuiTablePagination-toolbar': {
+                  flexWrap: 'wrap',
+                  gap: 1,
+                },
+                '& .MuiTablePagination-selectLabel, & .MuiTablePagination-displayedRows': {
+                  fontSize: { xs: '0.75rem', sm: '0.875rem' },
+                },
+              }}
             />
           </TableContainer>
         </Grid>
 
         {/* Right Section (Donut Chart & Stats) */}
-        <Grid item xs={12} md={3}>
+        <Grid item xs={12} md={3} sx={{ order: { xs: -1, md: 0 } }}>
           <Paper sx={{ p: 2, borderRadius: 2 }} elevation={1}>
             <ProductStats products={productList} />
           </Paper>
         </Grid>
       </Grid>
+      <Snackbar
+        open={snackbarOpen}
+        autoHideDuration={5000}
+        onClose={() => setSnackbarOpen(false)}
+      >
+        <Alert
+          onClose={() => setSnackbarOpen(false)}
+          severity={snackbarSeverity}
+          sx={{ width: '100%' }}
+        >
+          {snackbarMessage}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 }   // End of ProductsView

@@ -1,8 +1,8 @@
 import type { IconButtonProps } from '@mui/material/IconButton';
 
-import { useState, useCallback } from 'react';
 import { getAuth } from 'firebase/auth';
-import { app } from 'src/firebaseConfig';
+import { useState, useCallback } from 'react';
+
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Avatar from '@mui/material/Avatar';
@@ -16,6 +16,7 @@ import MenuItem, { menuItemClasses } from '@mui/material/MenuItem';
 import { useRouter, usePathname } from 'src/routes/hooks';
 
 import { _myAccount } from 'src/_mock';
+import { app } from 'src/firebaseConfig';
 
 
 // ----------------------------------------------------------------------

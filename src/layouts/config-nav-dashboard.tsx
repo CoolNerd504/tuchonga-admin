@@ -1,62 +1,41 @@
-import { Label } from 'src/components/label';
-import { SvgColor } from 'src/components/svg-color';
+import { Iconify } from 'src/components/iconify';
 
 // ----------------------------------------------------------------------
-
-const icon = (name: string) => (
-  <SvgColor width="100%" height="100%" src={`/assets/icons/navbar/${name}.svg`} />
-);
 
 export const navData = [
   {
     title: 'Dashboard',
     path: '/',
-    icon: icon('ic-analytics'),
+    icon: <Iconify icon="solar:graph-up-bold" width={24} />,
   },
   {
     title: 'Staff Member',
     path: '/staff',
-    icon: icon('ic-user'),
+    icon: <Iconify icon="solar:users-group-two-rounded-bold" width={24} />,
   },
   {
-    title: 'Users ',
+    title: 'Users',
     path: '/user',
-    icon: icon('ic-user'),
+    icon: <Iconify icon="solar:users-group-rounded-bold" width={24} />,
   },
   {
     title: 'Categories',
     path: '/categories',
-    icon: icon('ic-glass-bag'),
-    // info: (
-    //   <Label color="error" variant="inverted">
-    //     +3
-    //   </Label>
-    // ),
+    icon: <Iconify icon="solar:folder-bold" width={24} />,
   },
   {
-    title: 'Product',
+    title: 'Products',
     path: '/products',
-    icon: icon('ic-cart'),
-    // info: (
-    //   <Label color="error" variant="inverted">
-    //     +3
-    //   </Label>
-    // ),
+    icon: <Iconify icon="solar:bag-heart-bold" width={24} />,
   },
   {
     title: 'Services',
     path: '/services',
-    icon: icon('ic-cart'),
-    // info: (
-    //   <Label color="error" variant="inverted">
-    //     +3
-    //   </Label>
-    // ),
+    icon: <Iconify icon="solar:widget-bold" width={24} />,
   },
   {
-    title: 'Business Owners ',
+    title: 'Business Owners',
     path: '/business',
-    icon: icon('ic-user'),
+    icon: <Iconify icon="solar:buildings-bold" width={24} />,
   },
-
 ];

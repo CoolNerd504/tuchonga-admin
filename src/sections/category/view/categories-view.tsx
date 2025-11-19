@@ -1,32 +1,35 @@
-import { useState, useEffect, useMemo ,useCallback} from 'react';
+import { useMemo, useState, useEffect ,useCallback} from 'react';
+import { doc, addDoc, getDocs, updateDoc, collection } from 'firebase/firestore';
+
 import {
   Box,
   Grid,
   Paper,
-  Typography,
-  TextField,
   Table,
-  Dialog,
-  Snackbar,
   Alert,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
-  TableHead,
+  Dialog,
+  Button,
+  Select,
+  Snackbar,
   TableRow,
+  MenuItem,
+  TextField,
+  TableHead,
   TableCell,
   TableBody,
-  Button,
-  TableContainer,
-  TablePagination,
-  FormControl,
+  Typography,
   InputLabel,
-  Select,
-  MenuItem
+  DialogTitle,
+  FormControl,
+  DialogActions,
+  DialogContent,
+  TableContainer,
+  TablePagination
 } from '@mui/material';
-import { collection, getDocs, addDoc, doc, updateDoc, query, where } from 'firebase/firestore';
+
+import { Iconify } from 'src/components/iconify';
+
 import { firebaseDB } from '../../../firebaseConfig';
-import CategoryStats from '../stats/categories-stats';
 
 
 
@@ -55,6 +58,7 @@ export function CategoryView() {
 
   // Add filter state
   const [typeFilter, setTypeFilter] = useState<'all' | 'product' | 'service'>('all');
+  const [searchTerm, setSearchTerm] = useState('');
 
   const categoriesCollection = useMemo(() => collection(firebaseDB, 'categories'), []);
 
@@ -121,25 +125,26 @@ export function CategoryView() {
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10); // Changed to 10
 
-  // Filter categories based on type filter
+  // Filter categories based on type filter and search
   const filteredCategories = useMemo(() => {
-    if (typeFilter === 'all') {
-      return categories;
-    }
-    return categories.filter(category => category.type === typeFilter);
-  }, [categories, typeFilter]);
-
-  // Get balanced categories (5 of each type if available)
-  const balancedCategories = useMemo(() => {
-    if (typeFilter !== 'all') {
-      return filteredCategories;
-    }
-
-    const productCategories = categories.filter(cat => cat.type === 'product').slice(0, 5);
-    const serviceCategories = categories.filter(cat => cat.type === 'service').slice(0, 5);
+    let filtered = categories;
     
-    return [...productCategories, ...serviceCategories];
-  }, [categories, typeFilter, filteredCategories]);
+    // Filter by type
+    if (typeFilter !== 'all') {
+      filtered = filtered.filter(category => category.type === typeFilter);
+    }
+    
+    // Filter by search term
+    if (searchTerm) {
+      filtered = filtered.filter(category => 
+        category.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        category.description.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    }
+    
+    return filtered;
+  }, [categories, typeFilter, searchTerm]);
+
 
   const handleChangePage = (event: unknown, newPage: number) => {
     setPage(newPage);
@@ -156,7 +161,7 @@ export function CategoryView() {
   }, [typeFilter]);
 
  // Add state for category assignments
- const [categoryAssignments, setCategoryAssignments] = useState<Record<string, number>>({});
+ const [, setCategoryAssignments] = useState<Record<string, number>>({});
             
  // Add this function to fetch products and count category assignments
  const fetchCategoryAssignments = useCallback(async () => {
@@ -187,60 +192,266 @@ export function CategoryView() {
  }, [fetchCategories, fetchCategoryAssignments]);
  
   return (
-    <Box sx={{ p: 2 }}>
+    <Box sx={{ p: { xs: 1, sm: 2 } }}>
       <Grid container spacing={2}>
-      <Grid item xs={12} md={9}>
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
-            <Typography variant="h6" sx={{ fontWeight: 600 }}>
-              Categories
-            </Typography>
-            <Button
-              variant="contained"
-              color="warning"
-              onClick={() => setOpen(true)}
-            >
-              Add Category
-            </Button>
-          </Box>
+        <Grid item xs={12} md={9}>
+          {/* Modern Top Section */}
+          <Paper 
+            elevation={0}
+            sx={{ 
+              p: { xs: 2, sm: 3 },
+              mb: 3,
+              borderRadius: 3,
+              background: 'linear-gradient(135deg, #FF7E00 0%, #FFD700 100%)',
+              color: 'white',
+            }}
+          >
+            <Box sx={{ 
+              display: 'flex', 
+              flexDirection: { xs: 'column', sm: 'row' },
+              justifyContent: 'space-between', 
+              alignItems: { xs: 'flex-start', sm: 'center' },
+              gap: 2,
+              mb: 3
+            }}>
+              <Box>
+                <Typography 
+                  variant="h4" 
+                  sx={{ 
+                    mb: 0.5, 
+                    fontWeight: 700,
+                    fontSize: { xs: '1.5rem', sm: '2rem' },
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 1.5,
+                    flexWrap: 'wrap'
+                  }}
+                >
+                  Categories
+                  <Box
+                    component="span"
+                    sx={{
+                      bgcolor: 'rgba(255, 255, 255, 0.2)',
+                      backdropFilter: 'blur(10px)',
+                      borderRadius: 2,
+                      px: 1.5,
+                      py: 0.5,
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      minWidth: 32,
+                    }}
+                  >
+                    <Typography
+                      component="span"
+                      sx={{
+                        fontWeight: 700,
+                        fontSize: { xs: '0.875rem', sm: '1rem' },
+                        color: 'white',
+                      }}
+                    >
+                      {categories.length}
+                    </Typography>
+                  </Box>
+                </Typography>
+                <Typography 
+                  variant="body2" 
+                  sx={{ 
+                    opacity: 0.9,
+                    fontSize: { xs: '0.75rem', sm: '0.875rem' }
+                  }}
+                >
+                  Manage and organize product and service categories
+                </Typography>
+              </Box>
+              <Box sx={{ 
+                display: 'flex', 
+                gap: 1.5, 
+                width: { xs: '100%', sm: 'auto' }, 
+                flexDirection: { xs: 'column', sm: 'row' } 
+              }}>
+                <Button
+                  variant="contained"
+                  color="inherit"
+                  sx={{ 
+                    textTransform: 'none',
+                    bgcolor: 'rgba(255, 255, 255, 0.2)',
+                    backdropFilter: 'blur(10px)',
+                    color: 'white',
+                    '&:hover': {
+                      bgcolor: 'rgba(255, 255, 255, 0.3)',
+                    },
+                    width: { xs: '100%', sm: 'auto' },
+                    minWidth: { xs: '100%', sm: 120 }
+                  }}
+                  startIcon={<Iconify icon="eva:refresh-fill" />}
+                  onClick={() => {
+                    fetchCategories();
+                  }}
+                >
+                  Refresh
+                </Button>
+                <Button
+                  variant="contained"
+                  sx={{ 
+                    textTransform: 'none',
+                    bgcolor: 'white',
+                    color: '#FF7E00',
+                    fontWeight: 600,
+                    '&:hover': {
+                      bgcolor: 'rgba(255, 255, 255, 0.9)',
+                    },
+                    width: { xs: '100%', sm: 'auto' },
+                    minWidth: { xs: '100%', sm: 140 }
+                  }}
+                  startIcon={<Iconify icon="eva:plus-fill" />}
+                  onClick={() => setOpen(true)}
+                >
+                  Add Category
+                </Button>
+              </Box>
+            </Box>
 
-          {/* Add filter controls */}
-          <Box sx={{ mb: 2 }}>
-            <FormControl sx={{ minWidth: 200 }}>
-              <InputLabel>Filter by Type</InputLabel>
-              <Select
-                value={typeFilter}
-                label="Filter by Type"
-                onChange={(e) => setTypeFilter(e.target.value as 'all' | 'product' | 'service')}
+            {/* Search and Filter Section */}
+            <Box sx={{ 
+              display: 'flex', 
+              gap: 1.5,
+              width: '100%',
+              flexDirection: { xs: 'column', sm: 'row' }
+            }}>
+              <TextField
+                variant="outlined"
+                placeholder="Search categories..."
+                size="small"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                InputProps={{
+                  startAdornment: (
+                    <Iconify 
+                      icon="eva:search-fill" 
+                      sx={{ mr: 1, color: 'text.secondary' }} 
+                    />
+                  ),
+                  sx: { 
+                    borderRadius: 2,
+                    bgcolor: 'rgba(255, 255, 255, 0.95)',
+                    '& .MuiOutlinedInput-notchedOutline': {
+                      border: 'none',
+                    },
+                    '&:hover .MuiOutlinedInput-notchedOutline': {
+                      border: 'none',
+                    },
+                    '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                      border: '2px solid rgba(255, 255, 255, 0.5)',
+                    },
+                  },
+                }}
+                sx={{ 
+                  flex: { xs: '1 1 100%', sm: '1 1 auto' },
+                  minWidth: { xs: '100%', sm: 250 }
+                }}
+              />
+              <FormControl 
+                size="small"
+                sx={{ 
+                  minWidth: { xs: '100%', sm: 180 },
+                  bgcolor: 'rgba(255, 255, 255, 0.95)',
+                  borderRadius: 2,
+                  '& .MuiOutlinedInput-notchedOutline': {
+                    border: 'none',
+                  },
+                  '&:hover .MuiOutlinedInput-notchedOutline': {
+                    border: 'none',
+                  },
+                  '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                    border: '2px solid rgba(255, 255, 255, 0.5)',
+                  },
+                }}
               >
-                <MenuItem value="all">All Types</MenuItem>
-                <MenuItem value="product">Product Categories</MenuItem>
-                <MenuItem value="service">Service Categories</MenuItem>
-              </Select>
-            </FormControl>
-          </Box>
+                <InputLabel 
+                  id="type-filter-label"
+                  sx={{ 
+                    color: 'text.primary',
+                    '&.Mui-focused': {
+                      color: 'text.primary',
+                    }
+                  }}
+                 />
+                <Select
+                  labelId="type-filter-label"
+                  value={typeFilter}
+                  label="Type"
+                  onChange={(e) => setTypeFilter(e.target.value as 'all' | 'product' | 'service')}
+                  sx={{
+                    borderRadius: 2,
+                    '& .MuiSelect-select': {
+                      py: 1.25,
+                    }
+                  }}
+                >
+                  <MenuItem value="all">
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <Iconify icon="eva:grid-fill" width={18} />
+                      All Types
+                    </Box>
+                  </MenuItem>
+                  <MenuItem value="product">Product Categories</MenuItem>
+                  <MenuItem value="service">Service Categories</MenuItem>
+                </Select>
+              </FormControl>
+            </Box>
+          </Paper>
 
-          <TableContainer component={Paper} sx={{ borderRadius: 2, overflow: 'hidden' }}>
-            <Table>
+          {/* Display Table of Categories */}
+          <TableContainer 
+            component={Paper} 
+            sx={{ 
+              overflowX: 'auto',
+              borderRadius: 2,
+            }}
+          >
+            <Table sx={{ minWidth: 600 }}>
               <TableHead>
                 <TableRow>
-                  <TableCell>NAME</TableCell>
-                  <TableCell>TYPE</TableCell>
-                  <TableCell>DESCRIPTION</TableCell>
-                  <TableCell>ACTIONS</TableCell>
+                  <TableCell sx={{ minWidth: 200 }}>Name</TableCell>
+                  <TableCell sx={{ minWidth: 120 }}>Type</TableCell>
+                  <TableCell sx={{ minWidth: 250 }}>Description</TableCell>
+                  <TableCell sx={{ minWidth: 100 }}>Actions</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
-                {balancedCategories
+                {filteredCategories
                   .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
                   .map((category) => (
                     <TableRow key={category.id}>
-                      <TableCell>{category.name}</TableCell>
-                      <TableCell>{category.type}</TableCell>
-                      <TableCell>{category.description}</TableCell>
+                      <TableCell>
+                        <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
+                          {category.name}
+                        </Typography>
+                      </TableCell>
+                      <TableCell>
+                        <Box
+                          component="span"
+                          sx={{
+                            px: 1.5,
+                            py: 0.5,
+                            borderRadius: 1,
+                            bgcolor: category.type === 'product' ? 'primary.lighter' : 'secondary.lighter',
+                            color: category.type === 'product' ? 'primary.darker' : 'secondary.darker',
+                            fontSize: '0.75rem',
+                            fontWeight: 600,
+                            textTransform: 'capitalize',
+                          }}
+                        >
+                          {category.type}
+                        </Box>
+                      </TableCell>
+                      <TableCell>{category.description || 'N/A'}</TableCell>
                       <TableCell>
                         <Button
                           size="small"
                           color="primary"
+                          variant="outlined"
                           onClick={() => {
                             setEditMode(true);
                             setSelectedCategory(category);
@@ -257,16 +468,36 @@ export function CategoryView() {
                       </TableCell>
                     </TableRow>
                   ))}
+                {filteredCategories.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={4} align="center">
+                      <Typography variant="body2">
+                        No categories found
+                      </Typography>
+                    </TableCell>
+                  </TableRow>
+                )}
               </TableBody>
             </Table>
             <TablePagination
-              rowsPerPageOptions={[10, 25, 50]}
+              rowsPerPageOptions={[5, 10, 25, 50, 100]}
               component="div"
-              count={balancedCategories.length}
+              count={filteredCategories.length}
               rowsPerPage={rowsPerPage}
               page={page}
               onPageChange={handleChangePage}
               onRowsPerPageChange={handleChangeRowsPerPage}
+              labelRowsPerPage="Rows per page:"
+              labelDisplayedRows={({ from, to, count }) => `${from}-${to} of ${count !== -1 ? count : `more than ${to}`}`}
+              sx={{
+                '& .MuiTablePagination-toolbar': {
+                  flexWrap: 'wrap',
+                  gap: 1,
+                },
+                '& .MuiTablePagination-selectLabel, & .MuiTablePagination-displayedRows': {
+                  fontSize: { xs: '0.75rem', sm: '0.875rem' },
+                },
+              }}
             />
           </TableContainer>
         </Grid>

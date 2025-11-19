@@ -1,17 +1,17 @@
 import { lazy, Suspense } from 'react';
+import { getAuth } from 'firebase/auth';
 import { Outlet, Navigate, useRoutes } from 'react-router-dom';
 
 import Box from '@mui/material/Box';
 import LinearProgress, { linearProgressClasses } from '@mui/material/LinearProgress';
 
+import { app } from 'src/firebaseConfig';
 import { varAlpha } from 'src/theme/styles';
-import { AuthLayout } from 'src/layouts/auth';
 import { DashboardLayout } from 'src/layouts/dashboard';
+
 import { BusinessDetail } from 'src/sections/owner/view/owner-view-selected';
 import { ProductDetail } from 'src/sections/product/view/product-view-selected';
 import { ServiceDetail } from 'src/sections/service/view/service-view-selected';
-import { app } from 'src/firebaseConfig';
-import { getAuth } from 'firebase/auth';
 
 // ----------------------------------------------------------------------
 

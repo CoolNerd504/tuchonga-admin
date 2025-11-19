@@ -1,53 +1,49 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+// Recharts imports
+
+
 import { useNavigate } from 'react-router-dom';
+import React, { useMemo, useState, useEffect, useCallback } from 'react';
+import {
+  doc,
+  query,
+  where,
+  addDoc, getDocs, updateDoc, collection, serverTimestamp
+} from 'firebase/firestore';
+
+import CheckIcon from '@mui/icons-material/Check';
 import {
   Box,
   Grid,
-  Paper,
-  Typography,
-  TextField,
-  Checkbox,
   Chip,
-  TableContainer,
+  Paper,
   Table,
+  Alert,
   Dialog,
-  MenuItem,
-  Snackbar, Alert,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
-  TableHead,
+  Button,
+  Select,
+  MenuItem, Snackbar,
   TableRow,
+  TextField,
+  TableHead,
   TableCell,
   TableBody,
+  Typography,
   IconButton,
-  Button,
-  TablePagination,
-  Avatar,
-  FormControl,
   InputLabel,
-  Select,
+  DialogTitle,
+  FormControl,
+  DialogActions,
+  DialogContent,
+  TableContainer,
+  TablePagination,
+  CircularProgress,
 } from '@mui/material';
-import { Iconify } from 'src/components/iconify';
-import CheckIcon from '@mui/icons-material/Check';
 
-// Recharts imports
-import {
-  PieChart,
-  Pie,
-  Cell,
-  Tooltip,
-} from 'recharts';
-import {
-  getDocs,
-  collection,
-  addDoc,
-  doc, getDoc, query, where
-} from 'firebase/firestore';
-// import { MenuItem } from '@mui/material';
-import { UserTableToolbar } from '../service-table-toolbar';
-import { firebaseDB } from '../../../firebaseConfig';
+import { Iconify } from 'src/components/iconify';
+
 import ServiceStats from '../stats/service-stats';
+import { firebaseDB } from '../../../firebaseConfig';
+// import { MenuItem } from '@mui/material';
 
 
 
@@ -69,7 +65,8 @@ interface Service {
   comments: string[];
   isActive: boolean;
   service_owner: string;
-  createdAt?: Date;
+  createdAt?: any; // Firestore Timestamp or Date
+  updatedAt?: any; // Firestore Timestamp or Date
 }
 // Interface for a Comment that can belong to a Product or a Service
 interface ProductOrServiceComment {
@@ -103,12 +100,7 @@ export function TableNoData({ isNotFound }: TableNoDataProps) {
 }
 
 
-const STATS = {
-  totalViews: 102,
-  totalComments: 14,
-  totalReviews: 8,
-  totalProducts: 30,
-};
+// Removed unused STATS constant
 
 
 
@@ -120,7 +112,7 @@ const STATS = {
 function useTable() {
   const [page, setPage] = useState(0);
   const [orderBy, setOrderBy] = useState('name');
-  const [rowsPerPage, setRowsPerPage] = useState(5);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
   const [selected, setSelected] = useState<string[]>([]);
   const [order, setOrder] = useState<'asc' | 'desc'>('asc');
 
@@ -179,6 +171,8 @@ export function ServicesView() {
   const [serviceComments, setServiceComments] = useState<ProductOrServiceComment[]>([]);
   const [serviceList, setServiceList] = useState<Service[]>([]);
   const [availableServiceOwners, setAvailableServiceOwners] = useState<string[]>([]);
+  const [serviceThumbnailFile, setServiceThumbnailFile] = useState<File | null>(null);
+  const [isAddingService, setIsAddingService] = useState(false);
   const [serviceData, setServiceData] = useState<Service>({
     id: '',
     service_name: '',
@@ -195,12 +189,12 @@ export function ServicesView() {
     service_owner: 'SetLater'
   });
   const [open, setOpen] = useState(false);
-  const [selectedService, setSelectedProduct] = useState<Service | null>(null);
-  const [filterName, setFilterName] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string>('all');
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
   const [snackbarSeverity, setSnackbarSeverity] = useState<'success' | 'error'>('success');
+  const [duplicateError, setDuplicateError] = useState<string | null>(null);
   const table = useTable();
   const navigate = useNavigate();
   // Firestore collection reference
@@ -220,16 +214,80 @@ export function ServicesView() {
   };
 
   const handleAddService = async () => {
+    // Defensive: Prevent submission if required fields are missing
+    if (!serviceData.service_name || !serviceData.category.length) {
+      setSnackbarMessage('Please fill all required fields.');
+      setSnackbarSeverity('error');
+      setSnackbarOpen(true);
+      return;
+    }
+
+    setIsAddingService(true);
     try {
+      // Check for duplicate service name (case-insensitive)
+      const serviceNameLower = serviceData.service_name.trim().toLowerCase();
+      
+      // First check against current serviceList
+      let hasDuplicate = serviceList.some((service) => {
+        const existingName = service.service_name?.toLowerCase().trim();
+        return existingName === serviceNameLower;
+      });
+
+      // If not found in list, double-check against Firestore to be sure
+      if (!hasDuplicate) {
+        const allServicesSnapshot = await getDocs(servicesCollection);
+        hasDuplicate = allServicesSnapshot.docs.some((docSnapshot) => {
+          const existingName = docSnapshot.data().service_name?.toLowerCase().trim();
+          return existingName === serviceNameLower;
+        });
+      }
+
+      if (hasDuplicate) {
+        const errorMsg = `Service name "${serviceData.service_name}" already exists! Please choose a different name.`;
+        setDuplicateError(errorMsg);
+        setSnackbarMessage(`❌ ${errorMsg}`);
+        setSnackbarSeverity('error');
+        setSnackbarOpen(true);
+        setIsAddingService(false);
+        return;
+      }
+
+      // Clear any previous duplicate errors
+      setDuplicateError(null);
+
+      // Create a service data object to submit
+      const serviceDataToSubmit: any = {
+        service_name: serviceData.service_name,
+        category: serviceData.category,
+        description: serviceData.description,
+        reviews: 0,
+        positive_reviews: 0,
+        total_reviews: 0,
+        total_views: 0,
+        comments: [],
+        isActive: true,
+        service_owner: serviceData.service_owner,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      };
+      
+      // Upload thumbnail if provided
+      if (serviceThumbnailFile) {
+        const { ref, uploadBytes, getDownloadURL } = await import('firebase/storage');
+        const { storage } = await import('../../../firebaseConfig');
+        const storageRef = ref(storage, `service_thumbnails/${Date.now()}_${serviceThumbnailFile.name}`);
+        const snapshot = await uploadBytes(storageRef, serviceThumbnailFile);
+        const url = await getDownloadURL(snapshot.ref);
+        serviceDataToSubmit.mainImage = url;
+      }
+      
       // Log the data being sent
-      console.log('Adding service:', {
-        ...serviceData,
-        createdAt: new Date(),
-      });
-      await addDoc(servicesCollection, {
-        ...serviceData,
-        createdAt: new Date(),
-      });
+      console.log('Adding service:', serviceDataToSubmit);
+      
+      // Submit data to Firestore
+      const docRef = await addDoc(servicesCollection, serviceDataToSubmit);
+      console.log('Service added with ID:', docRef);
+      
       // Reset form and close dialog
       setServiceData({
         id: '',
@@ -246,7 +304,10 @@ export function ServicesView() {
         isActive: true,
         service_owner: 'SetLater'
       });
+      setServiceThumbnailFile(null);
+      setDuplicateError(null); // Clear any duplicate errors
       setOpen(false);
+      
       // Refresh the services list
       getServices();
       setSnackbarMessage('Service added successfully!');
@@ -257,17 +318,111 @@ export function ServicesView() {
       setSnackbarMessage('Failed to add service.');
       setSnackbarSeverity('error');
       setSnackbarOpen(true);
+    } finally {
+      setIsAddingService(false);
     }
   };
 
 
   // console.log('Selected List:', serviceList);
+  
+  // Helper function to get the most recent timestamp for a service
+  const getMostRecentTimestamp = (service: Service): { timestamp: any; type: 'updated' | 'created' } => {
+    if (service.updatedAt) {
+      return { timestamp: service.updatedAt, type: 'updated' };
+    }
+    if (service.createdAt) {
+      return { timestamp: service.createdAt, type: 'created' };
+    }
+    return { timestamp: null, type: 'created' };
+  };
+
+  // Helper function to convert Firestore timestamp to Date
+  const convertToDate = (timestamp: any): Date | null => {
+    if (!timestamp) return null;
+    
+    try {
+      // Handle Firestore Timestamp objects
+      if (timestamp && typeof timestamp === 'object' && timestamp.toDate) {
+        return timestamp.toDate();
+      }
+      // Handle JavaScript Date objects
+      if (timestamp instanceof Date) {
+        return timestamp;
+      }
+      // Handle string or number timestamps
+      const date = new Date(timestamp);
+      return Number.isNaN(date.getTime()) ? null : date;
+    } catch (error) {
+      console.error('Error converting timestamp:', error, 'Value:', timestamp);
+      return null;
+    }
+  };
+
+  // Utility function to format dates in a readable way
+  const formatReadableDate = (date: Date | string | any) => {
+    if (!date) return 'N/A';
+    
+    try {
+      const dateObj = convertToDate(date);
+      if (!dateObj) {
+        return 'N/A';
+      }
+      
+      const now = new Date();
+      const diffInMs = now.getTime() - dateObj.getTime();
+      const diffInMinutes = Math.floor(diffInMs / (1000 * 60));
+      const diffInHours = Math.floor(diffInMs / (1000 * 60 * 60));
+      const diffInDays = Math.floor(diffInMs / (1000 * 60 * 60 * 24));
+      
+      if (diffInMinutes < 1) {
+        return 'Just now';
+      }
+      if (diffInMinutes < 60) {
+        return `${diffInMinutes} minute${diffInMinutes > 1 ? 's' : ''} ago`;
+      }
+      if (diffInHours < 24) {
+        return `${diffInHours} hour${diffInHours > 1 ? 's' : ''} ago`;
+      }
+      if (diffInDays < 7) {
+        return `${diffInDays} day${diffInDays > 1 ? 's' : ''} ago`;
+      }
+      // For older dates, show the actual date
+      return dateObj.toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    } catch (error) {
+      console.error('Error formatting date:', error, 'Date value:', date);
+      return 'N/A';
+    }
+  };
+
+  // Utility function to update service's updatedAt field
+  // Note: Currently unused but kept for future use
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const updateServiceTimestamp = async (serviceId: string) => {
+    try {
+      const serviceRef = doc(firebaseDB, 'services', serviceId);
+      await updateDoc(serviceRef, {
+        updatedAt: serverTimestamp()
+      });
+      console.log(`Updated timestamp for service: ${serviceId}`);
+    } catch (error) {
+      console.error('Error updating service timestamp:', error);
+    }
+  };
+
   // Move Firestore collection reference to useMemo
   const servicesCollection = useMemo(() => collection(firebaseDB, 'services'), []);
 
   // Update getServices with stable dependency
   const getServices = useCallback(async () => {
     try {
+      // First try to get all services without ordering to ensure we get all services
       const querySnapshot = await getDocs(servicesCollection);
       const fetchedData: Service[] = querySnapshot.docs.map((docService) => {
         const docData = docService.data() as Omit<Service, 'id'>;
@@ -276,15 +431,39 @@ export function ServicesView() {
           id: docService.id,
         };
       });
-      // Sort by createdAt descending
+      
+      // Sort by updatedAt descending (latest updated first) with fallback to createdAt
       fetchedData.sort((a, b) => {
-        const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-        const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-        return dateB - dateA;
+        // Use updatedAt if available, otherwise fall back to createdAt
+        const dateA = convertToDate(a.updatedAt || a.createdAt);
+        const dateB = convertToDate(b.updatedAt || b.createdAt);
+        
+        const timeA = dateA ? dateA.getTime() : 0;
+        const timeB = dateB ? dateB.getTime() : 0;
+        
+        return timeB - timeA;
       });
+      
+      console.log(`Fetched ${fetchedData.length} services`);
       setServiceList(fetchedData);
     } catch (err) {
       console.error('Error fetching services:', err);
+      // Fallback: try to get services without sorting
+      try {
+        const querySnapshot = await getDocs(servicesCollection);
+        const fetchedData: Service[] = querySnapshot.docs.map((docService) => {
+          const docData = docService.data() as Omit<Service, 'id'>;
+          return {
+            ...docData,
+            id: docService.id,
+          };
+        });
+        console.log(`Fallback: Fetched ${fetchedData.length} services`);
+        setServiceList(fetchedData);
+      } catch (fallbackErr) {
+        console.error('Fallback error fetching services:', fallbackErr);
+        setServiceList([]);
+      }
     }
   }, [servicesCollection]);
 
@@ -332,10 +511,19 @@ export function ServicesView() {
       try {
         const businessesCollection = collection(firebaseDB, 'businesses');
         const querySnapshot = await getDocs(businessesCollection);
-        const owners = querySnapshot.docs
-          .map(docPO => docPO.data())
-          .map(owner => owner.name || owner.owner_name || owner.id);
-        setAvailableServiceOwners(['SetLater', ...owners]);
+        // Store as objects with id and name to avoid duplicate key issues
+        const owners = querySnapshot.docs.map((docPO) => {
+          const data = docPO.data();
+          return {
+            id: docPO.id,
+            name: data.name || data.owner_name || docPO.id,
+          };
+        });
+        // Remove duplicates by name, keeping the first occurrence
+        const uniqueOwners = Array.from(
+          new Map(owners.map(owner => [owner.name, owner])).values()
+        );
+        setAvailableServiceOwners(['SetLater', ...uniqueOwners.map(owner => owner.name)]);
       } catch (error) {
         console.error('Error fetching service owners:', error);
         setAvailableServiceOwners(['SetLater']);
@@ -344,44 +532,291 @@ export function ServicesView() {
     fetchServiceOwners();
   }, []);
 
-  // Derived data
-  const filteredServices = serviceList.filter((service: Service) =>
-    service.service_name.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // Derived data with search and category filtering
+  const filteredServices = useMemo(() => serviceList.filter((service: Service) => {
+    const matchesSearch = service.service_name.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesCategory = selectedCategoryFilter === 'all' || 
+      (service.category && service.category.includes(selectedCategoryFilter));
+    return matchesSearch && matchesCategory;
+  }), [serviceList, searchTerm, selectedCategoryFilter]);
+
+  // Pagination: Calculate paginated services
+  const paginatedServices = useMemo(() => {
+    const startIndex = table.page * table.rowsPerPage;
+    const endIndex = startIndex + table.rowsPerPage;
+    return filteredServices.slice(startIndex, endIndex);
+  }, [filteredServices, table.page, table.rowsPerPage]);
+
+  // Reset page when search term or category filter changes
+  useEffect(() => {
+    table.onResetPage();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchTerm, selectedCategoryFilter]);
 
   const [categoryMenuOpen, setCategoryMenuOpen] = useState(false);
 
   return (
-    <Box sx={{ p: 2 }}>
+    <Box sx={{ p: { xs: 1, sm: 2 } }}>
       <Grid container spacing={3}>
         {/* Left Section (Services Table) */}
         <Grid item xs={12} md={9}>
-          {/* Add product button */}
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
-            <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
-              Services
-            </Typography>
-            <Button
-              variant="contained"
-              color="warning"
-              sx={{ textTransform: 'none' }}
-              onClick={() => setOpen(true)}
-            >
-              Add Service
-            </Button>
-          </Box>
+          {/* Modern Top Section */}
+          <Paper 
+            elevation={0}
+            sx={{ 
+              p: { xs: 2, sm: 3 },
+              mb: 3,
+              borderRadius: 3,
+              background: 'linear-gradient(135deg, #FFD700 0%, #FF7E00 100%)',
+              color: 'white',
+            }}
+          >
+            <Box sx={{ 
+              display: 'flex', 
+              flexDirection: { xs: 'column', sm: 'row' },
+              justifyContent: 'space-between', 
+              alignItems: { xs: 'flex-start', sm: 'center' },
+              gap: 2,
+              mb: 3
+            }}>
+              <Box>
+                <Typography 
+                  variant="h4" 
+                  sx={{ 
+                    mb: 0.5, 
+                    fontWeight: 700,
+                    fontSize: { xs: '1.5rem', sm: '2rem' },
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 1.5,
+                    flexWrap: 'wrap'
+                  }}
+                >
+                  Services
+                  <Box
+                    component="span"
+                    sx={{
+                      bgcolor: 'rgba(255, 255, 255, 0.2)',
+                      backdropFilter: 'blur(10px)',
+                      borderRadius: 2,
+                      px: 1.5,
+                      py: 0.5,
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      minWidth: 32,
+                    }}
+                  >
+                    <Typography
+                      component="span"
+                      sx={{
+                        fontWeight: 700,
+                        fontSize: { xs: '0.875rem', sm: '1rem' },
+                        color: 'white',
+                      }}
+                    >
+                      {serviceList.length}
+                    </Typography>
+                  </Box>
+                </Typography>
+                <Typography 
+                  variant="body2" 
+                  sx={{ 
+                    opacity: 0.9,
+                    fontSize: { xs: '0.75rem', sm: '0.875rem' }
+                  }}
+                >
+                  Manage and organize your service offerings
+                </Typography>
+              </Box>
+              <Box sx={{ 
+                display: 'flex', 
+                gap: 1.5, 
+                width: { xs: '100%', sm: 'auto' }, 
+                flexDirection: { xs: 'column', sm: 'row' } 
+              }}>
+                <Button
+                  variant="contained"
+                  color="inherit"
+                  sx={{ 
+                    textTransform: 'none',
+                    bgcolor: 'rgba(255, 255, 255, 0.2)',
+                    backdropFilter: 'blur(10px)',
+                    color: 'white',
+                    '&:hover': {
+                      bgcolor: 'rgba(255, 255, 255, 0.3)',
+                    },
+                    width: { xs: '100%', sm: 'auto' },
+                    minWidth: { xs: '100%', sm: 120 }
+                  }}
+                  startIcon={<Iconify icon="eva:refresh-fill" />}
+                  onClick={() => {
+                    console.log('Manual refresh triggered');
+                    getServices();
+                  }}
+                >
+                  Refresh
+                </Button>
+                <Button
+                  variant="contained"
+                  sx={{ 
+                    textTransform: 'none',
+                    bgcolor: 'white',
+                    color: '#FF7E00',
+                    fontWeight: 600,
+                    '&:hover': {
+                      bgcolor: 'rgba(255, 255, 255, 0.9)',
+                    },
+                    width: { xs: '100%', sm: 'auto' },
+                    minWidth: { xs: '100%', sm: 140 }
+                  }}
+                  startIcon={<Iconify icon="eva:plus-fill" />}
+                  onClick={() => setOpen(true)}
+                >
+                  Add Service
+                </Button>
+              </Box>
+            </Box>
+
+            {/* Search and Filter Section */}
+            <Box sx={{ 
+              display: 'flex', 
+              gap: 1.5,
+              width: '100%',
+              flexDirection: { xs: 'column', sm: 'row' }
+            }}>
+              <TextField
+                variant="outlined"
+                placeholder="Search services..."
+                size="small"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                InputProps={{
+                  startAdornment: (
+                    <Iconify 
+                      icon="eva:search-fill" 
+                      sx={{ mr: 1, color: 'text.secondary' }} 
+                    />
+                  ),
+                  sx: { 
+                    borderRadius: 2,
+                    bgcolor: 'rgba(255, 255, 255, 0.95)',
+                    '& .MuiOutlinedInput-notchedOutline': {
+                      border: 'none',
+                    },
+                    '&:hover .MuiOutlinedInput-notchedOutline': {
+                      border: 'none',
+                    },
+                    '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                      border: '2px solid rgba(255, 255, 255, 0.5)',
+                    },
+                  },
+                }}
+                sx={{ 
+                  flex: { xs: '1 1 100%', sm: '1 1 auto' },
+                  minWidth: { xs: '100%', sm: 250 }
+                }}
+              />
+              <FormControl 
+                size="small"
+                sx={{ 
+                  minWidth: { xs: '100%', sm: 180 },
+                  bgcolor: 'rgba(255, 255, 255, 0.95)',
+                  borderRadius: 2,
+                  '& .MuiOutlinedInput-notchedOutline': {
+                    border: 'none',
+                  },
+                  '&:hover .MuiOutlinedInput-notchedOutline': {
+                    border: 'none',
+                  },
+                  '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                    border: '2px solid rgba(255, 255, 255, 0.5)',
+                  },
+                }}
+              >
+                <InputLabel 
+                  id="service-category-filter-label"
+                  sx={{ 
+                    color: 'text.primary',
+                    '&.Mui-focused': {
+                      color: 'text.primary',
+                    }
+                  }}
+                 />
+                <Select
+                  labelId="service-category-filter-label"
+                  value={selectedCategoryFilter}
+                  onChange={(e) => setSelectedCategoryFilter(e.target.value)}
+                  label="Category"
+                  sx={{
+                    borderRadius: 2,
+                    '& .MuiSelect-select': {
+                      py: 1.25,
+                    }
+                  }}
+                >
+                  <MenuItem value="all">
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <Iconify icon="eva:grid-fill" width={18} />
+                      All Categories
+                    </Box>
+                  </MenuItem>
+                  {availableCategories.map((category) => (
+                    <MenuItem key={category} value={category}>
+                      {category}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Box>
+          </Paper>
 
           {/* Dialog Start */}
-          <Dialog open={open} onClose={() => setOpen(false)}>
-            <DialogTitle>Add Service</DialogTitle>
-            <DialogContent>
+          <Dialog 
+            open={open} 
+            onClose={() => {
+              setOpen(false);
+              setDuplicateError(null); // Clear error when dialog closes
+            }}
+            fullWidth
+            maxWidth="sm"
+            PaperProps={{
+              sx: {
+                m: { xs: 1, sm: 2 },
+                maxHeight: { xs: '95vh', sm: '90vh' },
+                width: { xs: '100%', sm: 'auto' }
+              }
+            }}
+          >
+            <DialogTitle sx={{ pb: 1 }}>Add Service</DialogTitle>
+            <DialogContent sx={{ 
+              overflowY: 'auto',
+              '&::-webkit-scrollbar': {
+                width: '8px',
+              },
+              '&::-webkit-scrollbar-thumb': {
+                backgroundColor: 'rgba(0,0,0,0.2)',
+                borderRadius: '4px',
+              },
+            }}>
+              {duplicateError && (
+                <Alert severity="error" sx={{ mb: 2 }} onClose={() => setDuplicateError(null)}>
+                  {duplicateError}
+                </Alert>
+              )}
               <TextField
                 margin="dense"
                 label="Service Name"
                 name="service_name"
                 fullWidth
+                required
                 value={serviceData.service_name}
-                onChange={handleChange}
+                onChange={(e) => {
+                  handleChange(e as React.ChangeEvent<HTMLInputElement>);
+                  setDuplicateError(null); // Clear error when user types
+                }}
+                error={!!duplicateError}
+                helperText={duplicateError || 'Enter a unique service name'}
               />
               <FormControl fullWidth margin="dense" required>
                 <InputLabel id="category-multiselect-label">Category</InputLabel>
@@ -456,90 +891,201 @@ export function ServicesView() {
                   }}
                   label="Service Owner"
                 >
-                  {availableServiceOwners.map((owner) => (
-                    <MenuItem key={owner} value={owner}>
+                  {availableServiceOwners.map((owner, index) => (
+                    <MenuItem key={`${owner}-${index}`} value={owner}>
                       {owner}
                     </MenuItem>
                   ))}
                 </Select>
               </FormControl>
+              
+              <Box sx={{ mt: 2, mb: 1 }}>
+                <Typography variant="subtitle2" gutterBottom>Service Thumbnail</Typography>
+                <Box sx={{ border: '1px dashed grey', p: { xs: 1, sm: 2 }, borderRadius: 1, textAlign: 'center' }}>
+                  {serviceThumbnailFile || serviceData.mainImage ? (
+                    <Box sx={{ position: 'relative', width: '100%', height: { xs: 200, sm: 300 }, mb: 1, overflow: 'hidden' }}>
+                      <Box
+                        component="img"
+                        src={serviceThumbnailFile ? URL.createObjectURL(serviceThumbnailFile) : serviceData.mainImage}
+                        alt="Service thumbnail"
+                        sx={{
+                          width: '100%',
+                          height: '100%',
+                          objectFit: 'cover',
+                          borderRadius: 1,
+                          position: 'absolute',
+                          top: 0,
+                          left: 0
+                        }}
+                      />
+                    </Box>
+                  ) : (
+                    <Box 
+                      sx={{ 
+                        width: '100%', 
+                        height: { xs: 120, sm: 150 }, 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        justifyContent: 'center',
+                        bgcolor: 'background.neutral',
+                        borderRadius: 1,
+                        mb: 1
+                      }}
+                    >
+                      <Typography variant="body2" color="text.secondary" sx={{ fontSize: { xs: '0.75rem', sm: '0.875rem' } }}>
+                        No image selected
+                      </Typography>
+                    </Box>
+                  )}
+                  
+                  <input
+                    accept="image/*"
+                    type="file"
+                    style={{ display: 'none' }}
+                    id="service-thumbnail-upload"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        setServiceThumbnailFile(file);
+                      }
+                    }}
+                  />
+                  <label htmlFor="service-thumbnail-upload" style={{ width: '100%', display: 'block' }}>
+                    <Button
+                      variant="outlined"
+                      component="span"
+                      size="small"
+                      fullWidth
+                      startIcon={<Iconify icon="eva:cloud-upload-fill" />}
+                      sx={{ mt: 1 }}
+                    >
+                      {serviceThumbnailFile || serviceData.mainImage ? 'Change Image' : 'Upload Image'}
+                    </Button>
+                  </label>
+                </Box>
+              </Box>
             </DialogContent>
-            <DialogActions>
-              <Button onClick={() => setOpen(false)}>Cancel</Button>
-              <Button onClick={handleAddService} variant="contained" color="primary">
-                Submit
+            <DialogActions sx={{ 
+              flexDirection: { xs: 'column', sm: 'row' },
+              gap: { xs: 1, sm: 0 },
+              px: { xs: 2, sm: 3 },
+              pb: { xs: 2, sm: 2 }
+            }}>
+              <Button 
+                onClick={() => setOpen(false)} 
+                disabled={isAddingService}
+                sx={{ width: { xs: '100%', sm: 'auto' }, order: { xs: 2, sm: 1 } }}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleAddService}
+                variant="contained"
+                color="primary"
+                disabled={isAddingService}
+                startIcon={isAddingService ? <CircularProgress color="inherit" size={20} /> : null}
+                sx={{ width: { xs: '100%', sm: 'auto' }, order: { xs: 1, sm: 2 } }}
+              >
+                {isAddingService ? 'Adding...' : 'Add'}
               </Button>
             </DialogActions>
           </Dialog>
           {/* Dialog End */}
 
-          {/* Search bar */}
-          <Paper sx={{ p: 1, mb: 2 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center' }}>
-              <TextField
-                variant="outlined"
-                fullWidth
-                placeholder="Search services..."
-                size="small"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                onKeyPress={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    // Search functionality is already handled by filteredServices
-                  }
-                }}
-                InputProps={{
-                  sx: { borderRadius: 2 },
-                  endAdornment: (
-                    <IconButton 
-                      onClick={() => {
-                        // Search functionality is already handled by filteredServices
-                      }}
-                      edge="end"
-                    >
-                      <Iconify icon="eva:search-fill" />
-                    </IconButton>
-                  ),
-                }}
-              />
-            </Box>
-          </Paper>
-
           {/* Service Table Start */}
-          <TableContainer component={Paper} sx={{ borderRadius: 2, overflow: 'hidden' }}>
-            <Table>
+          <TableContainer 
+            component={Paper} 
+            sx={{ 
+              borderRadius: 2, 
+              overflowX: 'auto',
+              '&::-webkit-scrollbar': {
+                height: '8px',
+              },
+              '&::-webkit-scrollbar-thumb': {
+                backgroundColor: 'rgba(0,0,0,0.2)',
+                borderRadius: '4px',
+              },
+            }}
+          >
+            <Table sx={{ minWidth: 800 }}>
               <TableHead>
                 <TableRow>
-                  <TableCell>THUMBNAIL</TableCell>
-                  <TableCell>NAME</TableCell>
-                  <TableCell>CATEGORIES</TableCell>
-                  <TableCell>RATING</TableCell>
-                  <TableCell>TOTAL REVIEWS</TableCell>
-                  <TableCell>TOTAL VIEWS</TableCell>
-                  <TableCell>STATUS</TableCell>
-                  <TableCell align="right" />
+                  <TableCell sx={{ minWidth: 100 }}>THUMBNAIL</TableCell>
+                  <TableCell sx={{ minWidth: 150 }}>NAME</TableCell>
+                  <TableCell sx={{ minWidth: 150 }}>CATEGORIES</TableCell>
+                  <TableCell sx={{ minWidth: 120 }}>TOTAL COMMENTS</TableCell>
+                  <TableCell sx={{ minWidth: 120 }}>POSITIVE REVIEWS</TableCell>
+                  <TableCell sx={{ minWidth: 150 }}>LAST MODIFIED</TableCell>
+                  <TableCell sx={{ minWidth: 100 }}>STATUS</TableCell>
+                  <TableCell align="right" sx={{ minWidth: 80 }} />
                 </TableRow>
               </TableHead>
               <TableBody>
-                {filteredServices.map((service) => (
+                {paginatedServices.map((service) => (
                   <TableRow
                     hover
                     key={service.id}
                     onClick={() => handleSelectRow(service)}
                     style={{ cursor: 'pointer' }}
                   >
- <TableCell>   <img 
-          src={service?.mainImage || '/placeholder.svg?height=300&width=600&text='}
-          alt={service?.service_name}
-          style={{
-            width: '100%',
-            height: 'auto',
-            maxHeight: '80%',
-            objectFit: 'cover',
-            borderRadius: '8px'
-          }}
-        /></TableCell>
+                    <TableCell>
+                      <Box
+                        sx={{
+                          width: '100%',
+                          height: '80px',
+                          borderRadius: '8px',
+                          overflow: 'hidden',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          bgcolor: 'grey.100',
+                          position: 'relative'
+                        }}
+                      >
+                        {service?.mainImage ? (
+                          <img 
+                            src={service.mainImage}
+                            alt={service.service_name}
+                            style={{
+                              width: '100%',
+                              height: '100%',
+                              objectFit: 'cover'
+                            }}
+                            onError={(e) => {
+                              // Fallback to placeholder if image fails to load
+                              const target = e.target as HTMLImageElement;
+                              target.style.display = 'none';
+                              target.nextElementSibling?.setAttribute('style', 'display: flex');
+                            }}
+                          />
+                        ) : null}
+                        <Box
+                          sx={{
+                            display: service?.mainImage ? 'none' : 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            width: '100%',
+                            height: '100%',
+                            bgcolor: 'grey.200'
+                          }}
+                        >
+                          <Iconify 
+                            icon="eva:briefcase-fill" 
+                            width={24} 
+                            height={24} 
+                            sx={{ color: 'grey.500', mb: 0.5 }}
+                          />
+                          <Typography 
+                            variant="caption" 
+                            color="text.secondary"
+                            sx={{ fontSize: '0.7rem', textAlign: 'center' }}
+                          >
+                            No Image
+                          </Typography>
+                        </Box>
+                      </Box>
+                    </TableCell>
  <TableCell>{service.service_name}</TableCell>
                     <TableCell>
                       <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
@@ -553,10 +1099,42 @@ export function ServicesView() {
                         ))}
                       </Box>
                     </TableCell>
-                   
-                    <TableCell>{service.total_reviews}</TableCell>
-                    <TableCell>{service.total_views}</TableCell>
-                    <TableCell>{service.total_views}</TableCell>
+                    <TableCell>
+                      {serviceComments
+                        .filter(comment => comment.parentId === service.id)
+                        .length}
+                    </TableCell>
+                    <TableCell>
+                      {serviceComments
+                        .filter(comment => comment.parentId === service.id)
+                        .filter(comment => comment.userSentiment === "Agree").length}
+                    </TableCell>
+                    <TableCell>
+                      <Box>
+                        {(() => {
+                          const { timestamp, type } = getMostRecentTimestamp(service);
+                          if (!timestamp) {
+                            return (
+                              <Typography variant="body2" color="text.secondary">
+                                N/A
+                              </Typography>
+                            );
+                          }
+                          return (
+                            <Box>
+                              <Typography variant="body2" color="text.secondary">
+                                {formatReadableDate(timestamp)}
+                              </Typography>
+                              {type === 'created' && (
+                                <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.7rem' }}>
+                                  (created)
+                                </Typography>
+                              )}
+                            </Box>
+                          );
+                        })()}
+                      </Box>
+                    </TableCell>
                     <TableCell>  <Chip
                         label={ service.isActive ? 'Active' : 'Inactive'}
                         color={service.isActive ? 'success' : 'error'}
@@ -571,10 +1149,12 @@ export function ServicesView() {
 
 
                 ))}
-                {filteredServices.length === 0 && (
+                {paginatedServices.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={5} align="center">
-                      <Typography variant="body2">No services found</Typography>
+                    <TableCell colSpan={8} align="center">
+                      <Typography variant="body2">
+                        {filteredServices.length === 0 ? 'No services found' : 'No services on this page'}
+                      </Typography>
                     </TableCell>
                   </TableRow>
                 )}
@@ -583,13 +1163,24 @@ export function ServicesView() {
 
             {/* Pagination */}
             <TablePagination
-              rowsPerPageOptions={[5, 10, 25]}
+              rowsPerPageOptions={[5, 10, 25, 50, 100]}
               component="div"
               count={filteredServices.length}
               rowsPerPage={table.rowsPerPage}
               page={table.page}
               onPageChange={table.onChangePage}
               onRowsPerPageChange={table.onChangeRowsPerPage}
+              labelRowsPerPage="Rows per page:"
+              labelDisplayedRows={({ from, to, count }) => `${from}-${to} of ${count !== -1 ? count : `more than ${to}`}`}
+              sx={{
+                '& .MuiTablePagination-toolbar': {
+                  flexWrap: 'wrap',
+                  gap: 1,
+                },
+                '& .MuiTablePagination-selectLabel, & .MuiTablePagination-displayedRows': {
+                  fontSize: { xs: '0.75rem', sm: '0.875rem' },
+                },
+              }}
             />
           </TableContainer>
           {/* Service Table  End */}
@@ -597,7 +1188,7 @@ export function ServicesView() {
         </Grid>
 
         {/* Right Section (Donut Chart & Stats) */}
-        <Grid item xs={12} md={3} >
+        <Grid item xs={12} md={3} sx={{ order: { xs: -1, md: 0 } }}>
           <Paper sx={{ p: 2, borderRadius: 2, height: '100%' }} elevation={1}>
             <ServiceStats services={serviceList} />
           </Paper>

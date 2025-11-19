@@ -38,7 +38,7 @@ export function ProductItem({ product }: { product: ProductItemProps }) {
     </Label>
   );
 
-  const renderImg = (
+  const renderImg = product.coverUrl ? (
     <Box
       component="img"
       alt={product.name}
@@ -51,6 +51,23 @@ export function ProductItem({ product }: { product: ProductItemProps }) {
         position: 'absolute',
       }}
     />
+  ) : (
+    <Box
+      sx={{
+        top: 0,
+        width: 1,
+        height: 1,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        position: 'absolute',
+        bgcolor: 'background.neutral',
+      }}
+    >
+      <Typography variant="body2" color="text.secondary">
+        No image available
+      </Typography>
+    </Box>
   );
 
   const renderPrice = (

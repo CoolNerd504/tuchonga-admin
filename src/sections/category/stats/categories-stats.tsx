@@ -1,6 +1,7 @@
 import React from "react";
-import { Box, Grid, Typography } from "@mui/material";
-import { PieChart, Pie, Cell, Tooltip } from "recharts";
+import { Pie, Cell, Tooltip, PieChart } from "recharts";
+
+import { Box, Typography } from "@mui/material";
 
 interface Category {
     id: string;
@@ -15,61 +16,18 @@ interface CategoryStatsProps {
 }
 
 const CategoryStats: React.FC<CategoryStatsProps> = ({ categories, categoryAssignments = {} }) => {
-    // Aggregate stats
-
-    const totalProducts = categories?.length;
-
-
-    // Generate chart data based on categories
- 
-
     // Aggregate stats for products and services
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const productCategories = categories?.filter(cat => cat.type === 'product') || [];
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const serviceCategories = categories?.filter(cat => cat.type === 'service') || [];
 
-    // Count categories by type
-    const categoryCounts = {
-        products: productCategories.length,
-        services: serviceCategories.length
-    };
-
-    const totalCategories = categories?.length || 0;
-
-    // Chart data for category distribution
-    const chartData = [
-        { name: 'Product Categories', value: categoryCounts.products, color: '#FF9B33' },
-        { name: 'Service Categories', value: categoryCounts.services, color: '#83D475' }
-    ];
-
-    // Generate chart data based on category types
-    const typeDistribution = {
-        product: productCategories.length,
-        service: serviceCategories.length
-    };
-
-    // Count categories assigned to products and services
-    const assignedCategoryCounts = {
-        products: productCategories.length,
-        services: serviceCategories.length
-    };
-
-    // Chart data for assigned categories
-    // const assignedChartData = [
-    //     { name: 'Products', value: assignedCategoryCounts.products, color: '#FF9B33' },
-    //     { name: 'Services', value: assignedCategoryCounts.services, color: '#83D475' }
-    // ];
-
     // Count total categories by type
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const totalCategoryCounts = {
         products: categories?.filter(cat => cat.type === 'product').length || 0,
         services: categories?.filter(cat => cat.type === 'service').length || 0
     };
-
-    // Chart data for total categories
-    const totalChartData = [
-        { name: 'Product Categories', value: totalCategoryCounts.products, color: '#FFE381' },
-        { name: 'Service Categories', value: totalCategoryCounts.services, color: '#FF9B33' }
-    ];
 
     // Generate chart data based on categories with names
     // Generate separate assignments for products and services

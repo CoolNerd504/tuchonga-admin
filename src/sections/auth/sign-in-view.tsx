@@ -1,17 +1,21 @@
-import { useState, useCallback } from 'react';
-import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth';
+import { useState } from 'react';
+import { signInWithEmailAndPassword } from 'firebase/auth';
+
 import Box from '@mui/material/Box';
 import Link from '@mui/material/Link';
+import Alert from '@mui/material/Alert';
 import Divider from '@mui/material/Divider';
 import TextField from '@mui/material/TextField';
 import IconButton from '@mui/material/IconButton';
 import Typography from '@mui/material/Typography';
 import LoadingButton from '@mui/lab/LoadingButton';
 import InputAdornment from '@mui/material/InputAdornment';
-import Alert from '@mui/material/Alert';
+
 import { useRouter } from 'src/routes/hooks';
 
 import { Iconify } from 'src/components/iconify';
+import { Logo } from 'src/components/logo';
+
 import {auth} from "../../firebaseConfig";
 
 // ----------------------------------------------------------------------
@@ -116,12 +120,13 @@ export function SignInView() {
 
   return (
     <>
-      <Box gap={1.5} display="flex" flexDirection="column" alignItems="center" sx={{ mb: 5 }}>
+      <Box display="flex" flexDirection="column" alignItems="center" >
+        <Logo width={300} disableLink />
         <Typography variant="h5">Sign in</Typography>
       </Box>
 
       {renderForm}
-      <Box gap={1.5} display="flex" flexDirection="column" alignItems="center" sx={{ mb: 5 }}>
+      <Box  display="flex" flexDirection="column" alignItems="center">
         <Divider sx={{ width: '100%' }} />
         <Typography variant="body2" color="text.secondary">
           Don’t have an account?

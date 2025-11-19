@@ -4,7 +4,6 @@ import { useState, useCallback } from 'react';
 
 import Box from '@mui/material/Box';
 import List from '@mui/material/List';
-import Badge from '@mui/material/Badge';
 import Button from '@mui/material/Button';
 import Avatar from '@mui/material/Avatar';
 import Divider from '@mui/material/Divider';
@@ -44,10 +43,6 @@ export function NotificationsPopover({ data = [], sx, ...other }: NotificationsP
   const totalUnRead = notifications.filter((item) => item.isUnRead === true).length;
 
   const [openPopover, setOpenPopover] = useState<HTMLButtonElement | null>(null);
-
-  const handleOpenPopover = useCallback((event: React.MouseEvent<HTMLButtonElement>) => {
-    setOpenPopover(event.currentTarget);
-  }, []);
 
   const handleClosePopover = useCallback(() => {
     setOpenPopover(null);

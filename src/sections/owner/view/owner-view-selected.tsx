@@ -1,57 +1,57 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useMemo, useState, useEffect, useCallback } from 'react';
+
+import Tooltip from '@mui/material/Tooltip';
+import { styled } from '@mui/material/styles';
 import {
   Box,
-  Paper,
-  Grid,
-  Typography,
-  Chip,
-  CardContent,
-  Avatar,
-  Card,
-  LinearProgress,
-  Snackbar, Alert,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
   Tab,
+  Grid,
+  Chip,
+  Card,
   Tabs,
-  TextField,
-  IconButton,
+  Paper,
+  Alert,
+  Table, Avatar,
+  Dialog,
   Button,
-  TableContainer,
-  Table,
-  TableHead,
+  Select,
+  Switch,
+  Snackbar,
   TableRow,
+  MenuItem,
+  TextField,
+  TableHead,
   TableCell,
   TableBody,
-  TablePagination,
-  Checkbox,
-  Icon,
-  FormControl,
+  Typography,
+  IconButton,
   InputLabel,
-  Select,
-  MenuItem,
+  DialogTitle,
+  FormControl,
+  DialogActions,
+  DialogContent,
+  LinearProgress,
+  TableContainer,
+  TablePagination,
   FormControlLabel,
-  Switch,
 } from '@mui/material';
-import { styled } from '@mui/material/styles';
-import Tooltip from '@mui/material/Tooltip';
-import CardActions from '@mui/material/CardActions';
 // import Iconify from 'src/components/iconify';
 // import ArrowForwardIosIcon from '@mui/icons-material/ArrowForwardIos';
 
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Iconify } from 'src/components/iconify';
-import CheckIcon from '@mui/icons-material/Check';
 import {
-  getDocs,
-  collection,
+  doc,
   addDoc,
+  getDocs,
   // deleteDoc,
   updateDoc,
-  doc,
+  collection,
 } from 'firebase/firestore';
+
+import CheckIcon from '@mui/icons-material/Check';
+
+import { Iconify } from 'src/components/iconify';
+
 import { firebaseDB } from '../../../firebaseConfig';
 
 // ----------------------------------------------------------------------
@@ -70,10 +70,10 @@ interface Product {
   positive_reviews: number;
   total_reviews: number;
   total_views: number;
-  comments: string[];
+  comments: any[];
   isActive: boolean;
-  productOwner: string
-
+  productOwner: string;
+  coverUrl?: string;
 }
 
 interface Service {
@@ -102,24 +102,11 @@ const HeaderContainer = styled(Paper)(({ theme }) => ({
   marginBottom: theme.spacing(2),
 }));
 
-const CompanyStatsContainer = styled(Box)(({ theme }) => ({
-  display: 'flex',
-  flexDirection: 'column',
-  marginLeft: '10%', // pushes this section to the far right
-  alignItems: 'flex-start',
-  gap: theme.spacing(1),
-}));
-
+// Removed unused styled components: CompanyStatsContainer, RatingLine
 const StatItem = styled(Box)(({ theme }) => ({
   display: 'flex',
   alignItems: 'center',
   gap: theme.spacing(0.5),
-}));
-
-const RatingLine = styled(Box)(({ theme }) => ({
-  display: 'flex',
-  alignItems: 'center',
-  marginBottom: theme.spacing(1),
 }));
 
 
@@ -131,7 +118,7 @@ const RatingLine = styled(Box)(({ theme }) => ({
 function useTable() {
   const [page, setPage] = useState(0);
   const [orderBy, setOrderBy] = useState('name');
-  const [rowsPerPage, setRowsPerPage] = useState(5);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
   const [selected, setSelected] = useState<string[]>([]);
   const [order, setOrder] = useState<'asc' | 'desc'>('asc');
 
@@ -201,6 +188,8 @@ export function BusinessDetail({ onUpdate }: { onUpdate?: () => void }) {
   // Add this near the top of the component with other state declarations
 const [localProductList, setLocalProductList] = useState(productList || []);
 const [localServiceList, setLocalServiceList] = useState(serviceList || []);
+const [productThumbnailFile, setProductThumbnailFile] = useState<File | null>(null);
+
   const [productData, setProductData] = useState<Product>({
     id: '',
     product_name: '',
@@ -213,6 +202,7 @@ const [localServiceList, setLocalServiceList] = useState(serviceList || []);
     comments: [],
     isActive: true,
     productOwner: '',
+    coverUrl: '',
   });
 
   const [serviceData, setServiceData] = useState<Service>({
@@ -287,8 +277,9 @@ const [localServiceList, setLocalServiceList] = useState(serviceList || []);
       // Log business and productData for debugging
       console.log('Adding product with business:', business);
       console.log('Product data:', productData);
-      // Submit data without id field
-      const docRef = await addDoc(productsCollection, {
+      
+      // Create a product data object to submit
+      const productDataToSubmit: any = {
         product_name: productData.product_name,
         category: productData.category,
         description: productData.description,
@@ -299,14 +290,29 @@ const [localServiceList, setLocalServiceList] = useState(serviceList || []);
         comments: [],
         isActive: true,
         productOwner: business.id
-      });
+      };
+      
+      // Upload thumbnail if provided
+      if (productThumbnailFile) {
+        const { ref, uploadBytes, getDownloadURL } = await import('firebase/storage');
+        const { storage } = await import('../../../firebaseConfig');
+        const storageRef = ref(storage, `product_thumbnails/${Date.now()}_${productThumbnailFile.name}`);
+        const snapshot = await uploadBytes(storageRef, productThumbnailFile);
+        const url = await getDownloadURL(snapshot.ref);
+        productDataToSubmit.coverUrl = url;
+      }
+      
+      // Submit data to Firestore
+      const docRef = await addDoc(productsCollection, productDataToSubmit);
       
       const newProduct = {
         ...productData,
         id: docRef.id,
-        productOwner: business.id
+        productOwner: business.id,
+        coverUrl: productDataToSubmit.coverUrl || ''
       };
       setLocalProductList((prev: Product[]) => [...prev, newProduct]);
+      
       // Reset form and close dialog
       setProductData({
         id: '',
@@ -319,8 +325,10 @@ const [localServiceList, setLocalServiceList] = useState(serviceList || []);
         total_views: 0,
         comments: [],
         isActive: true,
-        productOwner: business.id || ''
+        productOwner: business.id || '',
+        coverUrl: ''
       });
+      setProductThumbnailFile(null);
       setOpenAddProduct(false);
       
       // Call onUpdate if provided
@@ -339,7 +347,7 @@ const [localServiceList, setLocalServiceList] = useState(serviceList || []);
     } finally {
       setProductDialogLoading(false);
     }
-  }, [productData, onUpdate, business, productsCollection]);
+  }, [productData, productThumbnailFile, onUpdate, business, productsCollection]);
   const servicesCollection = useMemo(() => collection(firebaseDB, 'services'), []);
 
   // Update getServices with stable dependency
@@ -566,6 +574,67 @@ const [localServiceList, setLocalServiceList] = useState(serviceList || []);
             value={productData.description}
             onChange={handleProductChange}
           />
+          
+          <Box sx={{ mt: 2, mb: 1 }}>
+            <Typography variant="subtitle2" gutterBottom>Product Thumbnail</Typography>
+            <Box sx={{ border: '1px dashed grey', p: 2, borderRadius: 1, textAlign: 'center' }}>
+              {productThumbnailFile || productData.coverUrl ? (
+                <Box sx={{ position: 'relative', width: '100%', height: 150, mb: 1 }}>
+                  <Box
+                    component="img"
+                    src={productThumbnailFile ? URL.createObjectURL(productThumbnailFile) : productData.coverUrl}
+                    alt="Product thumbnail"
+                    sx={{
+                      width: '100%',
+                      height: '100%',
+                      objectFit: 'contain',
+                      borderRadius: 1,
+                    }}
+                  />
+                </Box>
+              ) : (
+                <Box 
+                  sx={{ 
+                    width: '100%', 
+                    height: 150, 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'center',
+                    bgcolor: 'background.neutral',
+                    borderRadius: 1,
+                    mb: 1
+                  }}
+                >
+                  <Typography variant="body2" color="text.secondary">
+                    No image selected
+                  </Typography>
+                </Box>
+              )}
+              
+              <input
+                accept="image/*"
+                type="file"
+                style={{ display: 'none' }}
+                id="product-thumbnail-upload"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    setProductThumbnailFile(file);
+                  }
+                }}
+              />
+              <label htmlFor="product-thumbnail-upload">
+                <Button
+                  variant="outlined"
+                  component="span"
+                  size="small"
+                  startIcon={<Iconify icon="eva:cloud-upload-fill" />}
+                >
+                  {productThumbnailFile || productData.coverUrl ? 'Change Image' : 'Upload Image'}
+                </Button>
+              </label>
+            </Box>
+          </Box>
    
         </DialogContent>
         <DialogActions>

@@ -1,32 +1,38 @@
-import { useState, useCallback, useEffect } from 'react';
-import {  TableCell, TableRow,TableHead,  Paper,IconButton ,Avatar } from '@mui/material';
-import Box from '@mui/material/Box';
-import Card from '@mui/material/Card';
-import Table from '@mui/material/Table';
-import Button from '@mui/material/Button';
-import Dialog from '@mui/material/Dialog';
-import DialogActions from '@mui/material/DialogActions';
-import DialogContent from '@mui/material/DialogContent';
-import DialogTitle from '@mui/material/DialogTitle';
-import TextField from '@mui/material/TextField';
-import TableBody from '@mui/material/TableBody';
-import Typography from '@mui/material/Typography';
-import TableContainer from '@mui/material/TableContainer';
-import TablePagination from '@mui/material/TablePagination';
-import { _users } from 'src/_mock';
-import { DashboardContent } from 'src/layouts/dashboard';
-import { Iconify } from 'src/components/iconify';
-import { Scrollbar } from 'src/components/scrollbar';
+import { useMemo, useState, useEffect, useCallback } from 'react';
 import {
+  addDoc,
   getDocs,
   collection,
-  addDoc,
-  deleteDoc,
-  updateDoc,
   
 } from "firebase/firestore";
+
+import {
+  Box,
+  Grid,
+  Alert,
+  Paper,
+  Table,
+  Button,
+  Dialog,
+  Snackbar,
+  TableRow,
+  TableBody,
+  TableCell,
+  TableHead,
+  TextField,
+  Typography,
+  DialogTitle,
+  DialogActions,
+  DialogContent,
+  TableContainer,
+  TablePagination,
+} from '@mui/material';
+
+import { DashboardContent } from 'src/layouts/dashboard';
+
+import { Iconify } from 'src/components/iconify';
+
 import { firebaseDB } from "../../../firebaseConfig";
-import { UserTableToolbar } from '../user-table-toolbar';
 
 // ----------------------------------------------------------------------
 
@@ -42,6 +48,10 @@ interface Users {
 
 export function UserView() {
   const [open, setOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [snackbarOpen, setSnackbarOpen] = useState(false);
+  const [snackbarMessage, setSnackbarMessage] = useState('');
+  const [snackbarSeverity, setSnackbarSeverity] = useState<'success' | 'error'>('success');
   const [userData, setUserData] = useState<Partial<Users>>({
     email: '',
     isActive: true,
@@ -60,13 +70,26 @@ export function UserView() {
 
   const handleAddUser = async () => {
     try {
-     console.log("STAte",userData )
+      console.log("STAte", userData);
       await addDoc(usersCollection, userData);
-      alert("User added successfully!");
+      setSnackbarMessage('User added successfully!');
+      setSnackbarSeverity('success');
+      setSnackbarOpen(true);
       setOpen(false);
+      setUserData({
+        email: '',
+        isActive: true,
+        location: '',
+        firstname: '',
+        lastname: '',
+        mobile: '',
+      });
+      getUsers();
     } catch (error) {
       console.error("Error adding user:", error);
-      alert("Failed to add user.");
+      setSnackbarMessage('Failed to add user. Please try again.');
+      setSnackbarSeverity('error');
+      setSnackbarOpen(true);
     }
   };
 
@@ -91,33 +114,324 @@ export function UserView() {
     getUsers();
   }, [getUsers]);
 
-  const [filterName, setFilterName] = useState('');
+  // Derived data with search filtering
+  const filteredUsers = useMemo(() => userList.filter((user: Users) => {
+    const matchesSearch = (user.email?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+      (user.firstname?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+      (user.lastname?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+      (user.location?.toLowerCase() || '').includes(searchTerm.toLowerCase());
+    return matchesSearch;
+  }), [userList, searchTerm]);
+
+  // Pagination: Calculate paginated users
+  const paginatedUsers = useMemo(() => {
+    const startIndex = table.page * table.rowsPerPage;
+    const endIndex = startIndex + table.rowsPerPage;
+    return filteredUsers.slice(startIndex, endIndex);
+  }, [filteredUsers, table.page, table.rowsPerPage]);
+
+  // Reset page when search term changes
+  useEffect(() => {
+    table.onResetPage();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchTerm]);
 
   return (
     <DashboardContent>
-      <Box display="flex" alignItems="center" mb={5}>
-        <Typography variant="h4" flexGrow={1}>
-          User Management
-        </Typography>
-        <Button
-          variant="contained"
-          color="inherit"
-          startIcon={<Iconify icon="mingcute:add-line" />}
-          onClick={() => setOpen(true)}
-        >
-          Add User
-        </Button>
+      <Box sx={{ p: { xs: 1, sm: 2 } }}>
+        <Grid container spacing={2}>
+          {/* Left Section (Users Table) */}
+          <Grid item xs={12} md={9}>
+            {/* Modern Top Section */}
+            <Paper 
+              elevation={0}
+              sx={{ 
+                p: { xs: 2, sm: 3 },
+                mb: 3,
+                borderRadius: 3,
+                background: 'linear-gradient(135deg, #FF7E00 0%, #FFD700 100%)',
+                color: 'white',
+              }}
+            >
+              <Box sx={{ 
+                display: 'flex', 
+                flexDirection: { xs: 'column', sm: 'row' },
+                justifyContent: 'space-between', 
+                alignItems: { xs: 'flex-start', sm: 'center' },
+                gap: 2,
+                mb: 3
+              }}>
+                <Box>
+                  <Typography 
+                    variant="h4" 
+                    sx={{ 
+                      mb: 0.5, 
+                      fontWeight: 700,
+                      fontSize: { xs: '1.5rem', sm: '2rem' },
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 1.5,
+                      flexWrap: 'wrap'
+                    }}
+                  >
+                    Users
+                    <Box
+                      component="span"
+                      sx={{
+                        bgcolor: 'rgba(255, 255, 255, 0.2)',
+                        backdropFilter: 'blur(10px)',
+                        borderRadius: 2,
+                        px: 1.5,
+                        py: 0.5,
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        minWidth: 32,
+                      }}
+                    >
+                      <Typography
+                        component="span"
+                        sx={{
+                          fontWeight: 700,
+                          fontSize: { xs: '0.875rem', sm: '1rem' },
+                          color: 'white',
+                        }}
+                      >
+                        {userList.length}
+                      </Typography>
+                    </Box>
+                  </Typography>
+                  <Typography 
+                    variant="body2" 
+                    sx={{ 
+                      opacity: 0.9,
+                      fontSize: { xs: '0.75rem', sm: '0.875rem' }
+                    }}
+                  >
+                    Manage and organize user accounts
+                  </Typography>
+                </Box>
+                <Box sx={{ 
+                  display: 'flex', 
+                  gap: 1.5, 
+                  width: { xs: '100%', sm: 'auto' }, 
+                  flexDirection: { xs: 'column', sm: 'row' } 
+                }}>
+                  <Button
+                    variant="contained"
+                    color="inherit"
+                    sx={{ 
+                      textTransform: 'none',
+                      bgcolor: 'rgba(255, 255, 255, 0.2)',
+                      backdropFilter: 'blur(10px)',
+                      color: 'white',
+                      '&:hover': {
+                        bgcolor: 'rgba(255, 255, 255, 0.3)',
+                      },
+                      width: { xs: '100%', sm: 'auto' },
+                      minWidth: { xs: '100%', sm: 120 }
+                    }}
+                    startIcon={<Iconify icon="eva:refresh-fill" />}
+                    onClick={() => {
+                      getUsers();
+                    }}
+                  >
+                    Refresh
+                  </Button>
+                  <Button
+                    variant="contained"
+                    sx={{ 
+                      textTransform: 'none',
+                      bgcolor: 'white',
+                      color: '#FF7E00',
+                      fontWeight: 600,
+                      '&:hover': {
+                        bgcolor: 'rgba(255, 255, 255, 0.9)',
+                      },
+                      width: { xs: '100%', sm: 'auto' },
+                      minWidth: { xs: '100%', sm: 140 }
+                    }}
+                    startIcon={<Iconify icon="eva:plus-fill" />}
+                    onClick={() => setOpen(true)}
+                  >
+                    Add User
+                  </Button>
+                </Box>
+              </Box>
+
+              {/* Search Section */}
+              <Box sx={{ 
+                display: 'flex', 
+                gap: 1.5,
+                width: '100%',
+                flexDirection: { xs: 'column', sm: 'row' }
+              }}>
+                <TextField
+                  variant="outlined"
+                  placeholder="Search users..."
+                  size="small"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  InputProps={{
+                    startAdornment: (
+                      <Iconify 
+                        icon="eva:search-fill" 
+                        sx={{ mr: 1, color: 'text.secondary' }} 
+                      />
+                    ),
+                    sx: { 
+                      borderRadius: 2,
+                      bgcolor: 'rgba(255, 255, 255, 0.95)',
+                      '& .MuiOutlinedInput-notchedOutline': {
+                        border: 'none',
+                      },
+                      '&:hover .MuiOutlinedInput-notchedOutline': {
+                        border: 'none',
+                      },
+                      '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                        border: '2px solid rgba(255, 255, 255, 0.5)',
+                      },
+                    },
+                  }}
+                  sx={{ 
+                    flex: { xs: '1 1 100%', sm: '1 1 auto' },
+                    minWidth: { xs: '100%', sm: 250 }
+                  }}
+                />
+              </Box>
+            </Paper>
+
+            {/* Display Table of Users */}
+            <TableContainer 
+              component={Paper} 
+              sx={{ 
+                overflowX: 'auto',
+                borderRadius: 2,
+              }}
+            >
+              <Table sx={{ minWidth: 800 }}>
+                <TableHead>
+                  <TableRow>
+                    <TableCell sx={{ minWidth: 200 }}>Email</TableCell>
+                    <TableCell sx={{ minWidth: 150 }}>First Name</TableCell>
+                    <TableCell sx={{ minWidth: 150 }}>Last Name</TableCell>
+                    <TableCell sx={{ minWidth: 150 }}>Location</TableCell>
+                    <TableCell sx={{ minWidth: 150 }}>Phone</TableCell>
+                    <TableCell sx={{ minWidth: 100 }}>Status</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {paginatedUsers.map((user) => (
+                    <TableRow key={user.id}>
+                      <TableCell>
+                        <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
+                          {user.email || 'N/A'}
+                        </Typography>
+                      </TableCell>
+                      <TableCell>{user.firstname || 'N/A'}</TableCell>
+                      <TableCell>{user.lastname || 'N/A'}</TableCell>
+                      <TableCell>{user.location || 'N/A'}</TableCell>
+                      <TableCell>{user.mobile || 'N/A'}</TableCell>
+                      <TableCell>
+                        {user.isActive ? (
+                          <Typography variant="body2" sx={{ color: 'success.main' }}>
+                            Active
+                          </Typography>
+                        ) : (
+                          <Typography variant="body2" sx={{ color: 'error.main' }}>
+                            Inactive
+                          </Typography>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  {paginatedUsers.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={6} align="center">
+                        <Typography variant="body2">
+                          {filteredUsers.length === 0 ? 'No users found' : 'No users on this page'}
+                        </Typography>
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </TableContainer>
+
+            {/* Pagination */}
+            <TablePagination
+              rowsPerPageOptions={[5, 10, 25, 50, 100]}
+              component="div"
+              count={filteredUsers.length}
+              rowsPerPage={table.rowsPerPage}
+              page={table.page}
+              onPageChange={table.onChangePage}
+              onRowsPerPageChange={table.onChangeRowsPerPage}
+              labelRowsPerPage="Rows per page:"
+              labelDisplayedRows={({ from, to, count }) => `${from}-${to} of ${count !== -1 ? count : `more than ${to}`}`}
+              sx={{
+                '& .MuiTablePagination-toolbar': {
+                  flexWrap: 'wrap',
+                  gap: 1,
+                },
+                '& .MuiTablePagination-selectLabel, & .MuiTablePagination-displayedRows': {
+                  fontSize: { xs: '0.75rem', sm: '0.875rem' },
+                },
+              }}
+            />
+          </Grid>
+        </Grid>
       </Box>
 
-      <Dialog open={open} onClose={() => setOpen(false)}>
+      {/* Add User Dialog */}
+      <Dialog 
+        open={open} 
+        onClose={() => setOpen(false)}
+        fullWidth
+        maxWidth="sm"
+      >
         <DialogTitle>Add User</DialogTitle>
         <DialogContent>
-          <TextField      margin="dense" label="Email" name="email" fullWidth value={userData.email} onChange={handleChange} />
-          <TextField      margin="dense" label="First Name" name="firstname" fullWidth value={userData.firstname} onChange={handleChange} />
-          <TextField      margin="dense" label="Last Name" name="lastname" fullWidth value={userData.lastname} onChange={handleChange} />
-          <TextField     margin="dense" label="Location" name="location" fullWidth value={userData.location} onChange={handleChange} />
-          <TextField      margin="dense" label="Phone" name="mobile" fullWidth value={userData.mobile} onChange={handleChange} />
-          <TextField     margin="dense" label="Status" name="isActive" fullWidth value={userData.isActive ? 'Active' : 'Inactive'} onChange={handleChange} />
+          <TextField 
+            margin="dense" 
+            label="Email" 
+            name="email" 
+            fullWidth 
+            value={userData.email || ''} 
+            onChange={handleChange} 
+          />
+          <TextField 
+            margin="dense" 
+            label="First Name" 
+            name="firstname" 
+            fullWidth 
+            value={userData.firstname || ''} 
+            onChange={handleChange} 
+          />
+          <TextField 
+            margin="dense" 
+            label="Last Name" 
+            name="lastname" 
+            fullWidth 
+            value={userData.lastname || ''} 
+            onChange={handleChange} 
+          />
+          <TextField 
+            margin="dense" 
+            label="Location" 
+            name="location" 
+            fullWidth 
+            value={userData.location || ''} 
+            onChange={handleChange} 
+          />
+          <TextField 
+            margin="dense" 
+            label="Phone" 
+            name="mobile" 
+            fullWidth 
+            value={userData.mobile || ''} 
+            onChange={handleChange} 
+          />
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setOpen(false)}>Cancel</Button>
@@ -127,64 +441,27 @@ export function UserView() {
         </DialogActions>
       </Dialog>
 
-      <Card>
-        <UserTableToolbar
-          numSelected={table.selected.length}
-          filterName={filterName}
-          onFilterName={(event: React.ChangeEvent<HTMLInputElement>) => {
-            setFilterName(event.target.value);
-            table.onResetPage();
-          }}
-        />
-
-        <Scrollbar>
-          <TableContainer component={Paper}>
-            <Table>
-              <TableHead>
-                <TableRow>
-                  {/* <TableCell>ID</TableCell> */}
-                  <TableCell>Email</TableCell>
-                  <TableCell>First Name</TableCell>
-                  <TableCell>Last Name</TableCell>
-                  <TableCell>Location</TableCell>
-                  <TableCell>Phone</TableCell>
-                  <TableCell>Status</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {userList.map((user) => (
-                  <TableRow key={user.id}>
-                    {/* <TableCell>{user.id}</TableCell> */}
-                    <TableCell>{user.email}</TableCell>
-                    <TableCell>{user.firstname}</TableCell>
-                    <TableCell>{user.lastname}</TableCell>
-                    <TableCell>{user.location}</TableCell>
-                    <TableCell>{user.mobile}</TableCell>
-                    <TableCell>{user.isActive ? 'Active' : 'Inactive'}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
-        </Scrollbar>
-
-        <TablePagination
-          component="div"
-          page={table.page}
-          count={userList.length}
-          rowsPerPage={table.rowsPerPage}
-          onPageChange={table.onChangePage}
-          rowsPerPageOptions={[5, 10, 25]}
-          onRowsPerPageChange={table.onChangeRowsPerPage}
-        />
-      </Card>
+      {/* Snackbar for notifications */}
+      <Snackbar
+        open={snackbarOpen}
+        autoHideDuration={5000}
+        onClose={() => setSnackbarOpen(false)}
+      >
+        <Alert
+          onClose={() => setSnackbarOpen(false)}
+          severity={snackbarSeverity}
+          sx={{ width: '100%' }}
+        >
+          {snackbarMessage}
+        </Alert>
+      </Snackbar>
     </DashboardContent>
   );
 }
 export function useTable() {
   const [page, setPage] = useState(0);
   const [orderBy, setOrderBy] = useState('name');
-  const [rowsPerPage, setRowsPerPage] = useState(5);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
   const [selected, setSelected] = useState<string[]>([]);
   const [order, setOrder] = useState<'asc' | 'desc'>('asc');
 

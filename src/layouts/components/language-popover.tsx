@@ -5,7 +5,6 @@ import { useState, useCallback } from 'react';
 import Box from '@mui/material/Box';
 import Popover from '@mui/material/Popover';
 import MenuList from '@mui/material/MenuList';
-import IconButton from '@mui/material/IconButton';
 import MenuItem, { menuItemClasses } from '@mui/material/MenuItem';
 
 // ----------------------------------------------------------------------
@@ -22,10 +21,6 @@ export function LanguagePopover({ data = [], sx, ...other }: LanguagePopoverProp
   const [locale, setLocale] = useState<string>(data[0].value);
 
   const [openPopover, setOpenPopover] = useState<HTMLButtonElement | null>(null);
-
-  const handleOpenPopover = useCallback((event: React.MouseEvent<HTMLButtonElement>) => {
-    setOpenPopover(event.currentTarget);
-  }, []);
 
   const handleClosePopover = useCallback(() => {
     setOpenPopover(null);

@@ -1,13 +1,9 @@
-import { lazy, Suspense } from 'react';
+import { lazy } from 'react';
+import { getAuth } from 'firebase/auth';
 import { Navigate, useRoutes } from 'react-router-dom';
 
-import Box from '@mui/material/Box';
-import LinearProgress, { linearProgressClasses } from '@mui/material/LinearProgress';
-
-import { varAlpha } from 'src/theme/styles';
-import { AuthLayout } from 'src/layouts/auth';
 import { app } from 'src/firebaseConfig';
-import { getAuth } from 'firebase/auth';
+import { AuthLayout } from 'src/layouts/auth';
 
 // ----------------------------------------------------------------------
 
@@ -25,19 +21,6 @@ export const Page404 = lazy(() => import('src/pages/page-not-found'));
 
 const auth = getAuth(app);
 console.log("Current User",auth.currentUser?.uid);
-
-const renderFallback = (
-  <Box display="flex" alignItems="center" justifyContent="center" flex="1 1 auto">
-    <LinearProgress
-      sx={{
-        width: 1,
-        maxWidth: 320,
-        bgcolor: (theme) => varAlpha(theme.vars.palette.text.primaryChannel, 0.16),
-        [`& .${linearProgressClasses.bar}`]: { bgcolor: 'text.primary' },
-      }}
-    />
-  </Box>
-);
 
 export function AuthRouter() {
   return useRoutes([

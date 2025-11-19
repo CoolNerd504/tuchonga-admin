@@ -1,6 +1,7 @@
 import React from "react";
+import { Pie, Cell, Tooltip, PieChart } from "recharts";
+
 import { Box, Typography } from "@mui/material";
-import { PieChart, Pie, Cell, Tooltip } from "recharts";
 
 interface Product {
     total_views: number;
@@ -20,12 +21,6 @@ const ProductStats: React.FC<ProductStatsProps> = ({ products }) => {
     const totalReviews = products?.reduce((acc, product) => acc + product.total_reviews, 0);
     const totalProducts = products?.length;
 
-    const chartData = [
-        { name: 'Total Views', value: totalViews, color: '#FF9B33' },
-        { name: 'Total Comments', value: totalComments, color: '#83D475' },
-        { name: 'Total Reviews', value: totalReviews, color: '#FFE381' },
-    ];
-
     // Generate chart data based on categories
     const categoryCounts: Record<string, number> = {};
     products?.forEach(product => {
@@ -36,7 +31,21 @@ const ProductStats: React.FC<ProductStatsProps> = ({ products }) => {
         }
     });
 
+    // Convert category counts to chart data
+    const categoryChartData = Object.entries(categoryCounts).map(([category, count], index) => {
+        // Generate different colors for each category
+        const colors = ['#FF9B33', '#83D475', '#FFE381', '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7', '#DDA0DD', '#98D8C8'];
+        return {
+            name: category,
+            value: count,
+            color: colors[index % colors.length]
+        };
+    });
 
+    // Sort by count (descending) and limit to top 8 categories for better visualization
+    const sortedCategoryData = categoryChartData
+        .sort((a, b) => b.value - a.value)
+        .slice(0, 8);
 
     return (
         <Box>
@@ -52,7 +61,7 @@ const ProductStats: React.FC<ProductStatsProps> = ({ products }) => {
             <Box sx={{ display: 'flex', justifyContent: 'center', mb: 2 }}>
                 <PieChart width={200} height={200}>
                     <Pie
-                        data={chartData}
+                        data={sortedCategoryData}
                         dataKey="value"
                         nameKey="name"
                         outerRadius={80}
@@ -60,27 +69,47 @@ const ProductStats: React.FC<ProductStatsProps> = ({ products }) => {
                         fill="#8884d8"
                         labelLine={false}
                     >
-                        {chartData.map((entry, index) => (
+                        {sortedCategoryData.map((entry, index) => (
                             <Cell key={entry.name} fill={entry.color} />
                         ))}
                     </Pie>
-                    <Tooltip />
+                    <Tooltip 
+                        formatter={(value, name) => [`${value} products`, name]}
+                        labelStyle={{ color: '#333' }}
+                    />
                 </PieChart>
             </Box>
 
             <Box sx={{ display: "flex", flexDirection: "column", gap: 1, mb: 4 }}>
-                <Typography variant="body2">
-                    <Box component="span" sx={{ color: "#FF9B33", fontWeight: "bold", mr: 1 }}>●</Box>
-                    Total Views <Box component="span" sx={{ float: "right" }}>{totalViews}</Box>
+                {sortedCategoryData.map((category) => (
+                    <Typography key={category.name} variant="body2">
+                        <Box component="span" sx={{ color: category.color, fontWeight: "bold", mr: 1 }}>●</Box>
+                        {category.name} <Box component="span" sx={{ float: "right" }}>{category.value}</Box>
+                    </Typography>
+                ))}
+                {categoryChartData.length > 8 && (
+                    <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic', mt: 1 }}>
+                        +{categoryChartData.length - 8} more categories
+                    </Typography>
+                )}
+            </Box>
+
+            {/* Summary stats below the chart */}
+            <Box sx={{ borderTop: 1, borderColor: 'divider', pt: 2 }}>
+                <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>
+                    Summary
                 </Typography>
-                <Typography variant="body2">
-                    <Box component="span" sx={{ color: "#83D475", fontWeight: "bold", mr: 1 }}>●</Box>
-                    Total Comments <Box component="span" sx={{ float: "right" }}>{totalComments}</Box>
-                </Typography>
-                <Typography variant="body2">
-                    <Box component="span" sx={{ color: "#FFE381", fontWeight: "bold", mr: 1 }}>●</Box>
-                    Total Reviews <Box component="span" sx={{ float: "right" }}>{totalReviews}</Box>
-                </Typography>
+                <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
+                    <Typography variant="body2" color="text.secondary">
+                        Total Views <Box component="span" sx={{ float: "right" }}>{totalViews}</Box>
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                        Total Comments <Box component="span" sx={{ float: "right" }}>{totalComments}</Box>
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                        Total Reviews <Box component="span" sx={{ float: "right" }}>{totalReviews}</Box>
+                    </Typography>
+                </Box>
             </Box>
         </Box>
     );

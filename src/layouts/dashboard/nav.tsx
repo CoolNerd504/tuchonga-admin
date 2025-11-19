@@ -16,9 +16,6 @@ import { varAlpha } from 'src/theme/styles';
 import { Logo } from 'src/components/logo';
 import { Scrollbar } from 'src/components/scrollbar';
 
-import { NavUpgrade } from '../components/nav-upgrade';
-import { WorkspacesPopover } from '../components/workspaces-popover';
-
 import type { WorkspacesPopoverProps } from '../components/workspaces-popover';
 
 // ----------------------------------------------------------------------
@@ -119,7 +116,9 @@ export function NavContent({ data, slots, workspaces, sx }: NavContentProps) {
 
   return (
     <>
-      {/* <Logo /> */}
+      <Box sx={{ mb: 3, px: 1, display: 'flex', justifyContent: 'center', width: '100%' }}>
+        <Logo isSingle={false} sx={{ width: '100%' }} />
+      </Box>
 
       {slots?.topArea}
 
