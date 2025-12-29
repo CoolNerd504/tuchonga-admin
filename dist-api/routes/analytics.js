@@ -1,5 +1,5 @@
 import express from 'express';
-import { prisma } from '../../src/services/prismaService';
+import { prisma } from '../src/services/prismaService';
 import { verifyToken, verifyAdmin } from '../middleware/auth';
 const router = express.Router();
 // All analytics routes require admin auth

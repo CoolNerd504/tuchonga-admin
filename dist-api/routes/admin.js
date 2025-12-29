@@ -1,5 +1,5 @@
 import express from 'express';
-import { adminService } from '../../src/services/adminService';
+import { adminService } from '../src/services/adminService';
 import jwt from 'jsonwebtoken';
 const router = express.Router();
 const JWT_SECRET = process.env.JWT_SECRET || (() => {

@@ -1,5 +1,5 @@
 import jwt from 'jsonwebtoken';
-import { prisma } from '../../src/services/prismaService';
+import { prisma } from '../src/services/prismaService';
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
 /**
  * Verify JWT token and attach user info to request

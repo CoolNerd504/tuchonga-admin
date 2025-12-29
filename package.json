@@ -11,7 +11,7 @@
     "dev:all": "concurrently \"npm run dev\" \"npm run dev:api\"",
     "start": "node dist-api/server.js",
     "build": "tsc && vite build",
-    "build:api": "tsc --project tsconfig.api.json",
+    "build:api": "tsc --project tsconfig.api.json && node scripts/fix-imports.js",
     "start:api": "node dist-api/server.js",
     "start:prod": "NODE_ENV=production npm run start:api",
     "lint": "eslint \"src/**/*.{js,jsx,ts,tsx}\"",
