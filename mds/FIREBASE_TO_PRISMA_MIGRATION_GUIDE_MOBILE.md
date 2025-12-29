@@ -64,8 +64,8 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 const firebaseConfig = {
-  apiKey: "AIzaSyBIxsRpwzeAG5yKni7rmpS5zaf_8dUnahg",
-  projectId: "tuchonga-bf6af",
+  apiKey: process.env.VITE_FIREBASE_API_KEY || "YOUR_FIREBASE_API_KEY",
+  projectId: process.env.VITE_FIREBASE_PROJECT_ID || "your-project-id",
   // ... other config
 };
 
