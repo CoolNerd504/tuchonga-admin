@@ -26,12 +26,17 @@ if (!process.env.DATABASE_URL) {
 }
 
 // Log status (without exposing sensitive data)
+console.log('🔍 Checking DATABASE_URL availability...');
+console.log(`   DATABASE_URL exists: ${!!process.env.DATABASE_URL}`);
+console.log(`   DATABASE_URL type: ${typeof process.env.DATABASE_URL}`);
+console.log(`   DATABASE_URL length: ${process.env.DATABASE_URL?.length || 0}`);
+
 if (process.env.DATABASE_URL) {
   const dbUrlPreview = process.env.DATABASE_URL.substring(0, 30) + '...';
   console.log(`✅ DATABASE_URL is configured: ${dbUrlPreview}`);
   console.log(`   Full DATABASE_URL length: ${process.env.DATABASE_URL.length} characters`);
 } else {
-  console.error('❌ ERROR: DATABASE_URL not found!');
+  console.error('❌ ERROR: DATABASE_URL not found in process.env!');
   console.error('   Railway should auto-provide this when PostgreSQL is connected.');
   console.error('');
   console.error('   Debugging - Checking environment variables:');
@@ -49,15 +54,11 @@ if (process.env.DATABASE_URL) {
   } else {
     console.error('   ⚠️  No database-related environment variables found!');
     console.error(`   Total env vars: ${allEnvVars.length}`);
-    console.error('   First 10 env vars:', allEnvVars.slice(0, 10).join(', '));
+    console.error('   First 20 env vars:', allEnvVars.slice(0, 20).join(', '));
   }
   console.error('');
-  console.error('   To fix:');
-  console.error('   1. Go to Railway Dashboard → Your Service → Variables');
-  console.error('   2. Verify DATABASE_URL is set (check spelling - must be exactly "DATABASE_URL")');
-  console.error('   3. If PostgreSQL is connected, Railway should auto-inject it');
-  console.error('   4. If not, manually add DATABASE_URL with your PostgreSQL connection string');
-  console.error('   5. After adding, Railway will auto-redeploy');
+  console.error('   Note: If DATABASE_URL is set in Railway but not showing here,');
+  console.error('   Railway may need to redeploy to inject the variable.');
   // Don't exit - let Prisma handle the error gracefully, but log clearly
 }
 
