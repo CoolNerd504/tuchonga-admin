@@ -1,13 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import React, { useMemo, useState, useEffect, useCallback } from 'react';
-import {
-  doc,
-  query,
-  where,
-  addDoc, getDocs, updateDoc, collection, serverTimestamp,
-  type QueryDocumentSnapshot
-  // deleteDoc,
-} from 'firebase/firestore';
+import { apiGet, apiPost, apiPut, apiDelete } from 'src/utils/api';
 
 import CheckIcon from '@mui/icons-material/Check';
 import {
@@ -174,42 +167,42 @@ export function ProductsView() {
   const [productReviews, setProductReviews] = useState<any[]>([]);
   const [availableProductOwners, setAvailableProductOwners] = useState<string[]>([]);
   
-  // Move productsCollection to the top - before handleAddProduct
-  const productsCollection = useMemo(() => collection(firebaseDB, 'products'), []);
+  // TODO: Migrate to API - GET /api/products
+  // const productsCollection = useMemo(() => collection(firebaseDB, 'products'), []);
   
   // Add this after other useEffects
   useEffect(() => {
     const fetchCategories = async () => {
       try {
-        const categoriesCollection = collection(firebaseDB, 'categories');
-        const querySnapshot = await getDocs(categoriesCollection);
-        const categories = querySnapshot.docs
-          .map(docCategories => docCategories.data())
-          .filter(cat => cat.type === 'product')
-          .map(cat => cat.name);
-        setAvailableCategories(categories);
+        const response = await apiGet('/api/categories', { type: 'PRODUCT' });
+        if (response.success && response.data) {
+          const categories = response.data.map((cat: any) => cat.name);
+          setAvailableCategories(categories);
+        } else {
+          setAvailableCategories([]);
+        }
       } catch (error) {
         console.error('Error fetching categories:', error);
+        setAvailableCategories([]);
       }
     };
 
     const fetchProductOwners = async () => {
       try {
-        const productOwnersCollection = collection(firebaseDB, 'businesses');
-        const querySnapshot = await getDocs(productOwnersCollection);
-        // Store as objects with id and name to avoid duplicate key issues
-        const productOwners = querySnapshot.docs.map((docPO) => {
-          const data = docPO.data();
-          return {
-            id: docPO.id,
-            name: data.name || data.owner_name || docPO.id,
-          };
-        });
-        // Remove duplicates by name, keeping the first occurrence
-        const uniqueOwners = Array.from(
-          new Map(productOwners.map(owner => [owner.name, owner])).values()
-        );
-        setAvailableProductOwners(['SetLater', ...uniqueOwners.map(owner => owner.name)]);
+        const response = await apiGet('/api/businesses');
+        if (response.success && response.data) {
+          const productOwners = response.data.map((biz: any) => ({
+            id: biz.id,
+            name: biz.name || biz.businessName || '',
+          }));
+          // Remove duplicates by name, keeping the first occurrence
+          const uniqueOwners = Array.from(
+            new Map(productOwners.map((owner: any) => [owner.name, owner])).values()
+          ) as any[];
+          setAvailableProductOwners(['SetLater', ...uniqueOwners.map((owner: any) => owner.name)]);
+        } else {
+          setAvailableProductOwners(['SetLater']);
+        }
       } catch (error) {
         console.error('Error fetching product owners:', error);
         setAvailableProductOwners(['SetLater']); // Fallback to just SetLater
@@ -291,13 +284,18 @@ export function ProductsView() {
         return existingName === productNameLower;
       });
 
-      // If not found in list, double-check against Firestore to be sure
+      // If not found in list, double-check against API to be sure
       if (!hasDuplicate) {
-        const allProductsSnapshot = await getDocs(productsCollection);
-        hasDuplicate = allProductsSnapshot.docs.some((docSnapshot) => {
-          const existingName = docSnapshot.data().product_name?.toLowerCase().trim();
-          return existingName === productNameLower;
-        });
+        try {
+          const response = await apiGet('/api/products', { search: productData.product_name });
+          if (response.success && response.data) {
+            hasDuplicate = response.data.some((p: any) => 
+              (p.productName || p.name || '').toLowerCase().trim() === productNameLower
+            );
+          }
+        } catch (error) {
+          console.error('Error checking duplicate product name:', error);
+        }
       }
 
       if (hasDuplicate) {
@@ -313,36 +311,31 @@ export function ProductsView() {
       // Clear any previous duplicate errors
       setDuplicateError(null);
 
-      // Create a product data object to submit
-      const productDataToSubmit: any = {
-        product_name: productData.product_name,
-        category: productData.category,
-        description: productData.description,
-        reviews: 0,
-        positive_reviews: 0,
-        total_reviews: 0,
-        total_views: 0,
-        comments: [],
-        isActive: true,
-        productOwner: productData.productOwner,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      };
-      
       // Upload thumbnail if provided
+      let mainImageUrl = '';
       if (productThumbnailFile) {
         const { ref, uploadBytes, getDownloadURL } = await import('firebase/storage');
         const { storage } = await import('../../../firebaseConfig');
         const storageRef = ref(storage, `product_thumbnails/${Date.now()}_${productThumbnailFile.name}`);
         const snapshot = await uploadBytes(storageRef, productThumbnailFile);
-        const url = await getDownloadURL(snapshot.ref);
-        productDataToSubmit.mainImage = url;
+        mainImageUrl = await getDownloadURL(snapshot.ref);
       }
-      
 
-      
-      // Submit data to Firestore
-      await addDoc(productsCollection, productDataToSubmit);
+      // Create product via API
+      const response = await apiPost('/api/products', {
+        productName: productData.product_name,
+        description: productData.description,
+        mainImage: mainImageUrl,
+        additionalImages: [],
+        categoryIds: productData.category,
+        productOwner: productData.productOwner === 'SetLater' ? undefined : productData.productOwner,
+        businessId: productData.productOwner === 'SetLater' ? undefined : productData.productOwner,
+        isActive: productData.isActive,
+      });
+
+      if (!response.success) {
+        throw new Error(response.error || 'Failed to create product');
+      }
       
       // Reset form and close dialog
       setProductData({
@@ -462,10 +455,13 @@ export function ProductsView() {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const updateProductTimestamp = async (productId: string) => {
     try {
-      const productRef = doc(firebaseDB, 'products', productId);
-      await updateDoc(productRef, {
-        updatedAt: serverTimestamp()
-      });
+      // TODO: Migrate to API - PUT /api/products/:id
+      // const response = await fetch(`/api/products/${productId}`, {
+      //   method: 'PUT',
+      //   headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      //   body: JSON.stringify({ updatedAt: new Date().toISOString() }),
+      // });
+      console.warn('Product timestamp update not implemented - needs API migration');
       console.log(`Updated timestamp for product: ${productId}`);
     } catch (error) {
       console.error('Error updating product timestamp:', error);
@@ -479,115 +475,50 @@ export function ProductsView() {
   // Update getProducts with productsCollection dependency
   const getProducts = useCallback(async () => {
     try {
-      // First try to get all products without ordering to ensure we get all products
-      const querySnapshot = await getDocs(productsCollection);
-      const fetchedData: Product[] = querySnapshot.docs.map((docProducts) => {
-        const docData = docProducts.data() as Omit<Product, 'id'>;
-        return {
-          ...docData,
-          id: docProducts.id,
-        };
+      const response = await apiGet('/api/products', {
+        limit: 1000, // Get all products for admin view
+        sortBy: 'updatedAt',
+        sortOrder: 'desc',
       });
-      
-      // Sort by updatedAt descending (latest updated first) with fallback to createdAt
-      fetchedData.sort((a, b) => {
-        // Use updatedAt if available, otherwise fall back to createdAt
-        const dateA = convertToDate(a.updatedAt || a.createdAt);
-        const dateB = convertToDate(b.updatedAt || b.createdAt);
+
+      if (response.success && response.data) {
+        // Map API response to Product interface
+        const fetchedData: Product[] = response.data.map((product: any) => ({
+          id: product.id,
+          product_name: product.productName || product.name || '',
+          description: product.description || '',
+          category: product.categoryIds || [],
+          mainImage: product.mainImage || '',
+          additionalImages: product.additionalImages || [],
+          productOwner: product.businessId || product.productOwner || '',
+          isActive: product.isActive !== undefined ? product.isActive : true,
+          createdAt: product.createdAt,
+          updatedAt: product.updatedAt,
+          total_views: product.totalViews || 0,
+          positive_reviews: product.positiveReviews || 0,
+          total_reviews: product.totalReviews || 0,
+          comments: product.comments || [],
+        }));
         
-        const timeA = dateA ? dateA.getTime() : 0;
-        const timeB = dateB ? dateB.getTime() : 0;
-        
-        return timeB - timeA;
-      });
-      
-      setProductList(fetchedData);
-    } catch (err) {
-      console.error('Error fetching products:', err);
-      // Fallback: try to get products without sorting
-      try {
-        const querySnapshot = await getDocs(productsCollection);
-        const fetchedData: Product[] = querySnapshot.docs.map((docProducts) => {
-          const docData = docProducts.data() as Omit<Product, 'id'>;
-          return {
-            ...docData,
-            id: docProducts.id,
-          };
-        });
         setProductList(fetchedData);
-      } catch (fallbackErr) {
-        console.error('Fallback error fetching products:', fallbackErr);
+      } else {
         setProductList([]);
       }
+    } catch (err) {
+      console.error('Error fetching products:', err);
+      setProductList([]);
     }
-  }, [productsCollection]);
+  }, []);
 
   // Update useEffect
   useEffect(() => {
     getProducts();
     const fetchAllProductComments = async () => {
       try {
-        const commentsRef = collection(firebaseDB, "comments");
-        
-        // Fetch comments using multiple queries to handle both mobile app schema (itemId/itemType) 
-        // and legacy schema (parentId/parentType)
-        const queries = [
-          // Primary: Mobile app schema (itemId + itemType lowercase)
-          query(commentsRef, where("itemType", "==", "product"), where("isDeleted", "==", false)),
-          // Legacy: parentType capitalized
-          query(commentsRef, where("parentType", "==", "Product")),
-          // Legacy: parentType lowercase
-          query(commentsRef, where("parentType", "==", "product")),
-        ];
-        
-        const snapshots = await Promise.all(queries.map(q => getDocs(q).catch(err => {
-          console.warn('Query failed:', err);
-          return { docs: [] } as any;
-        })));
-        
-        // Combine all results and deduplicate by comment ID
-        const allComments = new Map<string, ProductOrServiceComment>();
-        
-        snapshots.forEach(snapshot => {
-          snapshot.docs.forEach((commentDoc: QueryDocumentSnapshot) => {
-            const data = commentDoc.data();
-            const commentId = commentDoc.id;
-            
-            // Skip if already added or if deleted
-            if (allComments.has(commentId) || data.isDeleted === true) {
-              return;
-            }
-            
-            // Map to consistent format
-            const comment: ProductOrServiceComment = {
-              id: commentId,
-              itemId: data.itemId || data.parentId || '',
-              itemType: (data.itemType || data.parentType?.toLowerCase() || 'product') as 'product' | 'service',
-              parentId: data.parentId || null,
-              depth: data.depth ?? 0,
-              userId: data.userId || data.user_id || '',
-              userName: data.userName || data.user_name || data.userId || 'Unknown User',
-              userAvatar: data.userAvatar || data.user_avatar || data.photoURL || undefined,
-              text: data.text || data.comment || '',
-              agreeCount: data.agreeCount ?? data.agree_count ?? 0,
-              disagreeCount: data.disagreeCount ?? data.disagree_count ?? 0,
-              replyCount: data.replyCount ?? data.reply_count ?? 0,
-              isEdited: data.isEdited ?? data.is_edited ?? false,
-              isReported: data.isReported ?? data.is_reported ?? false,
-              isDeleted: data.isDeleted ?? data.is_deleted ?? false,
-              createdAt: data.createdAt?.toDate ? data.createdAt.toDate() : 
-                        (data.createdAt instanceof Date ? data.createdAt : new Date()),
-              updatedAt: data.updatedAt?.toDate ? data.updatedAt.toDate() : 
-                        (data.updatedAt instanceof Date ? data.updatedAt : undefined),
-              parentType: data.parentType || (data.itemType === 'product' ? 'Product' : 'Service'),
-            };
-            
-            allComments.set(commentId, comment);
-          });
-        });
-        
-        const comments = Array.from(allComments.values());
-        console.log(`Fetched ${comments.length} product comments from Firestore`);
+        // Fetch comments for all products - API doesn't have a bulk endpoint, so we'll fetch individually
+        // For now, we'll just fetch comments when viewing a specific product
+        // This function is called for the list view, so we can skip it or fetch a summary
+        const comments: ProductOrServiceComment[] = [];
         setProductComments(comments);
         return comments;
       } catch (error) {
@@ -597,29 +528,28 @@ export function ProductsView() {
     };
     fetchAllProductComments();
     
-    // Fetch all product reviews from Firestore
+    // Fetch all product reviews
     const fetchAllProductReviews = async () => {
       try {
-        const reviewsRef = collection(firebaseDB, "reviews");
-        // Fetch all reviews (both product and service reviews)
-        const querySnapshot = await getDocs(reviewsRef);
-        const reviews = querySnapshot.docs.map(docReview => {
-          const data = docReview.data();
-          return {
-            id: docReview.id,
-            product_id: data.product_id || null,
-            service_id: data.service_id || null,
-            sentiment: data.sentiment || null,
-            timestamp: data.timestamp?.toDate ? data.timestamp.toDate() : 
-                      (data.timestamp instanceof Date ? data.timestamp : new Date()),
-            ...data
-          };
-        });
-        console.log(`Fetched ${reviews.length} reviews from Firestore`);
-        setProductReviews(reviews);
-        return reviews;
+        const response = await apiGet('/api/reviews', { itemType: 'PRODUCT' });
+        if (response.success && response.data) {
+          const reviews = response.data.map((review: any) => ({
+            id: review.id,
+            product_id: review.productId || null,
+            service_id: review.serviceId || null,
+            sentiment: review.sentiment || null,
+            timestamp: review.createdAt ? new Date(review.createdAt) : new Date(),
+            ...review,
+          }));
+          console.log(`Fetched ${reviews.length} reviews from API`);
+          setProductReviews(reviews);
+          return reviews;
+        }
+        setProductReviews([]);
+        return [];
       } catch (error) {
         console.error("Error fetching product reviews:", error);
+        setProductReviews([]);
         return [];
       }
     };

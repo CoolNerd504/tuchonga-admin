@@ -4,6 +4,31 @@ import { verifyToken, verifyAdmin } from '../middleware/auth';
 
 const router = express.Router();
 
+const buildRecentMonths = (monthsBack: number) => {
+  const now = new Date();
+  const labels: string[] = [];
+  for (let i = monthsBack - 1; i >= 0; i -= 1) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    labels.push(d.toLocaleString('default', { month: 'short' }));
+  }
+  return labels;
+};
+
+const aggregateMonthlyAdds = (
+  items: { createdAt: Date }[],
+  labels: string[],
+) => {
+  const counts = labels.map(() => 0);
+  items.forEach((item) => {
+    const monthLabel = item.createdAt.toLocaleString('default', { month: 'short' });
+    const idx = labels.indexOf(monthLabel);
+    if (idx !== -1) {
+      counts[idx] += 1;
+    }
+  });
+  return counts;
+};
+
 // All analytics routes require admin auth
 router.use(verifyToken, verifyAdmin);
 
@@ -235,6 +260,110 @@ router.get('/services', async (req, res) => {
         topRated,
         mostViewed,
         mostReviewed,
+      },
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Product trends and engagement (no new data required)
+router.get('/products/trends', async (req, res) => {
+  try {
+    const products = await prisma.product.findMany({
+      select: {
+        id: true,
+        productName: true,
+        createdAt: true,
+        totalViews: true,
+        isActive: true,
+      },
+    });
+
+    const labels = buildRecentMonths(6);
+    const monthlyAdds = aggregateMonthlyAdds(products, labels);
+
+    const totalViews = products.reduce((sum, p) => sum + (p.totalViews || 0), 0);
+    const zeroViews = products.filter((p) => !p.totalViews || p.totalViews === 0).length;
+    const avgViews = products.length ? Math.round(totalViews / products.length) : 0;
+
+    const topViewed = [...products]
+      .sort((a, b) => (b.totalViews || 0) - (a.totalViews || 0))
+      .slice(0, 5)
+      .map((p) => ({
+        id: p.id,
+        name: p.productName,
+        views: p.totalViews || 0,
+      }));
+
+    res.json({
+      success: true,
+      data: {
+        summary: {
+          total: products.length,
+          active: products.filter((p) => p.isActive).length,
+          inactive: products.filter((p) => !p.isActive).length,
+          totalViews,
+          avgViews,
+          zeroViews,
+        },
+        monthlyAdds: {
+          labels,
+          values: monthlyAdds,
+        },
+        topViewed,
+      },
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Service trends and engagement (no new data required)
+router.get('/services/trends', async (req, res) => {
+  try {
+    const services = await prisma.service.findMany({
+      select: {
+        id: true,
+        serviceName: true,
+        createdAt: true,
+        totalViews: true,
+        isActive: true,
+      },
+    });
+
+    const labels = buildRecentMonths(6);
+    const monthlyAdds = aggregateMonthlyAdds(services, labels);
+
+    const totalViews = services.reduce((sum, s) => sum + (s.totalViews || 0), 0);
+    const zeroViews = services.filter((s) => !s.totalViews || s.totalViews === 0).length;
+    const avgViews = services.length ? Math.round(totalViews / services.length) : 0;
+
+    const topViewed = [...services]
+      .sort((a, b) => (b.totalViews || 0) - (a.totalViews || 0))
+      .slice(0, 5)
+      .map((s) => ({
+        id: s.id,
+        name: s.serviceName,
+        views: s.totalViews || 0,
+      }));
+
+    res.json({
+      success: true,
+      data: {
+        summary: {
+          total: services.length,
+          active: services.filter((s) => s.isActive).length,
+          inactive: services.filter((s) => !s.isActive).length,
+          totalViews,
+          avgViews,
+          zeroViews,
+        },
+        monthlyAdds: {
+          labels,
+          values: monthlyAdds,
+        },
+        topViewed,
       },
     });
   } catch (error: any) {

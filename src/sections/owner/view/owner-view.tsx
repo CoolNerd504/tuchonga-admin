@@ -1,12 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import { useMemo, useState, useEffect, useCallback } from 'react';
-import {
-  addDoc,
-  getDocs,
-  collection,
-  // deleteDoc,
-  // updateDoc,
-} from 'firebase/firestore';
+import { apiGet, apiPost, getAuthToken } from 'src/utils/api';
 
 import {
   Box,
@@ -202,10 +196,10 @@ export function OwnerView() {
   const [serviceList, setServiceList] = useState<Service[]>([]);
   const [selectedBusiness] = useState<Business | null>(null);
 
-  // Firestore collection reference
-  const businessesCollection = collection(firebaseDB, 'businesses');
-  const productsCollection = collection(firebaseDB, 'products');
-  const servicesCollection = collection(firebaseDB, 'services');
+  // TODO: Migrate to API - GET /api/businesses, /api/products, /api/services
+  // const businessesCollection = collection(firebaseDB, 'businesses');
+  // const productsCollection = collection(firebaseDB, 'products');
+  // const servicesCollection = collection(firebaseDB, 'services');
   const handleSelectRow = (business: Business) => {
     navigate(`/business/${business?.id}`, { state: { business, productList, serviceList } });
     console.log('Selected row:', selectedBusiness);
@@ -233,8 +227,24 @@ export function OwnerView() {
         status: businessData.status ?? true,
       };
 
-      const docRef = await addDoc(businessesCollection, newBusiness);
-      console.log('Business added with ID:', docRef.id);
+      const token = getAuthToken();
+      const response = await apiPost('/api/businesses', {
+        name: newBusiness.name,
+        email: newBusiness.business_email,
+        phone: newBusiness.business_phone,
+        location: newBusiness.location,
+        logo: newBusiness.logo,
+        isVerified: newBusiness.isVerified || false,
+        pocFirstName: newBusiness.poc_firstname,
+        pocLastName: newBusiness.poc_lastname,
+        pocPhone: newBusiness.poc_phone,
+      }, token);
+
+      if (!response.success) {
+        throw new Error(response.error || 'Failed to create business');
+      }
+
+      console.log('Business added with ID:', response.data?.id);
 
       // Optionally refetch the updated list
       await getBusinesses();
@@ -267,58 +277,90 @@ export function OwnerView() {
     }
   };
 
-  // Fetch businesses from Firestore
+  // Fetch businesses from API
   const getBusinesses = useCallback(async () => {
     try {
-      const querySnapshot = await getDocs(businessesCollection);
-      const fetchedData: Business[] = querySnapshot.docs.map((doc) => {
-        const docData = doc.data() as Omit<Business, 'id'>;
-        return {
-          ...docData,
-          id: doc.id,
-        };
-      });
+      const response = await apiGet('/api/businesses');
+      let fetchedData: Business[] = [];
+      
+      if (response.success && response.data) {
+        fetchedData = response.data.map((biz: any) => ({
+          id: biz.id,
+          name: biz.name || '',
+          business_email: biz.email || biz.businessEmail || '',
+          business_phone: biz.phone || biz.businessPhone || '',
+          location: biz.location || '',
+          logo: biz.logo || '',
+          isVerified: biz.isVerified || false,
+          products: biz.products?.map((p: any) => p.id || p) || [],
+          services: biz.services?.map((s: any) => s.id || s) || [],
+          poc_firstname: biz.pocFirstName || biz.poc_firstname || '',
+          poc_lastname: biz.pocLastName || biz.poc_lastname || '',
+          poc_phone: biz.pocPhone || biz.poc_phone || '',
+          status: biz.status !== false,
+        }));
+      }
+      
       setBusinessList(fetchedData);
     } catch (err) {
       console.error('Error fetching businesses:', err);
+      setBusinessList([]);
     }
-  }, [businessesCollection]);
+  }, []);
 
 
-  // Update getProducts with productsCollection dependency
+  // Fetch products from API
   const getProducts = useCallback(async () => {
     try {
-      const querySnapshot = await getDocs(productsCollection);
-      const fetchedData: Product[] = querySnapshot.docs.map((doc) => {
-        const docData = doc.data() as Omit<Product, 'id'>;
-        return {
-          ...docData,
-          id: doc.id,
-        };
-      });
+      const response = await apiGet('/api/products');
+      let fetchedData: Product[] = [];
+      
+      if (response.success && response.data) {
+        fetchedData = response.data.map((prod: any) => ({
+          id: prod.id,
+          product_name: prod.productName || prod.name || '',
+          description: prod.description || '',
+          category: prod.categoryIds || prod.categories?.map((c: any) => c.id || c.name) || [],
+          mainImage: prod.mainImage || '',
+          additionalImages: prod.additionalImages || [],
+          productOwner: prod.businessId || prod.productOwner || '',
+          isActive: prod.isActive !== false,
+        }));
+      }
+      
       setProductList(fetchedData);
     } catch (err) {
       console.error('Error fetching products:', err);
+      setProductList([]);
     }
-  }, [productsCollection]);
+  }, []);
 
 
-  // Update getServices with stable dependency
+  // Fetch services from API
   const getServices = useCallback(async () => {
     try {
-      const querySnapshot = await getDocs(servicesCollection);
-      const fetchedData: Service[] = querySnapshot.docs.map((doc) => {
-        const docData = doc.data() as Omit<Service, 'id'>;
-        return {
-          ...docData,
-          id: doc.id,
-        };
-      });
+      const response = await apiGet('/api/services');
+      let fetchedData: Service[] = [];
+      
+      if (response.success && response.data) {
+        fetchedData = response.data.map((serv: any) => ({
+          id: serv.id,
+          service_name: serv.serviceName || serv.name || '',
+          description: serv.description || '',
+          category: serv.categoryIds || serv.categories?.map((c: any) => c.id || c.name) || [],
+          mainImage: serv.mainImage || '',
+          additionalImages: serv.additionalImages || [],
+          serviceOwner: serv.businessId || serv.serviceOwner || '',
+          isActive: serv.isActive !== false,
+        }));
+      }
+      
       setServiceList(fetchedData);
     } catch (err) {
       console.error('Error fetching services:', err);
+      setServiceList([]);
     }
-  }, [servicesCollection]);
+  }, []);
 
   // Initial load
   useEffect(() => {

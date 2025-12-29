@@ -1,11 +1,11 @@
 import { useLocation, useNavigate } from 'react-router-dom';
-import React, { useMemo, useState ,useEffect, useCallback } from 'react';
+import React, { useMemo, useState, useEffect, useCallback } from 'react';
 import {
   ref,
   uploadBytes,
   getDownloadURL,
 } from 'firebase/storage';
-import { doc, query, where, getDocs, updateDoc, deleteDoc, collection, serverTimestamp } from 'firebase/firestore';
+import { apiGet, apiPost, apiPut, apiDelete, getAuthToken } from 'src/utils/api';
 
 import Grid from '@mui/material/Grid';
 import Select from '@mui/material/Select';
@@ -795,11 +795,12 @@ export function ProductDetail() {
 
   // Fetch all Firestore data in parallel
   useEffect(() => {
-    // Verify authentication before fetching
-    console.log('Auth state check:', {
-      currentUser: auth.currentUser?.email || 'Not authenticated',
-      uid: auth.currentUser?.uid || 'No UID'
-    });
+    // TODO: Use Prisma auth hook instead of Firebase Auth
+    // const { user } = useAuth();
+    // console.log('Auth state check:', {
+    //   currentUser: user?.email || 'Not authenticated',
+    //   uid: user?.id || 'No UID'
+    // });
     
     // Comments and reviews are publicly readable, so we can fetch them even without auth
     // Categories and businesses require auth, but we'll handle that gracefully
@@ -808,29 +809,31 @@ export function ProductDetail() {
     setError(null);
     Promise.all([
       (async () => {
-        // Categories are publicly readable
         try {
-          const categoriesCollection = collection(firebaseDB, 'categories');
-          const querySnapshot = await getDocs(categoriesCollection);
-          return querySnapshot.docs
-            .map(document => document.data())
-            .filter(cat => cat.type === 'product')
-            .map(cat => cat.name);
+          const response = await apiGet('/api/categories', { type: 'PRODUCT' });
+          if (response.success && response.data) {
+            return response.data.map((cat: any) => cat.name);
+          }
+          return [];
         } catch (err) {
           console.error('Error fetching categories:', err);
           return [];
         }
       })(),
       (async () => {
-        // Businesses require auth, handle gracefully
         try {
-          if (!auth.currentUser) {
-            console.log('⚠️ Not authenticated, skipping business owners fetch');
-            return [];
+          const response = await apiGet('/api/businesses');
+          if (response.success && response.data) {
+            return response.data.map((biz: any) => ({
+              id: biz.id,
+              name: biz.name || biz.businessName || '',
+              email: biz.email || biz.businessEmail || '',
+              phone: biz.phone || biz.businessPhone || '',
+              logo: biz.logo || '',
+              location: biz.location || '',
+            }));
           }
-          const businessesCollection = collection(firebaseDB, 'businesses');
-          const querySnapshot = await getDocs(businessesCollection);
-          return querySnapshot.docs.map(docBC => ({ id: docBC.id, ...(docBC.data() as Omit<BusinessOwner, 'id'>) }));
+          return [];
         } catch (err) {
           console.error('Error fetching business owners:', err);
           return [];
@@ -842,190 +845,73 @@ export function ProductDetail() {
           console.log('Product ID:', initialProduct.id);
           console.log('Product Name:', initialProduct.product_name);
           
-          const commentsRef = collection(firebaseDB, 'comments');
-          
-          // Mobile app uses itemId and itemType (lowercase 'product' | 'service')
-          // Also check for legacy parentId/parentType fields for backward compatibility
-          const queries = [
-            // Primary: Mobile app schema (itemId + itemType)
-            query(
-              commentsRef, 
-              where('itemId', '==', initialProduct.id), 
-              where('itemType', '==', 'product'),
-              where('isDeleted', '==', false) // Only fetch non-deleted comments
-            ),
-            // Legacy: parentId + parentType (capitalized)
-            query(
-              commentsRef, 
-              where('parentId', '==', initialProduct.id), 
-              where('parentType', '==', 'Product')
-            ),
-            // Legacy: parentId + parentType (lowercase)
-            query(
-              commentsRef, 
-              where('parentId', '==', initialProduct.id), 
-              where('parentType', '==', 'product')
-            ),
-          ];
-          
-          console.log('Executing queries:', {
-            query1: `itemId == ${initialProduct.id} AND itemType == 'product' AND isDeleted == false`,
-            query2: `parentId == ${initialProduct.id} AND parentType == 'Product'`,
-            query3: `parentId == ${initialProduct.id} AND parentType == 'product'`,
-          });
-          
-          const snapshots = await Promise.all(
-            queries.map((q, index) => 
-              getDocs(q)
-                .then(snapshot => {
-                  console.log(`Query ${index + 1} returned ${snapshot.docs.length} documents`);
-                  if (snapshot.docs.length > 0) {
-                    console.log(`Query ${index + 1} sample docs:`, snapshot.docs.slice(0, 2).map(commentDoc => ({
-                      id: commentDoc.id,
-                      data: commentDoc.data()
-                    })));
-                  }
-                  return snapshot;
-                })
-                .catch((queryError) => {
-                  console.error(`Query ${index + 1} error:`, queryError);
-                  return { docs: [] };
-                })
-            )
-          );
-          
-          // Combine results and remove duplicates
-          const allDocs = snapshots.flatMap(snapshot => snapshot.docs);
-          console.log(`Total documents from all queries: ${allDocs.length}`);
-          
-          const uniqueDocs = Array.from(
-            new Map(allDocs.map(commentDoc => [commentDoc.id, commentDoc])).values()
-          );
-          console.log(`Unique documents after deduplication: ${uniqueDocs.length}`);
-          
-          const comments = uniqueDocs.map(commentDoc => {
-            const data = commentDoc.data();
-            
-            console.log('Processing comment document:', {
-              id: commentDoc.id,
-              rawData: data
-            });
-            
-            // Use mobile app schema fields (itemId/itemType) with fallback to legacy fields
-            const itemId = data.itemId || data.parentId || data.parent_id || '';
-            const itemType = (data.itemType || data.parentType || data.parent_type || 'product').toLowerCase() as 'product' | 'service';
-            
-            // Handle timestamp - prefer createdAt, fallback to timestamp
-            const timestamp = data.createdAt?.toDate ? data.createdAt.toDate() : 
-                             (data.createdAt instanceof Date ? data.createdAt :
-                             (data.timestamp?.toDate ? data.timestamp.toDate() : 
-                             (data.timestamp instanceof Date ? data.timestamp : 
-                             (data.createdAt ? new Date(data.createdAt) :
-                             (data.timestamp ? new Date(data.timestamp) : new Date())))));
-            
-            const mappedComment = {
-              id: commentDoc.id,
-              itemId,
-              itemType,
-              parentId: data.parentId || null, // For replies
-              depth: data.depth ?? 0, // 0 = root comment
-              userId: data.userId || data.user_id || '',
-              userName: data.userName || data.user_name || data.userId || 'Unknown User',
-              userAvatar: data.userAvatar || data.user_avatar || data.photoURL || undefined,
-              text: data.text || data.comment || '',
-              agreeCount: data.agreeCount ?? data.agree_count ?? 0,
-              disagreeCount: data.disagreeCount ?? data.disagree_count ?? 0,
-              replyCount: data.replyCount ?? data.reply_count ?? 0,
-              isEdited: data.isEdited ?? data.is_edited ?? false,
-              isReported: data.isReported ?? data.is_reported ?? false,
-              isDeleted: data.isDeleted ?? data.is_deleted ?? false,
-              createdAt: timestamp,
-              updatedAt: data.updatedAt?.toDate ? data.updatedAt.toDate() : 
-                        (data.updatedAt instanceof Date ? data.updatedAt : undefined),
-              editedAt: data.editedAt?.toDate ? data.editedAt.toDate() : 
-                       (data.editedAt instanceof Date ? data.editedAt : undefined),
-              // Legacy fields for backward compatibility
-              parentType: itemType === 'product' ? 'Product' : 'Service',
-              timestamp,
-            };
-            
-            console.log('Mapped comment:', mappedComment);
-            return mappedComment;
-          }).filter(comment => {
-            const notDeleted = !comment.isDeleted;
-            if (!notDeleted) {
-              console.log('Filtered out deleted comment:', comment.id);
-            }
-            return notDeleted;
-          }) as ProductOrServiceComment[]; // Filter out deleted comments
-          
-          console.log(`=== FINAL RESULT: ${comments.length} comments for product ${initialProduct.id} ===`);
-          console.log('Product Name:', initialProduct.product_name);
-          console.log('All comments:', comments);
-          console.log('Comments summary:', {
-            productId: initialProduct.id,
-            productName: initialProduct.product_name,
-            totalComments: comments.length,
-            rootComments: comments.filter(c => c.depth === 0 || !c.parentId).length,
-            replies: comments.filter(c => c.depth > 0 || c.parentId).length,
-            comments: comments.map(comment => ({
+          const response = await apiGet(`/api/comments/product/${initialProduct.id}`, { limit: 1000 });
+          if (response.success && response.data) {
+            // Map API response to ProductOrServiceComment format
+            return response.data.map((comment: any) => ({
               id: comment.id,
-              itemId: comment.itemId,
-              itemType: comment.itemType,
-              userId: comment.userId,
-              userName: comment.userName,
-              text: comment.text ? (comment.text.length > 50 ? `${comment.text.substring(0, 50)  }...` : comment.text) : '',
-              depth: comment.depth,
-              parentId: comment.parentId || 'root',
-              agreeCount: comment.agreeCount,
-              disagreeCount: comment.disagreeCount,
-              replyCount: comment.replyCount,
-              isEdited: comment.isEdited,
-              isReported: comment.isReported,
-              isDeleted: comment.isDeleted,
-              createdAt: comment.createdAt instanceof Date ? comment.createdAt.toISOString() : comment.createdAt,
-            }))
-          });
-          console.log('=== END COMMENT FETCH ===');
-          return comments;
+              itemId: comment.productId || comment.serviceId || '',
+              itemType: (comment.productId ? 'product' : 'service') as 'product' | 'service',
+              parentId: comment.parentId || null,
+              depth: comment.depth || 0,
+              userId: comment.userId || '',
+              userName: comment.userName || comment.user?.fullName || 'Unknown User',
+              userAvatar: comment.userAvatar || comment.user?.profileImage || undefined,
+              text: comment.text || '',
+              agreeCount: comment.agreeCount || 0,
+              disagreeCount: comment.disagreeCount || 0,
+              replyCount: comment.replyCount || 0,
+              isEdited: comment.isEdited || false,
+              isReported: comment.isReported || false,
+              isDeleted: comment.isDeleted || false,
+              createdAt: comment.createdAt ? new Date(comment.createdAt) : new Date(),
+              updatedAt: comment.updatedAt ? new Date(comment.updatedAt) : undefined,
+              parentType: comment.productId ? 'Product' : 'Service',
+            })) as ProductOrServiceComment[];
+          }
+          return [];
         } catch (commentError) {
           console.error('Error fetching comments:', commentError);
           return [];
         }
       })(),
       (async () => {
-        const reviewsRef = collection(firebaseDB, 'reviews');
-        const q = query(reviewsRef, where('product_id', '==', initialProduct.id));
-        const querySnapshot = await getDocs(q);
-        return querySnapshot.docs.map(docReview => ({
-          id: docReview.id,
-          ...docReview.data(),
-          timestamp: docReview.data().timestamp?.toDate ? docReview.data().timestamp.toDate() : new Date(docReview.data().timestamp)
-        })) as Review[];
+        try {
+          const response = await apiGet('/api/reviews', { productId: initialProduct.id });
+          if (response.success && response.data) {
+            return response.data.map((review: any) => ({
+              id: review.id,
+              product_id: review.productId || null,
+              service_id: review.serviceId || null,
+              sentiment: review.sentiment || null,
+              timestamp: review.createdAt ? new Date(review.createdAt) : new Date(),
+              ...review,
+            })) as Review[];
+          }
+          return [] as Review[];
+        } catch (err) {
+          console.error('Error fetching reviews:', err);
+          return [] as Review[];
+        }
       })(),
       (async () => {
-        // Fetch users to get names for reviews
-        // This requires authentication, so we'll handle errors gracefully
         try {
-          if (!auth.currentUser) {
-            console.log('⚠️ Not authenticated, skipping user fetch');
-            return {};
+          const response = await apiGet('/api/users', { limit: 1000 });
+          if (response.success && response.data) {
+            const users: Record<string, { email?: string; firstname?: string; lastname?: string }> = {};
+            response.data.forEach((u: any) => {
+              users[u.id] = {
+                email: u.email,
+                firstname: u.firstName || u.firstname,
+                lastname: u.lastName || u.lastname,
+              };
+            });
+            return users;
           }
-          const usersRef = collection(firebaseDB, 'users');
-          const usersSnapshot = await getDocs(usersRef);
-          const users: Record<string, { email?: string; firstname?: string; lastname?: string }> = {};
-          usersSnapshot.docs.forEach(userDoc => {
-            const userData = userDoc.data();
-            users[userDoc.id] = {
-              email: userData.email,
-              firstname: userData.firstname,
-              lastname: userData.lastname,
-            };
-          });
-          return users;
-        } catch (userError) {
-          console.error('Error fetching users (may require auth):', userError);
-          return {}; // Return empty map if we can't fetch users
+          return {} as Record<string, { email?: string; firstname?: string; lastname?: string }>;
+        } catch (err) {
+          console.error('Error fetching users:', err);
+          return {} as Record<string, { email?: string; firstname?: string; lastname?: string }>;
         }
       })(),
     ])
@@ -1244,22 +1130,28 @@ export function ProductDetail() {
         setIsUpdating(false);
         return;
       }
-      const productRef = doc(firebaseDB, 'products', editedProduct.id);
       // Upload images and get their URLs
       const mainImageUrl = await uploadImage(editedProduct.mainImage);
       const additionalImageUrls = await Promise.all(
         (editedProduct.additionalImages || []).map(img => typeof img === 'string' ? img : uploadImage(img))
       );
-      await updateDoc(productRef, {
-        product_name: editedProduct.product_name,
-        category: editedProduct.category,
+
+      const token = getAuthToken();
+      const response = await apiPut(`/api/products/${editedProduct.id}`, {
+        productName: editedProduct.product_name,
+        categoryIds: editedProduct.category,
         description: editedProduct.description,
         isActive: editedProduct.isActive,
         mainImage: mainImageUrl,
         additionalImages: additionalImageUrls.filter(url => url !== null),
-        productOwner: editedProduct.productOwner,
-        updatedAt: serverTimestamp(), // Add the updatedAt timestamp using Firestore server timestamp
-      });
+        productOwner: editedProduct.productOwner === 'SetLater' ? undefined : editedProduct.productOwner,
+        businessId: editedProduct.productOwner === 'SetLater' ? undefined : editedProduct.productOwner,
+      }, token);
+
+      if (!response.success) {
+        throw new Error(response.error || 'Failed to update product');
+      }
+
       setSnackbar({ open: true, message: 'Product updated successfully!', severity: 'success' });
     } catch (err) {
       setSnackbar({ open: true, message: 'Failed to update product.', severity: 'error' });
@@ -1272,8 +1164,11 @@ export function ProductDetail() {
   const handleDeleteProduct = useCallback(async () => {
     setIsDeleting(true);
     try {
-      const productRef = doc(firebaseDB, 'products', editedProduct.id);
-      await deleteDoc(productRef);
+      const token = getAuthToken();
+      const response = await apiDelete(`/api/products/${editedProduct.id}`, token);
+      if (!response.success) {
+        throw new Error(response.error || 'Failed to delete product');
+      }
       
       setSnackbar({ open: true, message: 'Product deleted successfully!', severity: 'success' });
       

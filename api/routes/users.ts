@@ -28,7 +28,7 @@ router.get('/me', verifyToken, async (req, res) => {
 router.put('/me', verifyToken, async (req, res) => {
   try {
     const userId = (req as any).user.userId;
-    const { fullName, displayName, profileImage, location, phoneNumber, email } = req.body;
+    const { fullName, displayName, profileImage, location, phoneNumber, email, gender } = req.body;
 
     const user = await mobileUserService.updateUser(userId, {
       fullName,
@@ -37,6 +37,7 @@ router.put('/me', verifyToken, async (req, res) => {
       location,
       phoneNumber,
       email,
+      gender,
     });
 
     res.json({
@@ -53,7 +54,7 @@ router.put('/me', verifyToken, async (req, res) => {
 router.post('/me/complete-profile', verifyToken, async (req, res) => {
   try {
     const userId = (req as any).user.userId;
-    const { fullName, displayName, profileImage, location, phoneNumber } = req.body;
+    const { fullName, displayName, profileImage, location, phoneNumber, gender } = req.body;
 
     if (!fullName) {
       return res.status(400).json({
@@ -68,6 +69,7 @@ router.post('/me/complete-profile', verifyToken, async (req, res) => {
       profileImage,
       location,
       phoneNumber,
+      gender,
     });
 
     res.json({

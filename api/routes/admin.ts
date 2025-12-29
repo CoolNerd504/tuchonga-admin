@@ -70,12 +70,20 @@ router.post('/setup/super-admin', async (req, res) => {
       return res.status(400).json({ error: 'Super admin already exists' });
     }
 
-    const { email, password, fullName, phoneNumber } = req.body;
+    const { email, password, firstname, lastname, phoneNumber } = req.body;
 
-    if (!email || !password || !fullName) {
+    // Validate required fields
+    if (!email || !password) {
       return res.status(400).json({ 
         error: 'Missing required fields',
-        details: 'Email, password, and full name are required'
+        details: 'Email and password are required'
+      });
+    }
+
+    if (!firstname || !lastname) {
+      return res.status(400).json({ 
+        error: 'Missing required fields',
+        details: 'First name and last name are required'
       });
     }
 
@@ -90,10 +98,15 @@ router.post('/setup/super-admin', async (req, res) => {
       return res.status(400).json({ error: 'Password must be at least 8 characters long' });
     }
 
+    // Combine firstname and lastname into fullName for database
+    const fullName = `${firstname.trim()} ${lastname.trim()}`.trim();
+
     const admin = await adminService.createSuperAdmin({
       email,
       password,
       fullName,
+      firstname: firstname.trim(),
+      lastname: lastname.trim(),
       phoneNumber,
       role: 'super_admin',
     });
@@ -162,16 +175,21 @@ router.get('/:id', verifyAdmin, async (req, res) => {
 // Create admin (requires super admin)
 router.post('/', verifyAdmin, verifySuperAdmin, async (req, res) => {
   try {
-    const { email, password, fullName, role, phoneNumber, profileImage } = req.body;
+    const { email, password, firstname, lastname, role, phoneNumber, profileImage } = req.body;
 
-    if (!email || !password || !fullName || !role) {
-      return res.status(400).json({ error: 'Email, password, full name, and role are required' });
+    if (!email || !password || !firstname || !lastname || !role) {
+      return res.status(400).json({ error: 'Email, password, first name, last name, and role are required' });
     }
+
+    // Combine firstname and lastname into fullName for database
+    const fullName = `${firstname.trim()} ${lastname.trim()}`.trim();
 
     const admin = await adminService.createAdmin({
       email,
       password,
       fullName,
+      firstname: firstname.trim(),
+      lastname: lastname.trim(),
       role,
       phoneNumber,
       profileImage,

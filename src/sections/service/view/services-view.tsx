@@ -3,12 +3,7 @@
 
 import { useNavigate } from 'react-router-dom';
 import React, { useMemo, useState, useEffect, useCallback } from 'react';
-import {
-  doc,
-  query,
-  where,
-  addDoc, getDocs, updateDoc, collection, serverTimestamp
-} from 'firebase/firestore';
+import { apiGet, apiPost, apiPut, apiDelete, getAuthToken } from 'src/utils/api';
 
 import CheckIcon from '@mui/icons-material/Check';
 import {
@@ -233,13 +228,14 @@ export function ServicesView() {
         return existingName === serviceNameLower;
       });
 
-      // If not found in list, double-check against Firestore to be sure
+      // If not found in list, double-check against API to be sure
       if (!hasDuplicate) {
-        const allServicesSnapshot = await getDocs(servicesCollection);
-        hasDuplicate = allServicesSnapshot.docs.some((docSnapshot) => {
-          const existingName = docSnapshot.data().service_name?.toLowerCase().trim();
-          return existingName === serviceNameLower;
-        });
+        const searchResponse = await apiGet('/api/services', { search: serviceData.service_name });
+        if (searchResponse.success && searchResponse.data) {
+          hasDuplicate = searchResponse.data.some((s: any) => 
+            (s.serviceName || s.name || '').toLowerCase().trim() === serviceNameLower
+          );
+        }
       }
 
       if (hasDuplicate) {
@@ -255,38 +251,38 @@ export function ServicesView() {
       // Clear any previous duplicate errors
       setDuplicateError(null);
 
-      // Create a service data object to submit
-      const serviceDataToSubmit: any = {
-        service_name: serviceData.service_name,
-        category: serviceData.category,
-        description: serviceData.description,
-        reviews: 0,
-        positive_reviews: 0,
-        total_reviews: 0,
-        total_views: 0,
-        comments: [],
-        isActive: true,
-        service_owner: serviceData.service_owner,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      };
-      
       // Upload thumbnail if provided
+      let mainImageUrl = '';
       if (serviceThumbnailFile) {
         const { ref, uploadBytes, getDownloadURL } = await import('firebase/storage');
         const { storage } = await import('../../../firebaseConfig');
         const storageRef = ref(storage, `service_thumbnails/${Date.now()}_${serviceThumbnailFile.name}`);
         const snapshot = await uploadBytes(storageRef, serviceThumbnailFile);
-        const url = await getDownloadURL(snapshot.ref);
-        serviceDataToSubmit.mainImage = url;
+        mainImageUrl = await getDownloadURL(snapshot.ref);
       }
+      
+      // Create a service data object to submit
+      const serviceDataToSubmit: any = {
+        serviceName: serviceData.service_name,
+        categoryIds: serviceData.category,
+        description: serviceData.description,
+        isActive: true,
+        mainImage: mainImageUrl,
+        businessId: serviceData.service_owner === 'SetLater' ? undefined : serviceData.service_owner,
+        serviceOwner: serviceData.service_owner === 'SetLater' ? undefined : serviceData.service_owner,
+      };
       
       // Log the data being sent
       console.log('Adding service:', serviceDataToSubmit);
       
-      // Submit data to Firestore
-      const docRef = await addDoc(servicesCollection, serviceDataToSubmit);
-      console.log('Service added with ID:', docRef);
+      const token = getAuthToken();
+      const response = await apiPost('/api/services', serviceDataToSubmit, token);
+      
+      if (!response.success) {
+        throw new Error(response.error || 'Failed to create service');
+      }
+      
+      console.log('Service added with ID:', response.data?.id);
       
       // Reset form and close dialog
       setServiceData({
@@ -406,35 +402,49 @@ export function ServicesView() {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const updateServiceTimestamp = async (serviceId: string) => {
     try {
-      const serviceRef = doc(firebaseDB, 'services', serviceId);
-      await updateDoc(serviceRef, {
-        updatedAt: serverTimestamp()
-      });
+      // TODO: Migrate to API - PUT /api/services/:id
+      // const response = await fetch(`/api/services/${serviceId}`, {
+      //   method: 'PUT',
+      //   headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      //   body: JSON.stringify({ updatedAt: new Date().toISOString() }),
+      // });
+      console.warn('Service timestamp update not implemented - needs API migration');
       console.log(`Updated timestamp for service: ${serviceId}`);
     } catch (error) {
       console.error('Error updating service timestamp:', error);
     }
   };
 
-  // Move Firestore collection reference to useMemo
-  const servicesCollection = useMemo(() => collection(firebaseDB, 'services'), []);
+  // TODO: Migrate to API - GET /api/services
+  // const servicesCollection = useMemo(() => collection(firebaseDB, 'services'), []);
 
   // Update getServices with stable dependency
   const getServices = useCallback(async () => {
     try {
-      // First try to get all services without ordering to ensure we get all services
-      const querySnapshot = await getDocs(servicesCollection);
-      const fetchedData: Service[] = querySnapshot.docs.map((docService) => {
-        const docData = docService.data() as Omit<Service, 'id'>;
-        return {
-          ...docData,
-          id: docService.id,
-        };
-      });
+      const response = await apiGet('/api/services');
+      let fetchedData: Service[] = [];
+      
+      if (response.success && response.data) {
+        fetchedData = response.data.map((service: any) => ({
+          id: service.id,
+          service_name: service.serviceName || service.name || '',
+          description: service.description || '',
+          category: service.categoryIds || service.categories?.map((c: any) => c.id || c.name) || [],
+          mainImage: service.mainImage || '',
+          additionalImages: service.additionalImages || [],
+          serviceOwner: service.businessId || service.serviceOwner || '',
+          isActive: service.isActive !== false,
+          createdAt: service.createdAt ? new Date(service.createdAt) : new Date(),
+          updatedAt: service.updatedAt ? new Date(service.updatedAt) : undefined,
+          views: service.views || 0,
+          positive_reviews: service.positiveReviews || 0,
+          neutral_reviews: service.neutralReviews || 0,
+          total_reviews: service.totalReviews || 0,
+        }));
+      }
       
       // Sort by updatedAt descending (latest updated first) with fallback to createdAt
       fetchedData.sort((a, b) => {
-        // Use updatedAt if available, otherwise fall back to createdAt
         const dateA = convertToDate(a.updatedAt || a.createdAt);
         const dateB = convertToDate(b.updatedAt || b.createdAt);
         
@@ -448,39 +458,20 @@ export function ServicesView() {
       setServiceList(fetchedData);
     } catch (err) {
       console.error('Error fetching services:', err);
-      // Fallback: try to get services without sorting
-      try {
-        const querySnapshot = await getDocs(servicesCollection);
-        const fetchedData: Service[] = querySnapshot.docs.map((docService) => {
-          const docData = docService.data() as Omit<Service, 'id'>;
-          return {
-            ...docData,
-            id: docService.id,
-          };
-        });
-        console.log(`Fallback: Fetched ${fetchedData.length} services`);
-        setServiceList(fetchedData);
-      } catch (fallbackErr) {
-        console.error('Fallback error fetching services:', fallbackErr);
-        setServiceList([]);
-      }
+      setServiceList([]);
     }
-  }, [servicesCollection]);
+  }, []);
 
   // Update useEffect to run only once
   useEffect(() => {
     getServices();
     const fetchAllServiceComments = async () => {
       try {
-        const commentsRef = collection(firebaseDB, "comments");
-        const q = query(commentsRef, where("parentType", "==", "Service"));
-        const querySnapshot = await getDocs(q);
-        const comments = querySnapshot.docs.map(docServiceComments => ({
-          id: docServiceComments.id,
-          ...docServiceComments.data()
-        })) as ProductOrServiceComment[];
-        setServiceComments(comments);
-        return comments;
+        // Fetch comments for all services - we'll need to get service IDs first
+        // For now, we'll fetch comments individually per service as needed
+        // This is a placeholder - in production, you might want a bulk endpoint
+        setServiceComments([]);
+        return [];
       } catch (error) {
         console.error("Error fetching service comments:", error);
         return [];
@@ -489,41 +480,43 @@ export function ServicesView() {
     fetchAllServiceComments();
   }, [getServices]);
 
-  // Fetch categories from Firestore and filter by type 'service'
+  // Fetch categories from API and filter by type 'service'
   useEffect(() => {
     const fetchCategories = async () => {
       try {
-        const categoriesCollection = collection(firebaseDB, 'categories');
-        const querySnapshot = await getDocs(categoriesCollection);
-        const categories = querySnapshot.docs.map(docCat => docCat.data());
-        const serviceCategories = categories.filter(cat => cat.type === 'service');
-        setAvailableCategories(serviceCategories.map(cat => cat.name));
+        const response = await apiGet('/api/categories', { type: 'SERVICE' });
+        if (response.success && response.data) {
+          setAvailableCategories(response.data.map((cat: any) => cat.name));
+        } else {
+          setAvailableCategories([]);
+        }
       } catch (err) {
         console.error('Error fetching service categories:', err);
+        setAvailableCategories([]);
       }
     };
     fetchCategories();
   }, []);
 
-  // Fetch service owners from 'businesses' collection
+  // Fetch service owners from API
   useEffect(() => {
     const fetchServiceOwners = async () => {
       try {
-        const businessesCollection = collection(firebaseDB, 'businesses');
-        const querySnapshot = await getDocs(businessesCollection);
-        // Store as objects with id and name to avoid duplicate key issues
-        const owners = querySnapshot.docs.map((docPO) => {
-          const data = docPO.data();
-          return {
-            id: docPO.id,
-            name: data.name || data.owner_name || docPO.id,
-          };
-        });
-        // Remove duplicates by name, keeping the first occurrence
-        const uniqueOwners = Array.from(
-          new Map(owners.map(owner => [owner.name, owner])).values()
-        );
-        setAvailableServiceOwners(['SetLater', ...uniqueOwners.map(owner => owner.name)]);
+        const response = await apiGet('/api/businesses');
+        if (response.success && response.data) {
+          const serviceOwners = response.data.map((biz: any) => ({
+            id: biz.id,
+            name: biz.name || biz.businessName || biz.id,
+          }));
+          
+          // Remove duplicates by name, keeping the first occurrence
+          const uniqueOwners = Array.from(
+            new Map(serviceOwners.map((owner: any) => [owner.name, owner])).values()
+          );
+          setAvailableServiceOwners(['SetLater', ...uniqueOwners.map((owner: any) => owner.name)]);
+        } else {
+          setAvailableServiceOwners(['SetLater']);
+        }
       } catch (error) {
         console.error('Error fetching service owners:', error);
         setAvailableServiceOwners(['SetLater']);
@@ -1209,4 +1202,4 @@ export function ServicesView() {
       </Snackbar>
     </Box>
   );
-}   // End of ServiceView
+}

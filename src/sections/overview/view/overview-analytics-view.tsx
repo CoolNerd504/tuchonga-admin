@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { apiGet } from 'src/utils/api';
 
 import { Box } from '@mui/material';
 import Alert from '@mui/material/Alert';
@@ -36,13 +37,19 @@ const getMonthName = (date: Date): string => {
 };
 
 // Helper function to calculate monthly trends
-const calculateMonthlyTrends = (docs: any[], months: string[]): number[] => {
+const calculateMonthlyTrends = (items: any[], months: string[]): number[] => {
+  // If no items, return array of zeros
+  if (!items || items.length === 0) {
+    return months.map(() => 0);
+  }
+
   const monthCounts: { [key: string]: number } = {};
   months.forEach(month => { monthCounts[month] = 0; });
 
-  docs.forEach((doc) => {
-    const data = doc.data();
-    const createdAt = convertToDate(data.createdAt);
+  items.forEach((item: any) => {
+    // Handle both Firestore doc format and API data format
+    const data = item.data ? item.data() : item;
+    const createdAt = convertToDate(data?.createdAt);
     if (createdAt) {
       const monthName = getMonthName(createdAt);
       if (monthCounts[monthName] !== undefined) {
@@ -63,6 +70,26 @@ const calculateMonthlyTrends = (docs: any[], months: string[]): number[] => {
 const calculatePercentageChange = (current: number, previous: number): number => {
   if (previous === 0) return current > 0 ? 100 : 0;
   return ((current - previous) / previous) * 100;
+};
+
+// Helper function to get user display name
+const getUserDisplayName = (user: any): string => {
+  if (user?.firstname) {
+    return user.firstname;
+  }
+  if (user?.fullName) {
+    // Extract first name from fullName if firstname is not available
+    const firstName = user.fullName.split(' ')[0];
+    return firstName;
+  }
+  if (user?.displayName) {
+    return user.displayName;
+  }
+  if (user?.email) {
+    // Extract name from email (part before @)
+    return user.email.split('@')[0];
+  }
+  return 'User';
 };
 
 export function OverviewAnalyticsView() {
@@ -91,6 +118,36 @@ export function OverviewAnalyticsView() {
     female: 0,
   });
 
+  const [productTrends, setProductTrends] = useState<{ labels: string[]; values: number[] }>({
+    labels: [],
+    values: [],
+  });
+
+  const [serviceTrends, setServiceTrends] = useState<{ labels: string[]; values: number[] }>({
+    labels: [],
+    values: [],
+  });
+
+  const [productSummary, setProductSummary] = useState({
+    total: 0,
+    active: 0,
+    inactive: 0,
+    totalViews: 0,
+    avgViews: 0,
+    zeroViews: 0,
+    topViewed: [] as { id: string; name: string; views: number }[],
+  });
+
+  const [serviceSummary, setServiceSummary] = useState({
+    total: 0,
+    active: 0,
+    inactive: 0,
+    totalViews: 0,
+    avgViews: 0,
+    zeroViews: 0,
+    topViewed: [] as { id: string; name: string; views: number }[],
+  });
+
   const [websiteVisits, setWebsiteVisits] = useState({
     categories: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug'],
     series: [{ name: 'Visits', data: [0, 0, 0, 0, 0, 0, 0, 0] }],
@@ -102,36 +159,152 @@ export function OverviewAnalyticsView() {
   useEffect(() => {
     // Wait for user to be authenticated before fetching data
     if (!user) {
+      console.log('[Overview] Waiting for user authentication...');
       return;
     }
 
     const fetchAllData = async () => {
+      console.log('[Overview] Starting data fetch...');
       setError(null);
       setLoading(true);
       try {
-        // TODO: Replace with API call
-        // const response = await fetch('/api/analytics/overview');
-        // const data = await response.json();
+        // Initialize all counts to 0 (will be updated if data exists)
+        let userCount = 0;
+        let businessCount = 0;
+        let productCount = 0;
+        let serviceCount = 0;
+        let usersData: any[] = [];
+        let productsData: any[] = [];
+        let servicesData: any[] = [];
+        let businessesData: any[] = [];
         
-        // Temporarily disabled - Firestore removed
-        // const [usersSnap, businessesSnap, productsSnap, servicesSnap] = await Promise.all([
-        //   getDocs(usersCollection),
-        //   getDocs(businessesCollection),
-        //   getDocs(productsCollection),
-        //   getDocs(servicesCollection)
-        // ]);
+        // Try to fetch analytics overview (may not exist yet)
+        try {
+          console.log('[Overview] Fetching /api/analytics/overview...');
+          const overviewResponse = await apiGet('/api/analytics/overview');
+          console.log('[Overview] Overview response:', overviewResponse);
+          
+          if (overviewResponse.success && overviewResponse.data) {
+            userCount = Number(overviewResponse.data.users) || 0;
+            businessCount = Number(overviewResponse.data.businesses) || 0;
+            productCount = Number(overviewResponse.data.products) || 0;
+            serviceCount = Number(overviewResponse.data.services) || 0;
+            console.log('[Overview] Counts from overview:', { userCount, businessCount, productCount, serviceCount });
+          } else {
+            console.log('[Overview] Overview endpoint not available or returned no data, will calculate from individual endpoints');
+          }
+        } catch (overviewError) {
+          console.log('[Overview] Overview endpoint failed (may not exist yet):', overviewError);
+          // Continue with individual endpoint fetches
+        }
         
-        // Placeholder data until API migration
-        const usersSnap = { size: 0, docs: [] };
-        const businessesSnap = { size: 0, docs: [] };
-        const productsSnap = { size: 0, docs: [] };
-        const servicesSnap = { size: 0, docs: [] };
+        // Fetch detailed data for trends and counts
+        console.log('[Overview] Fetching detailed data for trends...');
+        const [
+          usersResponse,
+          businessesResponse,
+          productsResponse,
+          servicesResponse,
+          productTrendsResponse,
+          serviceTrendsResponse,
+        ] = await Promise.allSettled([
+          apiGet('/api/users'),
+          apiGet('/api/businesses'),
+          apiGet('/api/products'),
+          apiGet('/api/services'),
+          apiGet('/api/analytics/products/trends'),
+          apiGet('/api/analytics/services/trends'),
+        ]);
+        
+        // Process users response
+        if (usersResponse.status === 'fulfilled' && usersResponse.value.success) {
+          usersData = Array.isArray(usersResponse.value.data) ? usersResponse.value.data : [];
+          // If overview didn't provide count, use array length
+          if (userCount === 0) {
+            userCount = usersData.length;
+          }
+          console.log('[Overview] Users data loaded:', usersData.length, 'items');
+        } else {
+          console.log('[Overview] Users endpoint failed or returned no data, using 0');
+          usersData = [];
+        }
+        
+        // Process businesses response
+        if (businessesResponse.status === 'fulfilled' && businessesResponse.value.success) {
+          businessesData = Array.isArray(businessesResponse.value.data) ? businessesResponse.value.data : [];
+          // If overview didn't provide count, use array length
+          if (businessCount === 0) {
+            businessCount = businessesData.length;
+          }
+          console.log('[Overview] Businesses data loaded:', businessesData.length, 'items');
+        } else {
+          console.log('[Overview] Businesses endpoint failed or returned no data, using 0');
+          businessesData = [];
+        }
+        
+        // Process products response
+        if (productsResponse.status === 'fulfilled' && productsResponse.value.success) {
+          productsData = Array.isArray(productsResponse.value.data) ? productsResponse.value.data : [];
+          // If overview didn't provide count, use array length
+          if (productCount === 0) {
+            productCount = productsData.length;
+          }
+          console.log('[Overview] Products data loaded:', productsData.length, 'items');
+        } else {
+          console.log('[Overview] Products endpoint failed or returned no data, using 0');
+          productsData = [];
+        }
+        
+        // Process services response
+        if (servicesResponse.status === 'fulfilled' && servicesResponse.value.success) {
+          servicesData = Array.isArray(servicesResponse.value.data) ? servicesResponse.value.data : [];
+          // If overview didn't provide count, use array length
+          if (serviceCount === 0) {
+            serviceCount = servicesData.length;
+          }
+          console.log('[Overview] Services data loaded:', servicesData.length, 'items');
+        } else {
+          console.log('[Overview] Services endpoint failed or returned no data, using 0');
+          servicesData = [];
+        }
 
-        // Get counts
-        const userCount = usersSnap.size;
-        const businessCount = businessesSnap.size;
-        const productCount = productsSnap.size;
-        const serviceCount = servicesSnap.size;
+        // Process product trends
+        if (productTrendsResponse.status === 'fulfilled' && productTrendsResponse.value.success) {
+          const data = productTrendsResponse.value.data;
+          setProductTrends({
+            labels: data.monthlyAdds.labels,
+            values: data.monthlyAdds.values,
+          });
+          setProductSummary({
+            total: data.summary.total,
+            active: data.summary.active,
+            inactive: data.summary.inactive,
+            totalViews: data.summary.totalViews,
+            avgViews: data.summary.avgViews,
+            zeroViews: data.summary.zeroViews,
+            topViewed: data.topViewed || [],
+          });
+        }
+
+        // Process service trends
+        if (serviceTrendsResponse.status === 'fulfilled' && serviceTrendsResponse.value.success) {
+          const data = serviceTrendsResponse.value.data;
+          setServiceTrends({
+            labels: data.monthlyAdds.labels,
+            values: data.monthlyAdds.values,
+          });
+          setServiceSummary({
+            total: data.summary.total,
+            active: data.summary.active,
+            inactive: data.summary.inactive,
+            totalViews: data.summary.totalViews,
+            avgViews: data.summary.avgViews,
+            zeroViews: data.summary.zeroViews,
+            topViewed: data.topViewed || [],
+          });
+        }
+        
+        console.log('[Overview] Final counts:', { userCount, businessCount, productCount, serviceCount });
 
         setCounts({
           users: userCount,
@@ -148,10 +321,11 @@ export function OverviewAnalyticsView() {
           months.push(getMonthName(date));
         }
 
-        const usersTrends = calculateMonthlyTrends(usersSnap.docs, months);
-        const productsTrends = calculateMonthlyTrends(productsSnap.docs, months);
-        const servicesTrends = calculateMonthlyTrends(servicesSnap.docs, months);
-        const businessesTrends = calculateMonthlyTrends(businessesSnap.docs, months);
+        // Calculate trends from API data
+        const usersTrends = calculateMonthlyTrends(usersData, months);
+        const productsTrends = calculateMonthlyTrends(productsData, months);
+        const servicesTrends = calculateMonthlyTrends(servicesData, months);
+        const businessesTrends = calculateMonthlyTrends(businessesData, months);
 
         // Calculate percentage changes (current month vs previous month)
         const calculatePercent = (trends: number[]) => {
@@ -181,12 +355,11 @@ export function OverviewAnalyticsView() {
           },
         });
 
-        // Calculate gender distribution
+        // Calculate gender distribution from API data
         let maleCount = 0;
         let femaleCount = 0;
-        usersSnap.docs.forEach((doc) => {
-          const userData = doc.data();
-          const gender = userData.gender?.toLowerCase();
+        usersData.forEach((userData: any) => {
+          const gender = userData?.gender?.toLowerCase();
           if (gender === 'male' || gender === 'm') {
             maleCount += 1;
           } else if (gender === 'female' || gender === 'f') {
@@ -203,11 +376,12 @@ export function OverviewAnalyticsView() {
         const visitsByMonth: { [key: string]: number } = {};
         months.forEach(month => { visitsByMonth[month] = 0; });
 
-        // Combine products and services views
-        [...productsSnap.docs, ...servicesSnap.docs].forEach((doc) => {
-          const data = doc.data();
-          const createdAt = convertToDate(data.createdAt);
-          const views = data.total_views || 0;
+        // Combine products and services views from API data
+        const allItems = [...(productsData || []), ...(servicesData || [])];
+        allItems.forEach((item: any) => {
+          const data = item.data ? item.data() : item;
+          const createdAt = convertToDate(data?.createdAt);
+          const views = data?.total_views || 0;
           
           if (createdAt) {
             const monthName = getMonthName(createdAt);
@@ -229,16 +403,24 @@ export function OverviewAnalyticsView() {
           series: [{ name: 'Visits', data: visitsData }],
         });
 
+        console.log('[Overview] Data fetch completed successfully');
+        setLoading(false);
       } catch (err: any) {
-        console.error('Error fetching data:', err);
+        console.error('[Overview] Error fetching data:', err);
+        console.error('[Overview] Error details:', {
+          message: err?.message,
+          code: err?.code,
+          stack: err?.stack,
+        });
         const errorMessage = err?.code === 'permission-denied' 
           ? 'Permission denied. Please check Firestore security rules or contact administrator.'
           : err?.message || 'Failed to fetch analytics data. Please try again.';
         setError(errorMessage);
+        setLoading(false);
       }
     };
     fetchAllData();
-  }, [user, loading]);
+  }, [user]);
 
   // Navigation handlers
   const handleNavigateToUsers = () => {
@@ -276,7 +458,7 @@ export function OverviewAnalyticsView() {
           {error}
         </Alert>
         <Typography variant="h4" sx={{ mb: { xs: 3, md: 5 } }}>
-          Hi, Welcome back {user?.email} 👋
+          Hi, Welcome back {getUserDisplayName(user)} 👋
         </Typography>
       </DashboardContent>
     );
@@ -285,7 +467,7 @@ export function OverviewAnalyticsView() {
   return (
     <DashboardContent maxWidth="xl">
       <Typography variant="h4" sx={{ mb: { xs: 3, md: 5 } }}>
-        Hi, Welcome back {user?.email} 👋
+      Hi, Welcome back {getUserDisplayName(user)} 👋
       </Typography>
 
       <Grid container spacing={3}>
@@ -413,6 +595,78 @@ export function OverviewAnalyticsView() {
             }}
           />
         </Grid> */}
+
+        <Grid xs={12} md={6} lg={6}>
+          <AnalyticsWebsiteVisits
+            title="Products – Monthly Adds"
+            subheader={`Total: ${productSummary.total} • Active: ${productSummary.active} • Zero views: ${productSummary.zeroViews}`}
+            chart={{
+              categories: productTrends.labels.length ? productTrends.labels : chartData.categories,
+              series: [
+                {
+                  name: 'Products',
+                  data: productTrends.values.length ? productTrends.values : chartData.products.series,
+                },
+              ],
+            }}
+          />
+        </Grid>
+
+        <Grid xs={12} md={6} lg={6}>
+          <AnalyticsWebsiteVisits
+            title="Services – Monthly Adds"
+            subheader={`Total: ${serviceSummary.total} • Active: ${serviceSummary.active} • Zero views: ${serviceSummary.zeroViews}`}
+            chart={{
+              categories: serviceTrends.labels.length ? serviceTrends.labels : chartData.categories,
+              series: [
+                {
+                  name: 'Services',
+                  data: serviceTrends.values.length ? serviceTrends.values : chartData.services.series,
+                },
+              ],
+            }}
+          />
+        </Grid>
+
+        <Grid xs={12} md={6} lg={6}>
+          <Box sx={{ p: 2, border: '1px solid', borderColor: 'divider', borderRadius: 2 }}>
+            <Typography variant="h6" sx={{ mb: 1 }}>
+              Top Products (by views)
+            </Typography>
+            {productSummary.topViewed.length === 0 ? (
+              <Typography variant="body2" color="text.secondary">
+                No product view data yet.
+              </Typography>
+            ) : (
+              productSummary.topViewed.map((p) => (
+                <Typography key={p.id} variant="body2" sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span>{p.name}</span>
+                  <span>{p.views} views</span>
+                </Typography>
+              ))
+            )}
+          </Box>
+        </Grid>
+
+        <Grid xs={12} md={6} lg={6}>
+          <Box sx={{ p: 2, border: '1px solid', borderColor: 'divider', borderRadius: 2 }}>
+            <Typography variant="h6" sx={{ mb: 1 }}>
+              Top Services (by views)
+            </Typography>
+            {serviceSummary.topViewed.length === 0 ? (
+              <Typography variant="body2" color="text.secondary">
+                No service view data yet.
+              </Typography>
+            ) : (
+              serviceSummary.topViewed.map((s) => (
+                <Typography key={s.id} variant="body2" sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span>{s.name}</span>
+                  <span>{s.views} views</span>
+                </Typography>
+              ))
+            )}
+          </Box>
+        </Grid>
 
       </Grid>
     </DashboardContent>

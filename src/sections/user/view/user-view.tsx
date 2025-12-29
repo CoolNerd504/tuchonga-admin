@@ -1,10 +1,5 @@
 import { useMemo, useState, useEffect, useCallback } from 'react';
-import {
-  addDoc,
-  getDocs,
-  collection,
-  
-} from "firebase/firestore";
+import { apiGet, apiPost, getAuthToken } from 'src/utils/api';
 
 import {
   Box,
@@ -26,6 +21,10 @@ import {
   DialogContent,
   TableContainer,
   TablePagination,
+  MenuItem,
+  Select,
+  FormControl,
+  InputLabel,
 } from '@mui/material';
 
 import { DashboardContent } from 'src/layouts/dashboard';
@@ -48,6 +47,7 @@ interface Users {
   location?: string | null;
   mobile?: string | null; // Phone number
   profileImage?: string | null;
+  gender?: string | null; // "male" | "female" | "other" | null
   hasCompletedProfile?: boolean;
   createdAt?: any;
   updatedAt?: any;
@@ -71,19 +71,28 @@ export function UserView() {
     firstname: '',
     lastname: '',
     mobile: '',
+    gender: '',
   });
 
-  const usersCollection = collection(firebaseDB, "users");
+  // TODO: Migrate to API - GET /api/users
+  // const usersCollection = collection(firebaseDB, "users");
 
-  const handleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleChange = (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement> | { target: { name: string; value: string } }) => {
     const { name, value } = event.target;
     setUserData({ ...userData, [name]: value });
   };
 
   const handleAddUser = async () => {
     try {
+      // TODO: Migrate to API - POST /api/users
+      // const response = await fetch('/api/users', {
+      //   method: 'POST',
+      //   headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      //   body: JSON.stringify(userData),
+      // });
+      console.warn('User creation not implemented - needs API migration');
       console.log("STAte", userData);
-      await addDoc(usersCollection, userData);
+      // await addDoc(usersCollection, userData);
       setSnackbarMessage('User added successfully!');
       setSnackbarSeverity('success');
       setSnackbarOpen(true);
@@ -110,37 +119,39 @@ export function UserView() {
 
   const getUsers = useCallback(async () => {
     try {
-      // Fetch users from Firestore 'users' collection (NOT Firebase Auth)
-      const data = await getDocs(usersCollection);
-      const filteredData: Users[] = data.docs.map((doc) => {
-        const docData = doc.data();
-        return {
-          id: doc.id, // Document ID
-          email: docData.email || docData.emailAddress || null,
-          phoneNumber: docData.phoneNumber || docData.phone || null,
-          mobile: docData.mobile || docData.phoneNumber || docData.phone || null,
-          firstname: docData.firstname || docData.firstName || null,
-          lastname: docData.lastname || docData.lastName || null,
-          fullName: docData.fullName || docData.full_name || null,
-          displayName: docData.displayName || docData.display_name || null,
-          location: docData.location || docData.address || null,
-          isActive: docData.isActive !== undefined ? docData.isActive : true,
-          profileImage: docData.profileImage || docData.profile_image || docData.photoURL || null,
-          hasCompletedProfile: docData.hasCompletedProfile || docData.has_completed_profile || false,
-          createdAt: docData.createdAt || null,
-          updatedAt: docData.updatedAt || null,
-          analytics: docData.analytics || null,
-        } as Users;
-      });
+      const response = await apiGet('/api/users');
+      let filteredData: Users[] = [];
+      
+      if (response.success && response.data) {
+        filteredData = response.data.map((user: any) => ({
+          id: user.id,
+          email: user.email || null,
+          phoneNumber: user.phoneNumber || user.phone || null,
+          mobile: user.phoneNumber || user.phone || null,
+          firstname: user.firstName || user.firstname || null,
+          lastname: user.lastName || user.lastname || null,
+          fullName: user.fullName || (user.firstName && user.lastName ? `${user.firstName} ${user.lastName}` : null),
+          displayName: user.displayName || null,
+          location: user.location || null,
+          isActive: user.isActive !== undefined ? user.isActive : true,
+          profileImage: user.profileImage || null,
+          hasCompletedProfile: user.hasCompletedProfile || false,
+          createdAt: user.createdAt ? new Date(user.createdAt) : null,
+          updatedAt: user.updatedAt ? new Date(user.updatedAt) : null,
+          analytics: user.analytics || null,
+        })) as Users[];
+      } else {
+        filteredData = [];
+      }
 
       setUserList(filteredData);
     } catch (err) {
-      console.error("Error fetching users from Firestore:", err);
-      setSnackbarMessage('Failed to fetch users from Firestore. Please try again.');
+      console.error("Error fetching users:", err);
+      setSnackbarMessage('Failed to fetch users. Please try again.');
       setSnackbarSeverity('error');
       setSnackbarOpen(true);
     }
-  }, [usersCollection]);
+  }, []); // Removed usersCollection dependency - will use API
 
   useEffect(() => {
     getUsers();
@@ -348,6 +359,7 @@ export function UserView() {
                     <TableCell sx={{ minWidth: 150 }}>Name</TableCell>
                     <TableCell sx={{ minWidth: 150 }}>Phone</TableCell>
                     <TableCell sx={{ minWidth: 150 }}>Location</TableCell>
+                    <TableCell sx={{ minWidth: 100 }}>Gender</TableCell>
                     <TableCell sx={{ minWidth: 100 }}>Status</TableCell>
                     <TableCell sx={{ minWidth: 120 }}>Profile</TableCell>
                   </TableRow>
@@ -392,6 +404,9 @@ export function UserView() {
                         <TableCell>{phone}</TableCell>
                         <TableCell>{user.location || 'N/A'}</TableCell>
                         <TableCell>
+                          {user.gender ? user.gender.charAt(0).toUpperCase() + user.gender.slice(1) : 'N/A'}
+                        </TableCell>
+                        <TableCell>
                           {user.isActive !== false ? (
                             <Typography variant="body2" sx={{ color: 'success.main' }}>
                               Active
@@ -418,7 +433,7 @@ export function UserView() {
                   })}
                   {paginatedUsers.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={6} align="center">
+                      <TableCell colSpan={7} align="center">
                         <Typography variant="body2">
                           {filteredUsers.length === 0 ? 'No users found' : 'No users on this page'}
                         </Typography>
@@ -495,6 +510,20 @@ export function UserView() {
             value={userData.location || ''} 
             onChange={handleChange} 
           />
+          <FormControl fullWidth margin="dense">
+            <InputLabel>Gender</InputLabel>
+            <Select
+              name="gender"
+              value={userData.gender || ''}
+              onChange={handleChange}
+              label="Gender"
+            >
+              <MenuItem value="">Not specified</MenuItem>
+              <MenuItem value="male">Male</MenuItem>
+              <MenuItem value="female">Female</MenuItem>
+              <MenuItem value="other">Other</MenuItem>
+            </Select>
+          </FormControl>
           <TextField 
             margin="dense" 
             label="Phone" 

@@ -1,5 +1,5 @@
-import { useMemo, useState, useEffect ,useCallback} from 'react';
-import { doc, addDoc, getDocs, updateDoc, collection } from 'firebase/firestore';
+import { useMemo, useState, useEffect, useCallback } from 'react';
+import { apiGet, apiPost, apiPut, apiDelete } from 'src/utils/api';
 
 import {
   Box,
@@ -37,7 +37,7 @@ interface Category {
   id: string;
   name: string;
   description: string;
-  type: 'product' | 'service';
+  type: 'product' | 'service' | 'PRODUCT' | 'SERVICE'; // Support both formats
 }
 
 export function CategoryView() {
@@ -60,20 +60,30 @@ export function CategoryView() {
   const [typeFilter, setTypeFilter] = useState<'all' | 'product' | 'service'>('all');
   const [searchTerm, setSearchTerm] = useState('');
 
-  const categoriesCollection = useMemo(() => collection(firebaseDB, 'categories'), []);
+  // TODO: Migrate to API - GET /api/categories
+  // const categoriesCollection = useMemo(() => collection(firebaseDB, 'categories'), []);
 
   const fetchCategories = useCallback(async () => {
     try {
-      const snapshot = await getDocs(categoriesCollection);
-      const fetchedCategories = snapshot.docs.map(document => ({ // Renamed 'doc' to 'document'
-        id: document.id,
-        ...document.data(),
-      })) as Category[];
-      setCategories(fetchedCategories);
+      const params: Record<string, any> = {};
+      if (typeFilter !== 'all') {
+        params.type = typeFilter.toUpperCase(); // API expects 'PRODUCT' or 'SERVICE'
+      }
+      if (searchTerm) {
+        params.search = searchTerm;
+      }
+      
+      const response = await apiGet('/api/categories', params);
+      if (response.success && response.data) {
+        setCategories(response.data);
+      } else {
+        setCategories([]);
+      }
     } catch (error) {
       console.error('Error fetching categories:', error);
+      setCategories([]);
     }
-  }, [categoriesCollection]);
+  }, [typeFilter, searchTerm]);
   useEffect(() => {
     fetchCategories();
   }, [fetchCategories]);
@@ -81,15 +91,24 @@ export function CategoryView() {
 
   const handleAddCategory = async () => {
     try {
-      await addDoc(categoriesCollection, categoryData);
-      setOpen(false);
-      fetchCategories();
-      setSnackbarMessage('Category added successfully!');
-      setSnackbarSeverity('success');
-      setSnackbarOpen(true);
-      setCategoryData({ name: '', description: '', type: 'product' });
-    } catch (error) {
-      setSnackbarMessage('Failed to add category');
+      const response = await apiPost('/api/categories', {
+        name: categoryData.name,
+        description: categoryData.description,
+        type: categoryData.type.toUpperCase(), // API expects 'PRODUCT' or 'SERVICE'
+      });
+
+      if (response.success) {
+        setOpen(false);
+        fetchCategories();
+        setSnackbarMessage('Category added successfully!');
+        setSnackbarSeverity('success');
+        setSnackbarOpen(true);
+        setCategoryData({ name: '', description: '', type: 'product' });
+      } else {
+        throw new Error(response.error || 'Failed to add category');
+      }
+    } catch (error: any) {
+      setSnackbarMessage(error.message || 'Failed to add category');
       setSnackbarSeverity('error');
       setSnackbarOpen(true);
     }
@@ -104,19 +123,26 @@ export function CategoryView() {
     try {
       if (!selectedCategory) return;
       
-      const docRef = doc(firebaseDB, 'categories', selectedCategory.id);
-      await updateDoc(docRef, categoryData);
-      
-      setOpen(false);
-      fetchCategories();
-      setSnackbarMessage('Category updated successfully!');
-      setSnackbarSeverity('success');
-      setSnackbarOpen(true);
-      setCategoryData({ name: '', description: '', type: 'product' });
-      setEditMode(false);
-      setSelectedCategory(null);
-    } catch (error) {
-      setSnackbarMessage('Failed to update category');
+      const response = await apiPut(`/api/categories/${selectedCategory.id}`, {
+        name: categoryData.name,
+        description: categoryData.description,
+        type: categoryData.type.toUpperCase(), // API expects 'PRODUCT' or 'SERVICE'
+      });
+
+      if (response.success) {
+        setOpen(false);
+        fetchCategories();
+        setSnackbarMessage('Category updated successfully!');
+        setSnackbarSeverity('success');
+        setSnackbarOpen(true);
+        setCategoryData({ name: '', description: '', type: 'product' });
+        setEditMode(false);
+        setSelectedCategory(null);
+      } else {
+        throw new Error(response.error || 'Failed to update category');
+      }
+    } catch (error: any) {
+      setSnackbarMessage(error.message || 'Failed to update category');
       setSnackbarSeverity('error');
       setSnackbarOpen(true);
     }
@@ -127,18 +153,21 @@ export function CategoryView() {
 
   // Filter categories based on type filter and search
   const filteredCategories = useMemo(() => {
-    let filtered = categories;
+    let filtered = categories.map(cat => ({
+      ...cat,
+      type: (cat.type?.toLowerCase() === 'product' || cat.type === 'PRODUCT' ? 'product' : 'service') as 'product' | 'service'
+    }));
     
     // Filter by type
     if (typeFilter !== 'all') {
       filtered = filtered.filter(category => category.type === typeFilter);
     }
     
-    // Filter by search term
+    // Filter by search term (already handled by API, but keep for client-side filtering if needed)
     if (searchTerm) {
       filtered = filtered.filter(category => 
         category.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        category.description.toLowerCase().includes(searchTerm.toLowerCase())
+        (category.description && category.description.toLowerCase().includes(searchTerm.toLowerCase()))
       );
     }
     
@@ -166,21 +195,21 @@ export function CategoryView() {
  // Add this function to fetch products and count category assignments
  const fetchCategoryAssignments = useCallback(async () => {
      try {
-         const productsCollection = collection(firebaseDB, 'products');
-         const productsSnapshot = await getDocs(productsCollection);
+         const response = await apiGet('/api/products', { limit: 1000 }); // Get all products to count assignments
          
-         const assignments: Record<string, number> = {};
-         
-         productsSnapshot.docs.forEach(document => {
-             const product = document.data();
-             if (product.categories && Array.isArray(product.categories)) {
-                 product.categories.forEach((categoryId: string) => {
-                     assignments[categoryId] = (assignments[categoryId] || 0) + 1;
-                 });
-             }
-         });
-         
-         setCategoryAssignments(assignments);
+         if (response.success && response.data) {
+             const assignments: Record<string, number> = {};
+             
+             response.data.forEach((product: any) => {
+                 if (product.categoryIds && Array.isArray(product.categoryIds)) {
+                     product.categoryIds.forEach((categoryId: string) => {
+                         assignments[categoryId] = (assignments[categoryId] || 0) + 1;
+                     });
+                 }
+             });
+             
+             setCategoryAssignments(assignments);
+         }
      } catch (error) {
          console.error('Error fetching category assignments:', error);
      }

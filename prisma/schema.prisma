@@ -31,6 +31,7 @@ model User {
   profileImage         String?
   location             String?
   mobile               String?   // Alternative to phoneNumber
+  gender               String?   // "male" | "female" | "other" | null
   
   // Profile Status
   hasCompletedProfile  Boolean   @default(false)

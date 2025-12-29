@@ -11,6 +11,7 @@ export interface CreateUserData {
   displayName?: string;
   profileImage?: string;
   location?: string;
+  gender?: string;
 }
 
 export interface UpdateUserData {
@@ -20,6 +21,7 @@ export interface UpdateUserData {
   displayName?: string;
   profileImage?: string;
   location?: string;
+  gender?: string;
   hasCompletedProfile?: boolean;
 }
 
@@ -71,6 +73,7 @@ export const mobileUserService = {
         displayName: data.displayName || data.fullName,
         profileImage: data.profileImage,
         location: data.location,
+        gender: data.gender,
         role: 'user',
         hasCompletedProfile: false,
         isActive: true,
@@ -89,6 +92,7 @@ export const mobileUserService = {
         fullName: true,
         displayName: true,
         profileImage: true,
+        gender: true,
         role: true,
         hasCompletedProfile: true,
         createdAt: true,
@@ -194,6 +198,7 @@ export const mobileUserService = {
         displayName: true,
         profileImage: true,
         location: true,
+        gender: true,
         role: true,
         hasCompletedProfile: true,
         createdAt: true,
@@ -213,6 +218,7 @@ export const mobileUserService = {
         displayName: true,
         profileImage: true,
         location: true,
+        gender: true,
         role: true,
         hasCompletedProfile: true,
         createdAt: true,
@@ -252,6 +258,7 @@ export const mobileUserService = {
     if (data.displayName !== undefined) updateData.displayName = data.displayName;
     if (data.profileImage !== undefined) updateData.profileImage = data.profileImage;
     if (data.location !== undefined) updateData.location = data.location;
+    if (data.gender !== undefined) updateData.gender = data.gender;
     if (data.hasCompletedProfile !== undefined) {
       updateData.hasCompletedProfile = data.hasCompletedProfile;
       if (data.hasCompletedProfile) {
@@ -270,6 +277,7 @@ export const mobileUserService = {
         displayName: true,
         profileImage: true,
         location: true,
+        gender: true,
         role: true,
         hasCompletedProfile: true,
         profileCompletedAt: true,
@@ -373,6 +381,7 @@ export const mobileUserService = {
           displayName: true,
           profileImage: true,
           location: true,
+          gender: true,
           role: true,
           hasCompletedProfile: true,
           isActive: true,

@@ -19,6 +19,34 @@ module.exports = {
       },
     },
   },
+  overrides: [
+    {
+      // Disable TypeScript parser for .js files
+      files: ['**/*.js'],
+      parser: 'espree',
+      parserOptions: {
+        ecmaVersion: 'latest',
+        sourceType: 'module',
+        ecmaFeatures: { jsx: true },
+        // Remove project reference for JS files
+        project: null,
+      },
+      extends: ['airbnb', 'airbnb/hooks', 'prettier'],
+      settings: {
+        'import/resolver': {
+          node: {
+            extensions: ['.js', '.jsx'],
+          },
+        },
+      },
+      rules: {
+        // Disable TypeScript-specific rules for JS files
+        '@typescript-eslint/no-unused-vars': 'off',
+        '@typescript-eslint/consistent-type-exports': 'off',
+        '@typescript-eslint/consistent-type-imports': 'off',
+      },
+    },
+  ],
   /**
    * 0 ~ 'off'
    * 1 ~ 'warn'

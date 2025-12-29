@@ -17,7 +17,8 @@ export function SuperAdminSetupView() {
     email: '',
     password: '',
     confirmPassword: '',
-    fullName: '',
+    firstname: '',
+    lastname: '',
     phoneNumber: '',
   });
   const [showPassword, setShowPassword] = useState(false);
@@ -87,7 +88,7 @@ export function SuperAdminSetupView() {
     setSuccess(false);
 
     // Validation
-    if (!formData.email || !formData.password || !formData.fullName) {
+    if (!formData.email || !formData.password || !formData.firstname || !formData.lastname) {
       setError('Please fill in all required fields');
       return;
     }
@@ -113,7 +114,8 @@ export function SuperAdminSetupView() {
                body: JSON.stringify({
                  email: formData.email,
                  password: formData.password,
-                 fullName: formData.fullName,
+                 firstname: formData.firstname,
+                 lastname: formData.lastname,
                  phoneNumber: formData.phoneNumber || undefined,
                }),
              });
@@ -124,6 +126,10 @@ export function SuperAdminSetupView() {
                try {
                  const errorData = await response.json();
                  errorMessage = errorData.error || errorMessage;
+                 // Include details if available
+                 if (errorData.details) {
+                   errorMessage += ` - ${errorData.details}`;
+                 }
                } catch {
                  // If response is not JSON, use status text
                  errorMessage = response.statusText || errorMessage;
@@ -138,7 +144,8 @@ export function SuperAdminSetupView() {
         email: '',
         password: '',
         confirmPassword: '',
-        fullName: '',
+        firstname: '',
+        lastname: '',
         phoneNumber: '',
       });
 
@@ -242,9 +249,18 @@ export function SuperAdminSetupView() {
         <Box component="form" onSubmit={handleSubmit}>
           <TextField
             fullWidth
-            label="Full Name"
-            value={formData.fullName}
-            onChange={handleChange('fullName')}
+            label="First Name"
+            value={formData.firstname}
+            onChange={handleChange('firstname')}
+            required
+            sx={{ mb: 3 }}
+          />
+
+          <TextField
+            fullWidth
+            label="Last Name"
+            value={formData.lastname}
+            onChange={handleChange('lastname')}
             required
             sx={{ mb: 3 }}
           />
@@ -274,6 +290,7 @@ export function SuperAdminSetupView() {
             value={formData.password}
             onChange={handleChange('password')}
             required
+            autoComplete="new-password"
             InputProps={{
               endAdornment: (
                 <InputAdornment position="end">
@@ -294,6 +311,7 @@ export function SuperAdminSetupView() {
             value={formData.confirmPassword}
             onChange={handleChange('confirmPassword')}
             required
+            autoComplete="new-password"
             InputProps={{
               endAdornment: (
                 <InputAdornment position="end">

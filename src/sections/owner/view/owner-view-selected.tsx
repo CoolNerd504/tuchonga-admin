@@ -39,14 +39,7 @@ import {
 // import ArrowForwardIosIcon from '@mui/icons-material/ArrowForwardIos';
 
 import { useLocation, useNavigate } from 'react-router-dom';
-import {
-  doc,
-  addDoc,
-  getDocs,
-  // deleteDoc,
-  updateDoc,
-  collection,
-} from 'firebase/firestore';
+import { apiGet, apiPost, apiPut, getAuthToken } from 'src/utils/api';
 
 import CheckIcon from '@mui/icons-material/Check';
 
@@ -249,7 +242,8 @@ const [productThumbnailFile, setProductThumbnailFile] = useState<File | null>(nu
   const handleSelectServiceRow = (service: Service) => {
     navigate(`/services/${service?.id}`, { state: { service } });
   }
-  const productsCollection = useMemo(() => collection(firebaseDB, 'products'), []);
+  // TODO: Migrate to API - GET /api/products?businessId=:id
+  // const productsCollection = useMemo(() => collection(firebaseDB, 'products'), []);
 
   
   const [productDialogLoading, setProductDialogLoading] = useState(false);
@@ -302,12 +296,24 @@ const [productThumbnailFile, setProductThumbnailFile] = useState<File | null>(nu
         productDataToSubmit.coverUrl = url;
       }
       
-      // Submit data to Firestore
-      const docRef = await addDoc(productsCollection, productDataToSubmit);
-      
+      const token = getAuthToken();
+      const response = await apiPost('/api/products', {
+        productName: productDataToSubmit.product_name,
+        categoryIds: productDataToSubmit.category,
+        description: productDataToSubmit.description,
+        mainImage: productDataToSubmit.coverUrl || '',
+        businessId: business.id,
+        productOwner: business.id,
+        isActive: true,
+      }, token);
+
+      if (!response.success) {
+        throw new Error(response.error || 'Failed to create product');
+      }
+
       const newProduct = {
         ...productData,
-        id: docRef.id,
+        id: response.data?.id || 'temp-id',
         productOwner: business.id,
         coverUrl: productDataToSubmit.coverUrl || ''
       };
@@ -347,8 +353,9 @@ const [productThumbnailFile, setProductThumbnailFile] = useState<File | null>(nu
     } finally {
       setProductDialogLoading(false);
     }
-  }, [productData, productThumbnailFile, onUpdate, business, productsCollection]);
-  const servicesCollection = useMemo(() => collection(firebaseDB, 'services'), []);
+  }, [productData, productThumbnailFile, onUpdate, business]); // Removed productsCollection dependency
+  // TODO: Migrate to API - GET /api/services?businessId=:id
+  // const servicesCollection = useMemo(() => collection(firebaseDB, 'services'), []);
 
   // Update getServices with stable dependency
   // const getServices = useCallback(async () => {
@@ -370,14 +377,25 @@ const [productThumbnailFile, setProductThumbnailFile] = useState<File | null>(nu
   const handleAddService = useCallback(async () => {
     setServiceDialogLoading(true);
     try {
-      const docRef = await addDoc(servicesCollection, serviceData);
-    
-           console.log('Service data:', serviceData);   
-    const newService = {
-      ...serviceData,
-      id: docRef.id,
-      service_owner: business.id
-    };
+      const token = getAuthToken();
+      const response = await apiPost('/api/services', {
+        serviceName: serviceData.service_name,
+        categoryIds: serviceData.category,
+        description: serviceData.description,
+        businessId: business.id,
+        serviceOwner: business.id,
+        isActive: true,
+      }, token);
+
+      if (!response.success) {
+        throw new Error(response.error || 'Failed to create service');
+      }
+
+      const newService = {
+        ...serviceData,
+        id: response.data?.id || 'temp-id',
+        service_owner: business.id
+      };
     setLocalServiceList((prev: Service[]) => [...prev, newService]);
     
       setServiceData({
@@ -411,7 +429,7 @@ const [productThumbnailFile, setProductThumbnailFile] = useState<File | null>(nu
     } finally {
       setServiceDialogLoading(false);
     }
-  }, [serviceData, onUpdate, business, servicesCollection]);
+  }, [serviceData, onUpdate, business]); // Removed servicesCollection dependency
 
  
   // Update the filtering logic near the top of the component
@@ -461,13 +479,22 @@ const [productThumbnailFile, setProductThumbnailFile] = useState<File | null>(nu
 
   useEffect(() => {
     const fetchCategories = async () => {
-      const categoriesCollection = collection(firebaseDB, 'categories');
-      const querySnapshot = await getDocs(categoriesCollection);
-      const categories = querySnapshot.docs.map(docCat => docCat.data());
-      setAvailableProductCategories(categories.filter(cat => cat.type === 'product').map(cat => cat.name));
-      setAvailableServiceCategories(categories.filter(cat => cat.type === 'service').map(cat => cat.name));
-      // Debug log
-      console.log('Fetched service categories:', categories.filter(cat => cat.type === 'service'));
+      try {
+        const response = await apiGet('/api/categories');
+        if (response.success && response.data) {
+          const categories = response.data;
+          setAvailableProductCategories(categories.filter((cat: any) => cat.type === 'PRODUCT' || cat.type === 'product').map((cat: any) => cat.name));
+          setAvailableServiceCategories(categories.filter((cat: any) => cat.type === 'SERVICE' || cat.type === 'service').map((cat: any) => cat.name));
+          console.log('Fetched service categories:', categories.filter((cat: any) => cat.type === 'SERVICE' || cat.type === 'service'));
+        } else {
+          setAvailableProductCategories([]);
+          setAvailableServiceCategories([]);
+        }
+      } catch (err) {
+        console.error('Error fetching categories:', err);
+        setAvailableProductCategories([]);
+        setAvailableServiceCategories([]);
+      }
     };
     fetchCategories();
   }, []);
@@ -495,10 +522,24 @@ const [productThumbnailFile, setProductThumbnailFile] = useState<File | null>(nu
         const url = await getDownloadURL(snapshot.ref);
         businessDataToUpdate.logo = url;
       }
-      // Update the business in Firestore using modular SDK
-      const docRef = doc(firebaseDB, 'businesses', business.id);
       console.log('Updating business with payload:', businessDataToUpdate);
-      await updateDoc(docRef, businessDataToUpdate);
+      
+      const token = getAuthToken();
+      const response = await apiPut(`/api/businesses/${business.id}`, {
+        name: businessDataToUpdate.name,
+        email: businessDataToUpdate.business_email,
+        phone: businessDataToUpdate.business_phone,
+        location: businessDataToUpdate.location,
+        logo: businessDataToUpdate.logo,
+        isVerified: businessDataToUpdate.isVerified,
+        pocFirstName: businessDataToUpdate.poc_firstname,
+        pocLastName: businessDataToUpdate.poc_lastname,
+        pocPhone: businessDataToUpdate.poc_phone,
+      }, token);
+
+      if (!response.success) {
+        throw new Error(response.error || 'Failed to update business');
+      }
       setEditSnackbar({ open: true, message: 'Business updated successfully!', severity: 'success' });
     } catch (err) {
       setEditSnackbar({ open: true, message: 'Failed to update business.', severity: 'error' });

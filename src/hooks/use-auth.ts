@@ -6,6 +6,8 @@ interface Admin {
   id: string;
   email: string;
   fullName: string;
+  firstname?: string;
+  lastname?: string;
   displayName?: string;
   role: string;
   profileImage?: string;

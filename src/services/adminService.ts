@@ -8,6 +8,8 @@ export interface CreateAdminData {
   email: string;
   password: string;
   fullName: string;
+  firstname?: string;
+  lastname?: string;
   role: AdminRole;
   phoneNumber?: string;
   profileImage?: string;
@@ -60,6 +62,8 @@ export const adminService = {
         email: data.email,
         fullName: data.fullName,
         displayName: data.fullName,
+        firstname: data.firstname,
+        lastname: data.lastname,
         phoneNumber: data.phoneNumber,
         profileImage: data.profileImage,
         role: 'super_admin',
@@ -95,6 +99,8 @@ export const adminService = {
         email: data.email,
         fullName: data.fullName,
         displayName: data.fullName,
+        firstname: data.firstname,
+        lastname: data.lastname,
         phoneNumber: data.phoneNumber,
         profileImage: data.profileImage,
         role: data.role,

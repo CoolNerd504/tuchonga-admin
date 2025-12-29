@@ -1,10 +1,12 @@
 // Firebase Auth and Firestore removed - migrating to Prisma API
 import { useMemo, useState, useEffect, useCallback } from 'react';
-// TODO: Replace Firestore calls with API calls:
-// - GET /api/staff
-// - POST /api/staff
-// - PUT /api/staff/:id
-// - DELETE /api/staff/:id
+import { apiGet, apiPost, apiPut, apiDelete, getAuthToken } from 'src/utils/api';
+// TODO: Staff endpoints need to be created in the API
+// - GET /api/staff (needs to be created)
+// - POST /api/staff (needs to be created)
+// - PUT /api/staff/:id (needs to be created)
+// - DELETE /api/staff/:id (needs to be created)
+// For now, using placeholder API calls that will work once endpoints are created
 
 import Box from '@mui/material/Box';
 import Grid from '@mui/material/Grid';
@@ -39,10 +41,10 @@ interface Staff {
   isActive: boolean;
   firstname: string;
   lastname: string;
-  role: string;
+  fullName?: string; // For API compatibility
+  role: 'super_admin' | 'admin' | 'moderator' | 'staff';
   mobile: string;
-
-  // Add other properties here as per your data structure
+  phoneNumber?: string; // For API compatibility
 }
 
 // ----------------------------------------------------------------------
@@ -104,7 +106,7 @@ function StaffForm({
           disabled={loading}
           value={staffData.email}
           onChange={onChange}
-          helperText="This will be used for Firebase Auth login"
+          helperText="Email address for the admin account"
         />
         <TextField
           margin="dense"
@@ -116,7 +118,7 @@ function StaffForm({
           disabled={loading}
           value={staffData.password || ''}
           onChange={onChange}
-          helperText="Password for Firebase Auth account (minimum 6 characters)"
+          helperText="Password (minimum 8 characters)"
         />
         <FormControl fullWidth margin="dense" disabled={loading}>
           <InputLabel id="role-select-label">Role</InputLabel>
@@ -131,9 +133,10 @@ function StaffForm({
               } as React.ChangeEvent<HTMLInputElement>);
             }}
           >
-            <MenuItem value="Manager">Manager</MenuItem>
-            <MenuItem value="Records">Records</MenuItem>
-            <MenuItem value="Customer Service">Customer Service</MenuItem>
+            <MenuItem value="super_admin">Super Admin</MenuItem>
+            <MenuItem value="admin">Admin</MenuItem>
+            <MenuItem value="moderator">Moderator</MenuItem>
+            <MenuItem value="staff">Staff</MenuItem>
           </Select>
         </FormControl>
         <TextField
@@ -189,7 +192,7 @@ export function StaffView() {
     isActive: true,
     firstname: '',
     lastname: '',
-    role: '',
+    role: 'staff',
     mobile: '',
   }), []);
 
@@ -202,31 +205,51 @@ export function StaffView() {
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' | 'info' | 'warning' }>({ open: false, message: '', severity: 'success' });
   const [searchTerm, setSearchTerm] = useState('');
 
-  const staffCollection = collection(firebaseDB, 'staff');
-  const usersCollection = collection(firebaseDB, 'users');
+  // TODO: Migrate to API
+  // const staffCollection = collection(firebaseDB, 'staff');
+  // const usersCollection = collection(firebaseDB, 'users');
   const table = useTable();
 
-  // Fetch staff list
+  // Fetch staff list (using admin API)
   useEffect(() => {
-    setLoadingList(true);
-    setError(null);
-    getDocs(staffCollection)
-      .then((data) => {
-        const filteredData: Staff[] = data.docs.map((docSnapshot) => {
-          const docData = docSnapshot.data() as Staff;
-          return {
-            ...docData,
-            id: docSnapshot.id,
-          };
-        });
-        setStaffList(filteredData);
+    const fetchStaff = async () => {
+      setLoadingList(true);
+      setError(null);
+      try {
+        // Use admin API endpoint
+        const response = await apiGet('/api/admin');
+        if (response.success && response.data) {
+          setStaffList(response.data.map((admin: any) => {
+            // Split fullName into firstname and lastname for display
+            const nameParts = (admin.fullName || '').split(' ');
+            const firstname = nameParts[0] || '';
+            const lastname = nameParts.slice(1).join(' ') || '';
+            
+            return {
+              id: admin.id,
+              email: admin.email || '',
+              isActive: admin.isActive !== false,
+              firstname,
+              lastname,
+              fullName: admin.fullName || '',
+              role: admin.role || 'staff',
+              mobile: admin.phoneNumber || admin.mobile || '',
+              phoneNumber: admin.phoneNumber || '',
+            };
+          }));
+        } else {
+          setStaffList([]);
+        }
+      } catch (err: any) {
+        console.error('Error fetching staff:', err);
+        setError('Failed to fetch staff list');
+        setStaffList([]);
+      } finally {
         setLoadingList(false);
-      })
-      .catch((err) => {
-        setError('Error fetching staff');
-        setLoadingList(false);
-      });
-  }, [staffCollection]);
+      }
+    };
+    fetchStaff();
+  }, []);
 
   const handleChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = event.target;
@@ -244,10 +267,19 @@ export function StaffView() {
       return;
     }
 
-    if (staffData.password.length < 6) {
+    if (staffData.password.length < 8) {
       setSnackbar({ 
         open: true, 
-        message: 'Password must be at least 6 characters long.', 
+        message: 'Password must be at least 8 characters long.', 
+        severity: 'error' 
+      });
+      return;
+    }
+    
+    if (!staffData.role) {
+      setSnackbar({ 
+        open: true, 
+        message: 'Please select a role.', 
         severity: 'error' 
       });
       return;
@@ -265,90 +297,80 @@ export function StaffView() {
     }
 
     setLoadingSubmit(true);
-    let authUserId: string | null = null;
 
     try {
-      // Step 1: Create the Firebase Auth user
-      const userCredential = await createUserWithEmailAndPassword(
-        auth,
-        staffData.email.trim(),
-        staffData.password
-      );
+      const token = getAuthToken();
       
-      authUserId = userCredential.user.uid;
-      console.log('Firebase Auth user created:', authUserId);
-
-      // Step 2: Create user document in Firestore 'users' collection with Admin role
-      const userDocRef = doc(usersCollection, authUserId);
-      const userDataToSave = {
-        id: authUserId,
-        email: staffData.email.trim(),
-        firstname: staffData.firstname || '',
-        lastname: staffData.lastname || '',
-        mobile: staffData.mobile || '',
-        location: '', // Can be added later if needed
-        isActive: staffData.isActive !== undefined ? staffData.isActive : true,
-        role: 'Admin', // Set role as Admin for staff members
-        hasCompletedProfile: true,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      };
-
-      await setDoc(userDocRef, userDataToSave);
-      console.log('User document created in users collection with Admin role');
-
-      // Step 3: Create the staff document in Firestore 'staff' collection (without password)
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const { password, ...staffDataWithoutPassword } = staffData;
-      const staffDataToSave = {
-        ...staffDataWithoutPassword,
-        email: staffData.email.trim(),
-        authUserId, // Store the Firebase Auth UID for reference
-        createdAt: new Date().toISOString(),
-      };
-
-      await addDoc(staffCollection, staffDataToSave);
-      console.log('Staff document created in staff collection');
+      // Combine firstname and lastname into fullName for API
+      const fullName = `${staffData.firstname} ${staffData.lastname}`.trim();
       
+      if (!staffData.role) {
+        throw new Error('Please select a role');
+      }
+
+      // Use admin API endpoint - allows creating super admins
+      const response = await apiPost('/api/admin', {
+        email: staffData.email,
+        password: staffData.password,
+        fullName,
+        role: staffData.role,
+        phoneNumber: staffData.mobile || undefined,
+      }, token);
+
+      if (!response.success) {
+        throw new Error(response.error || 'Failed to create admin/staff member');
+      }
+
       setSnackbar({ 
         open: true, 
-        message: `Staff account created successfully! ${staffData.email} has been added to users table with Admin role and can now sign in.`, 
+        message: `${staffData.role === 'super_admin' ? 'Super admin' : 'Admin/staff member'} created successfully!`, 
         severity: 'success' 
       });
       setOpen(false);
       setStaffData(initialStaff);
       
       // Refresh staff list
-      const data = await getDocs(staffCollection);
-      const filteredData: Staff[] = data.docs.map((docSnapshot) => {
-        const docData = docSnapshot.data() as Staff;
-        return {
-          ...docData,
-          id: docSnapshot.id,
-        };
-      });
-      setStaffList(filteredData);
+      const refreshResponse = await apiGet('/api/admin');
+      if (refreshResponse.success && refreshResponse.data) {
+        setStaffList(refreshResponse.data.map((admin: any) => {
+          const nameParts = (admin.fullName || '').split(' ');
+          const firstname = nameParts[0] || '';
+          const lastname = nameParts.slice(1).join(' ') || '';
+          
+          return {
+            id: admin.id,
+            email: admin.email || '',
+            isActive: admin.isActive !== false,
+            firstname,
+            lastname,
+            fullName: admin.fullName || '',
+            role: (admin.role || 'staff') as 'super_admin' | 'admin' | 'moderator' | 'staff',
+            mobile: admin.phoneNumber || admin.mobile || '',
+            phoneNumber: admin.phoneNumber || '',
+          };
+        }));
+      }
     } catch (err: any) {
       console.error('Error creating staff:', err);
       
-      // If Firebase Auth user was created but Firestore failed, try to clean up
-      if (authUserId) {
-        console.warn('Firebase Auth user created but Firestore operations failed. Auth user ID:', authUserId);
-        // Note: We can't delete the auth user from client side, but we log it
-        // Check which operation failed
-        let errorDetails = 'Firebase Auth account created but failed to save records.';
-        if (err.message?.includes('users')) {
-          errorDetails = 'Firebase Auth account created but failed to add user to users table.';
-        } else if (err.message?.includes('staff')) {
-          errorDetails = 'Firebase Auth account and users table updated, but failed to save staff record.';
-        }
-        setSnackbar({ 
-          open: true, 
-          message: `${errorDetails} Please contact administrator.`, 
-          severity: 'error' 
-        });
-        return;
-      }
+      // TODO: Handle cleanup if API call fails
+      // if (authUserId) {
+      //   console.warn('Auth user created but API operations failed. Auth user ID:', authUserId);
+      //   // Note: We can't delete the auth user from client side, but we log it
+      //   // Check which operation failed
+      //   let errorDetails = 'API account created but failed to save records.';
+      //   if (err.message?.includes('users')) {
+      //     errorDetails = 'API account created but failed to add user to users table.';
+      //   } else if (err.message?.includes('staff')) {
+      //     errorDetails = 'API account and users table updated, but failed to save staff record.';
+      //   }
+      //   setSnackbar({ 
+      //     open: true, 
+      //     message: `${errorDetails} Please contact administrator.`, 
+      //     severity: 'error' 
+      //   });
+      //   return;
+      // }
 
       let errorMessage = 'Failed to create staff account.';
       
@@ -357,7 +379,7 @@ export function StaffView() {
       } else if (err.code === 'auth/invalid-email') {
         errorMessage = 'Invalid email address format. Please check and try again.';
       } else if (err.code === 'auth/weak-password') {
-        errorMessage = 'Password is too weak. Please use a stronger password (minimum 6 characters).';
+        errorMessage = 'Password is too weak. Please use a stronger password (minimum 8 characters).';
       } else if (err.code === 'auth/operation-not-allowed') {
         errorMessage = 'Email/password accounts are not enabled. Please contact administrator.';
       } else if (err.code === 'auth/network-request-failed') {
@@ -370,7 +392,7 @@ export function StaffView() {
     } finally {
       setLoadingSubmit(false);
     }
-  }, [staffCollection, staffData, initialStaff, usersCollection]);
+  }, [staffData, initialStaff]); // Removed staffCollection and usersCollection - will use API
 
   // Derived data with search filtering
   const filteredStaff = useMemo(() => staffList.filter((staff: Staff) => {
@@ -497,17 +519,12 @@ export function StaffView() {
                     }}
                     startIcon={<Iconify icon="eva:refresh-fill" />}
                     onClick={() => {
-                      const data = getDocs(staffCollection);
-                      data.then((result) => {
-                        const filteredData: Staff[] = result.docs.map((docSnapshot) => {
-                          const docData = docSnapshot.data() as Staff;
-                          return {
-                            ...docData,
-                            id: docSnapshot.id,
-                          };
-                        });
-                        setStaffList(filteredData);
-                      });
+                      // TODO: Migrate to API - GET /api/staff
+                      // const response = await fetch('/api/staff');
+                      // const result = await response.json();
+                      // const filteredData: Staff[] = result.staff;
+                      const filteredData: Staff[] = [];
+                      setStaffList(filteredData);
                     }}
                   >
                     Refresh
