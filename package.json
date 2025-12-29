@@ -37,7 +37,8 @@
     "prisma:reset": "prisma migrate reset --force --skip-seed",
     "db:reset": "tsx scripts/reset-database.ts",
     "db:test": "tsx scripts/test-db-connection.ts",
-    "db:fresh": "tsx scripts/reset-and-migrate.ts"
+    "db:fresh": "tsx scripts/reset-and-migrate.ts",
+    "firebase:deploy:storage": "firebase deploy --only storage"
   },
   "engines": {
     "node": "20.x"
