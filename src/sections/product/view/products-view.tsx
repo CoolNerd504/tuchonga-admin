@@ -4,7 +4,8 @@ import {
   doc,
   query,
   where,
-  addDoc, getDocs, updateDoc, collection, serverTimestamp
+  addDoc, getDocs, updateDoc, collection, serverTimestamp,
+  type QueryDocumentSnapshot
   // deleteDoc,
 } from 'firebase/firestore';
 
@@ -66,16 +67,29 @@ interface Product {
 }
 
 // Interface for a Comment that can belong to a Product or a Service
+// Supports both mobile app schema (itemId/itemType) and legacy schema (parentId/parentType)
 interface ProductOrServiceComment {
   id: string; // Unique identifier for the comment
-  parentId: string; // The ID of the parent entity (Product or Service)
-  parentType: "Product" | "Service"; // Indicates whether parentId refers to a Product or a Service
+  itemId?: string; // Mobile app schema: The ID of the parent entity (Product or Service)
+  itemType?: 'product' | 'service'; // Mobile app schema: lowercase type
+  parentId?: string | null; // Legacy schema: The ID of the parent entity (Product or Service) or reply parent
+  parentType?: "Product" | "Service"; // Legacy schema: Indicates whether parentId refers to a Product or a Service
+  depth?: number; // Threading depth (0 = root, 1-2 = replies)
   userId: string; // The ID of the user who posted the comment
-  userName: string; // The ID of the user who posted the comment
+  userName: string; // The name of the user who posted the comment
+  userAvatar?: string; // User avatar URL
   text: string; // The content of the comment
-  timestamp: Date; // When the comment was posted
+  timestamp?: Date; // When the comment was posted (legacy)
+  createdAt?: Date; // When the comment was created (mobile app)
+  updatedAt?: Date; // When the comment was last updated
+  isDeleted?: boolean; // Whether the comment is deleted
+  isEdited?: boolean; // Whether the comment has been edited
+  isReported?: boolean; // Whether the comment has been reported
+  agreeCount?: number; // Number of agree reactions
+  disagreeCount?: number; // Number of disagree reactions
+  replyCount?: number; // Number of replies
   // Field for user-expressed sentiment
-  userSentiment: "Disagree" | "neutral" | "Agree"; // The user's sentiment/agreement level
+  userSentiment?: "Disagree" | "neutral" | "Agree"; // The user's sentiment/agreement level
   // Fields for sentiment history
   sentimentHistory?: UserAgreementLevelHistoryEntry[]; // Updated: Array to store previous user sentiment/agreement values and timestamps
 }
@@ -157,6 +171,7 @@ export function ProductsView() {
   // Add this near the other state declarations
   const [availableCategories, setAvailableCategories] = useState<string[]>([]);
   const [productComments, setProductComments] = useState<ProductOrServiceComment[]>([]);
+  const [productReviews, setProductReviews] = useState<any[]>([]);
   const [availableProductOwners, setAvailableProductOwners] = useState<string[]>([]);
   
   // Move productsCollection to the top - before handleAddProduct
@@ -513,12 +528,66 @@ export function ProductsView() {
     const fetchAllProductComments = async () => {
       try {
         const commentsRef = collection(firebaseDB, "comments");
-        const q = query(commentsRef, where("parentType", "==", "Product"));
-        const querySnapshot = await getDocs(q);
-        const comments = querySnapshot.docs.map(docProductComments => ({
-          id: docProductComments.id,
-          ...docProductComments.data()
-        })) as ProductOrServiceComment[];
+        
+        // Fetch comments using multiple queries to handle both mobile app schema (itemId/itemType) 
+        // and legacy schema (parentId/parentType)
+        const queries = [
+          // Primary: Mobile app schema (itemId + itemType lowercase)
+          query(commentsRef, where("itemType", "==", "product"), where("isDeleted", "==", false)),
+          // Legacy: parentType capitalized
+          query(commentsRef, where("parentType", "==", "Product")),
+          // Legacy: parentType lowercase
+          query(commentsRef, where("parentType", "==", "product")),
+        ];
+        
+        const snapshots = await Promise.all(queries.map(q => getDocs(q).catch(err => {
+          console.warn('Query failed:', err);
+          return { docs: [] } as any;
+        })));
+        
+        // Combine all results and deduplicate by comment ID
+        const allComments = new Map<string, ProductOrServiceComment>();
+        
+        snapshots.forEach(snapshot => {
+          snapshot.docs.forEach((commentDoc: QueryDocumentSnapshot) => {
+            const data = commentDoc.data();
+            const commentId = commentDoc.id;
+            
+            // Skip if already added or if deleted
+            if (allComments.has(commentId) || data.isDeleted === true) {
+              return;
+            }
+            
+            // Map to consistent format
+            const comment: ProductOrServiceComment = {
+              id: commentId,
+              itemId: data.itemId || data.parentId || '',
+              itemType: (data.itemType || data.parentType?.toLowerCase() || 'product') as 'product' | 'service',
+              parentId: data.parentId || null,
+              depth: data.depth ?? 0,
+              userId: data.userId || data.user_id || '',
+              userName: data.userName || data.user_name || data.userId || 'Unknown User',
+              userAvatar: data.userAvatar || data.user_avatar || data.photoURL || undefined,
+              text: data.text || data.comment || '',
+              agreeCount: data.agreeCount ?? data.agree_count ?? 0,
+              disagreeCount: data.disagreeCount ?? data.disagree_count ?? 0,
+              replyCount: data.replyCount ?? data.reply_count ?? 0,
+              isEdited: data.isEdited ?? data.is_edited ?? false,
+              isReported: data.isReported ?? data.is_reported ?? false,
+              isDeleted: data.isDeleted ?? data.is_deleted ?? false,
+              createdAt: data.createdAt?.toDate ? data.createdAt.toDate() : 
+                        (data.createdAt instanceof Date ? data.createdAt : new Date()),
+              updatedAt: data.updatedAt?.toDate ? data.updatedAt.toDate() : 
+                        (data.updatedAt instanceof Date ? data.updatedAt : undefined),
+              parentType: data.parentType || (data.itemType === 'product' ? 'Product' : 'Service'),
+            };
+            
+            allComments.set(commentId, comment);
+          });
+        });
+        
+        const comments = Array.from(allComments.values());
+        console.log(`Fetched ${comments.length} product comments from Firestore`);
         setProductComments(comments);
         return comments;
       } catch (error) {
@@ -527,6 +596,34 @@ export function ProductsView() {
       }
     };
     fetchAllProductComments();
+    
+    // Fetch all product reviews from Firestore
+    const fetchAllProductReviews = async () => {
+      try {
+        const reviewsRef = collection(firebaseDB, "reviews");
+        // Fetch all reviews (both product and service reviews)
+        const querySnapshot = await getDocs(reviewsRef);
+        const reviews = querySnapshot.docs.map(docReview => {
+          const data = docReview.data();
+          return {
+            id: docReview.id,
+            product_id: data.product_id || null,
+            service_id: data.service_id || null,
+            sentiment: data.sentiment || null,
+            timestamp: data.timestamp?.toDate ? data.timestamp.toDate() : 
+                      (data.timestamp instanceof Date ? data.timestamp : new Date()),
+            ...data
+          };
+        });
+        console.log(`Fetched ${reviews.length} reviews from Firestore`);
+        setProductReviews(reviews);
+        return reviews;
+      } catch (error) {
+        console.error("Error fetching product reviews:", error);
+        return [];
+      }
+    };
+    fetchAllProductReviews();
   }, [getProducts]);
 
   // Debug useEffect to monitor productData changes
@@ -1111,15 +1208,24 @@ export function ProductsView() {
                     </TableCell>
                     <TableCell>
                       {productComments
-                        .filter(comment => comment.parentId === product.id)
+                        .filter(comment => {
+                          // Match by itemId (mobile app schema) or parentId (legacy schema)
+                          const matchesProduct = comment.itemId === product.id || comment.parentId === product.id;
+                          // Only count non-deleted comments
+                          return matchesProduct && !comment.isDeleted;
+                        })
                         .length}
                     </TableCell>
                     {/* <TableCell>{product.total_reviews}</TableCell>
                     <TableCell>{product.total_reviews}</TableCell> */}
                     <TableCell>
-                      {productComments
-                        .filter(comment => comment.parentId === product.id)
-                        .filter(comment => comment.userSentiment === "Agree").length}
+                      {productReviews
+                        .filter((review) => review.product_id === product.id)
+                        .filter(
+                          (review) =>
+                            review.sentiment === "Its Good" || review.sentiment === "Would recommend"
+                        )
+                        .length}
                     </TableCell>
                     <TableCell>
                       <Box>

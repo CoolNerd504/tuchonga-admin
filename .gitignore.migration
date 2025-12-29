@@ -1,0 +1,45 @@
+# Firebase to Prisma Migration - .gitignore Additions
+
+# Add these lines to your .gitignore file to prevent sensitive data from being committed
+
+# Firebase Service Account Key (CRITICAL - NEVER COMMIT!)
+serviceAccountKey.json
+firebase-adminsdk-*.json
+
+# Prisma
+.env
+.env.local
+.env.*.local
+
+# Exported Firebase Data
+exports/
+firebase-export-*/
+
+# Database backups
+*.sql
+*.dump
+backup-*.sql
+
+# Prisma
+prisma/*.db
+prisma/*.db-journal
+
+# Migration logs
+migration-logs/
+*.log
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# IDE
+.idea/
+.vscode/settings.json
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+

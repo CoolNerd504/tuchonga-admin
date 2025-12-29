@@ -127,7 +127,7 @@ interface BusinessOwner {
   email?: string;
 }
 
-// Define Product type for type safety
+// Define Product type for type safety - matches Firebase schema
 interface Product {
   id: string;
   product_name: string;
@@ -135,9 +135,31 @@ interface Product {
   description: string;
   isActive: boolean;
   mainImage: string | File;
-  additionalImages: (string | File)[];
+  additionalImages?: (string | File)[];
   productOwner: string;
   comments?: string[];
+  // Review fields from Firebase
+  reviews?: number;
+  positive_reviews?: number;
+  neutral_reviews?: number;
+  total_reviews?: number;
+  total_views?: number;
+  // QuickRating from Firebase
+  quickRating?: {
+    average?: number;
+    distribution?: {
+      1?: number;
+      2?: number;
+      3?: number;
+      4?: number;
+      5?: number;
+    };
+    lastUpdate?: any;
+    total?: number;
+  };
+  createdAt?: any;
+  updatedAt?: any;
+  lastUpdate?: any;
   [key: string]: any; // for any additional dynamic fields
 }
 
@@ -746,6 +768,9 @@ export function ProductDetail() {
       comments: location.state?.product?.comments ?? [],
     };
     
+    // Log product detail object
+    console.log('Product Detail Object:', product);
+    
     return product;
   }, [location.state?.product]);
 
@@ -1017,31 +1042,7 @@ export function ProductDetail() {
           reviews: (reviews as Review[]).length,
           users: Object.keys(users as Record<string, any>).length
         });
-        // Log all comments for the product
-        console.log('=== ALL COMMENTS FOR PRODUCT ===');
-        console.log('Product ID:', initialProduct.id);
-        console.log('Product Name:', initialProduct.product_name);
-        console.log('Total Comments:', (comments as ProductOrServiceComment[]).length);
-        console.table((comments as ProductOrServiceComment[]).map(comment => ({
-          id: comment.id,
-          itemId: comment.itemId,
-          itemType: comment.itemType,
-          userId: comment.userId,
-          userName: comment.userName,
-          text: comment.text ? (comment.text.length > 50 ? `${comment.text.substring(0, 50)  }...` : comment.text) : '',
-          depth: comment.depth,
-          parentId: comment.parentId || 'root',
-          agreeCount: comment.agreeCount,
-          disagreeCount: comment.disagreeCount,
-          replyCount: comment.replyCount,
-          isEdited: comment.isEdited,
-          isReported: comment.isReported,
-          isDeleted: comment.isDeleted,
-          createdAt: comment.createdAt instanceof Date 
-            ? comment.createdAt.toISOString() 
-            : comment.createdAt,
-        })));
-        console.log('=== END COMMENTS ===');
+       
         setLoading(false);
       })
       .catch((loadError) => {
@@ -1095,16 +1096,118 @@ export function ProductDetail() {
     };
   }, [productReviews]);
 
-  // Calculate positive and negative reviews from actual review data
+  // Calculate review counts from Firebase product document fields
+  // Use actual fields from product document (positive_reviews, neutral_reviews, total_reviews)
+  // Fallback to calculating from reviews collection if product fields are not available
   const reviewCounts = useMemo(() => {
+    // First, try to use the actual fields from the product document
+    if (editedProduct.positive_reviews !== undefined || editedProduct.total_reviews !== undefined) {
+      const positive = editedProduct.positive_reviews || 0;
+      const neutral = editedProduct.neutral_reviews || 0;
+      const total = editedProduct.total_reviews || 0;
+      // Calculate negative as: total - positive - neutral
+      const negative = total - positive - neutral;
+      return { positive, negative, neutral, total };
+    }
+    
+    // Fallback: Calculate from reviews collection if product fields are not available
     const positive = productReviews.filter(
       review => review.sentiment === "Its Good" || review.sentiment === "Would recommend"
     ).length;
     const negative = productReviews.filter(
       review => review.sentiment === "It's bad"
     ).length;
-    return { positive, negative };
-  }, [productReviews]);
+    const neutral = productReviews.filter(
+      review => review.sentiment === "Dont mind it"
+    ).length;
+    const total = productReviews.length;
+    return { positive, negative, neutral, total };
+  }, [productReviews, editedProduct.positive_reviews, editedProduct.neutral_reviews, editedProduct.total_reviews]);
+
+  // Helper function to convert Firestore timestamp to Date
+  const convertToDate = (timestamp: any): Date | null => {
+    if (!timestamp) return null;
+    if (timestamp.toDate) return timestamp.toDate();
+    if (timestamp instanceof Date) return timestamp;
+    if (typeof timestamp === 'string') return new Date(timestamp);
+    return null;
+  };
+
+  // Helper function to get month name from date
+  const getMonthName = (date: Date): string => {
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return months[date.getMonth()];
+  };
+
+  // Helper function to calculate monthly trends from reviews/comments
+  const calculateMonthlyTrends = useCallback((items: any[], months: string[], dateField: string = 'timestamp'): number[] => {
+    const monthCounts: { [key: string]: number } = {};
+    months.forEach(month => { monthCounts[month] = 0; });
+
+    items.forEach((item) => {
+      const date = convertToDate(item[dateField] || item.createdAt || item.timestamp);
+      if (date) {
+        const monthName = getMonthName(date);
+        if (monthCounts[monthName] !== undefined) {
+          monthCounts[monthName] += 1;
+        }
+      }
+    });
+
+    // Calculate cumulative counts
+    let cumulative = 0;
+    return months.map(month => {
+      cumulative += monthCounts[month];
+      return cumulative;
+    });
+  }, []);
+
+  // Helper function to calculate percentage change
+  const calculatePercentageChange = (current: number, previous: number): number => {
+    if (previous === 0) return current > 0 ? 100 : 0;
+    return ((current - previous) / previous) * 100;
+  };
+
+  // Calculate analytics data from Firebase
+  // Use actual product document fields (total_views, positive_reviews, etc.) from Firebase schema
+  const analyticsData = useMemo(() => {
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug'];
+    
+    // Use total_views from product document
+    const currentViews = editedProduct.total_views || 0;
+    // Calculate monthly trends for views (using comments as proxy for engagement trends)
+    const viewsSeries = calculateMonthlyTrends(productComments, months, 'createdAt');
+    const previousViews = viewsSeries[6] || 0; // 7th month (index 6)
+    const viewsPercent = calculatePercentageChange(currentViews, previousViews);
+
+    // Use positive_reviews from product document, calculate trends from reviews collection
+    const positiveReviews = productReviews.filter(
+      review => review.sentiment === "Its Good" || review.sentiment === "Would recommend"
+    );
+    const positiveSeries = calculateMonthlyTrends(positiveReviews, months, 'timestamp');
+    const currentPositive = editedProduct.positive_reviews !== undefined 
+      ? editedProduct.positive_reviews 
+      : reviewCounts.positive;
+    const previousPositive = positiveSeries[6] || 0;
+    const positivePercent = calculatePercentageChange(currentPositive, previousPositive);
+
+    // Calculate negative reviews: total_reviews - positive_reviews - neutral_reviews
+    const currentNegative = editedProduct.total_reviews && editedProduct.positive_reviews !== undefined
+      ? (editedProduct.total_reviews - editedProduct.positive_reviews - (editedProduct.neutral_reviews || 0))
+      : reviewCounts.negative;
+    const negativeReviews = productReviews.filter(
+      review => review.sentiment === "It's bad"
+    );
+    const negativeSeries = calculateMonthlyTrends(negativeReviews, months, 'timestamp');
+    const previousNegative = negativeSeries[6] || 0;
+    const negativePercent = calculatePercentageChange(currentNegative, previousNegative);
+
+    return {
+      views: { series: viewsSeries, percent: viewsPercent },
+      positive: { series: positiveSeries, percent: positivePercent },
+      negative: { series: negativeSeries, percent: negativePercent },
+    };
+  }, [productComments, productReviews, editedProduct.total_views, editedProduct.positive_reviews, editedProduct.neutral_reviews, editedProduct.total_reviews, reviewCounts, calculateMonthlyTrends]);
 
   // Handlers
   const handleEditChange = useCallback((event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -1123,7 +1226,7 @@ export function ProductDetail() {
 
   const handleAdditionalImageChange = useCallback((index: number, file: File) => {
     setEditedProduct((prev) => {
-      const newImages = [...prev.additionalImages];
+      const newImages = [...(prev.additionalImages || [])];
       newImages[index] = file;
       return { ...prev, additionalImages: newImages };
     });
@@ -1145,7 +1248,7 @@ export function ProductDetail() {
       // Upload images and get their URLs
       const mainImageUrl = await uploadImage(editedProduct.mainImage);
       const additionalImageUrls = await Promise.all(
-        editedProduct.additionalImages.map(img => typeof img === 'string' ? img : uploadImage(img))
+        (editedProduct.additionalImages || []).map(img => typeof img === 'string' ? img : uploadImage(img))
       );
       await updateDoc(productRef, {
         product_name: editedProduct.product_name,
@@ -1284,7 +1387,7 @@ export function ProductDetail() {
 
 
       {/* Additional Images Preview */}
-      {editedProduct.additionalImages && editedProduct.additionalImages.length > 0 && (
+      {editedProduct.additionalImages && Array.isArray(editedProduct.additionalImages) && editedProduct.additionalImages.length > 0 && (
         <Box sx={{ mt: 2 }}>
           <Card>
             <Box
@@ -1307,7 +1410,7 @@ export function ProductDetail() {
             <Collapse in={showAdditionalImages}>
               <Box sx={{ p: 2, pt: 0 }}>
                 <Grid container spacing={2}>
-                  {editedProduct.additionalImages.map((img, index: number) => (
+                  {(editedProduct.additionalImages || []).map((img, index: number) => (
                     <Grid item xs={12} md={4} key={index}>
                       <Card elevation={0} sx={{ bgcolor: '#f5f5f5', height: 200 }}>
                         <Box sx={{ position: 'relative', width: '100%', height: '100%' }}>
@@ -1405,38 +1508,38 @@ export function ProductDetail() {
             <Grid item xs={12} sm={6} md={4} sx={{ mb: 3, mt: 3, pr: 4 }}>
               <AnalyticsWidgetSummary
                 title="Total views"
-                percent={-0.1}
-                total={editedProduct.total_views}
+                percent={analyticsData.views.percent}
+                total={editedProduct.total_views || 0}
                 color="secondary"
                 icon={<Iconify width={50} icon="icon-park-solid:click" height="24" />}
                 chart={{
                   categories: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug'],
-                  series: [56, 47, 40, 62, 73, 30, 23, 54],
+                  series: analyticsData.views.series,
                 }}
               />
             </Grid>
             <Grid item xs={12} sm={6} md={4} sx={{ mb: 3 , mt: 3,pr: 4}}>
               <AnalyticsWidgetSummary
                 title="Positive Reviews"
-                percent={2.6}
+                percent={analyticsData.positive.percent}
                 total={reviewCounts.positive}
                 icon={<Iconify width={50} icon="vaadin:thumbs-up" height="24" />}
                 chart={{
                   categories: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug'],
-                  series: [22, 8, 35, 50, 82, 84, 77, 12],
+                  series: analyticsData.positive.series,
                 }}
               />
             </Grid>
             <Grid item xs={12} sm={6} md={4} sx={{ mb: 3,mt: 3, pr: 4 }}>
               <AnalyticsWidgetSummary
                 title="Negative Reviews"
-                percent={2.8}
+                percent={analyticsData.negative.percent}
                 total={reviewCounts.negative}
                 color="warning"
                 icon={<Iconify width={50} icon="vaadin:thumbs-down" height="50" />}
                 chart={{
                   categories: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug'],
-                  series: [40, 70, 50, 28, 70, 75, 7, 64],
+                  series: analyticsData.negative.series,
                 }}
               />
             </Grid>
@@ -1607,7 +1710,7 @@ export function ProductDetail() {
               {/* Additional Images - Optional */}
               <Grid item xs={12}>
                 <AdditionalImagesUpload
-                  images={editedProduct.additionalImages}
+                  images={editedProduct.additionalImages || []}
                   onChange={handleAdditionalImageChange}
                 />
               </Grid>

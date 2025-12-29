@@ -4,7 +4,8 @@ import {
   addDoc,
   getDocs,
   collection,
-  
+  doc,
+  setDoc,
 } from "firebase/firestore";
 
 import Box from '@mui/material/Box';
@@ -22,7 +23,7 @@ import DialogActions from '@mui/material/DialogActions';
 import DialogContent from '@mui/material/DialogContent';
 import TableContainer from '@mui/material/TableContainer';
 import TablePagination from '@mui/material/TablePagination';
-import { Paper, TableRow, MenuItem, TableCell, TableHead, CircularProgress } from '@mui/material';
+import { Paper, TableRow, MenuItem, TableCell, TableHead, CircularProgress, FormControl, InputLabel, Select } from '@mui/material';
 
 import { DashboardContent } from 'src/layouts/dashboard';
 
@@ -119,16 +120,24 @@ function StaffForm({
           onChange={onChange}
           helperText="Password for Firebase Auth account (minimum 6 characters)"
         />
-        <TextField
-          margin="dense"
-          label="Role"
-          name="role"
-          fullWidth
-          disabled={loading}
-          value={staffData.role}
-          onChange={onChange}
-          placeholder="e.g., Admin, Manager, Staff"
-        />
+        <FormControl fullWidth margin="dense" disabled={loading}>
+          <InputLabel id="role-select-label">Role</InputLabel>
+          <Select
+            labelId="role-select-label"
+            name="role"
+            value={staffData.role || ''}
+            label="Role"
+            onChange={(e) => {
+              onChange({
+                target: { name: 'role', value: e.target.value }
+              } as React.ChangeEvent<HTMLInputElement>);
+            }}
+          >
+            <MenuItem value="Manager">Manager</MenuItem>
+            <MenuItem value="Records">Records</MenuItem>
+            <MenuItem value="Customer Service">Customer Service</MenuItem>
+          </Select>
+        </FormControl>
         <TextField
           margin="dense"
           label="Mobile"
@@ -196,6 +205,7 @@ export function StaffView() {
   const [searchTerm, setSearchTerm] = useState('');
 
   const staffCollection = collection(firebaseDB, 'staff');
+  const usersCollection = collection(firebaseDB, 'users');
   const table = useTable();
 
   // Fetch staff list
@@ -204,11 +214,11 @@ export function StaffView() {
     setError(null);
     getDocs(staffCollection)
       .then((data) => {
-        const filteredData: Staff[] = data.docs.map((doc) => {
-          const docData = doc.data() as Staff;
+        const filteredData: Staff[] = data.docs.map((docSnapshot) => {
+          const docData = docSnapshot.data() as Staff;
           return {
             ...docData,
-            id: doc.id,
+            id: docSnapshot.id,
           };
         });
         setStaffList(filteredData);
@@ -270,7 +280,26 @@ export function StaffView() {
       authUserId = userCredential.user.uid;
       console.log('Firebase Auth user created:', authUserId);
 
-      // Step 2: Create the Firestore document (without password)
+      // Step 2: Create user document in Firestore 'users' collection with Admin role
+      const userDocRef = doc(usersCollection, authUserId);
+      const userDataToSave = {
+        id: authUserId,
+        email: staffData.email.trim(),
+        firstname: staffData.firstname || '',
+        lastname: staffData.lastname || '',
+        mobile: staffData.mobile || '',
+        location: '', // Can be added later if needed
+        isActive: staffData.isActive !== undefined ? staffData.isActive : true,
+        role: 'Admin', // Set role as Admin for staff members
+        hasCompletedProfile: true,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+
+      await setDoc(userDocRef, userDataToSave);
+      console.log('User document created in users collection with Admin role');
+
+      // Step 3: Create the staff document in Firestore 'staff' collection (without password)
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const { password, ...staffDataWithoutPassword } = staffData;
       const staffDataToSave = {
@@ -281,10 +310,11 @@ export function StaffView() {
       };
 
       await addDoc(staffCollection, staffDataToSave);
+      console.log('Staff document created in staff collection');
       
       setSnackbar({ 
         open: true, 
-        message: `Staff account created successfully! ${staffData.email} can now sign in with the provided password.`, 
+        message: `Staff account created successfully! ${staffData.email} has been added to users table with Admin role and can now sign in.`, 
         severity: 'success' 
       });
       setOpen(false);
@@ -292,11 +322,11 @@ export function StaffView() {
       
       // Refresh staff list
       const data = await getDocs(staffCollection);
-      const filteredData: Staff[] = data.docs.map((doc) => {
-        const docData = doc.data() as Staff;
+      const filteredData: Staff[] = data.docs.map((docSnapshot) => {
+        const docData = docSnapshot.data() as Staff;
         return {
           ...docData,
-          id: doc.id,
+          id: docSnapshot.id,
         };
       });
       setStaffList(filteredData);
@@ -305,11 +335,18 @@ export function StaffView() {
       
       // If Firebase Auth user was created but Firestore failed, try to clean up
       if (authUserId) {
-        console.warn('Firebase Auth user created but Firestore failed. Auth user ID:', authUserId);
+        console.warn('Firebase Auth user created but Firestore operations failed. Auth user ID:', authUserId);
         // Note: We can't delete the auth user from client side, but we log it
+        // Check which operation failed
+        let errorDetails = 'Firebase Auth account created but failed to save records.';
+        if (err.message?.includes('users')) {
+          errorDetails = 'Firebase Auth account created but failed to add user to users table.';
+        } else if (err.message?.includes('staff')) {
+          errorDetails = 'Firebase Auth account and users table updated, but failed to save staff record.';
+        }
         setSnackbar({ 
           open: true, 
-          message: 'Firebase Auth account created but failed to save staff record. Please contact administrator.', 
+          message: `${errorDetails} Please contact administrator.`, 
           severity: 'error' 
         });
         return;
@@ -335,7 +372,7 @@ export function StaffView() {
     } finally {
       setLoadingSubmit(false);
     }
-  }, [staffCollection, staffData, initialStaff]);
+  }, [staffCollection, staffData, initialStaff, usersCollection]);
 
   // Derived data with search filtering
   const filteredStaff = useMemo(() => staffList.filter((staff: Staff) => {
@@ -464,11 +501,11 @@ export function StaffView() {
                     onClick={() => {
                       const data = getDocs(staffCollection);
                       data.then((result) => {
-                        const filteredData: Staff[] = result.docs.map((doc) => {
-                          const docData = doc.data() as Staff;
+                        const filteredData: Staff[] = result.docs.map((docSnapshot) => {
+                          const docData = docSnapshot.data() as Staff;
                           return {
                             ...docData,
-                            id: doc.id,
+                            id: docSnapshot.id,
                           };
                         });
                         setStaffList(filteredData);

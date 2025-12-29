@@ -37,13 +37,25 @@ import { firebaseDB } from "../../../firebaseConfig";
 // ----------------------------------------------------------------------
 
 interface Users {
-  id: string;
-  email: string;
-  isActive: boolean;
-  firstname: string;
-  lastname: string;
-  location: string;
-  mobile: string;
+  id: string; // Document ID (matches Firebase Auth UID if linked)
+  email?: string | null;
+  phoneNumber?: string | null; // Alternative to mobile
+  isActive?: boolean;
+  firstname?: string | null;
+  lastname?: string | null;
+  fullName?: string | null; // Alternative to firstname/lastname
+  displayName?: string | null;
+  location?: string | null;
+  mobile?: string | null; // Phone number
+  profileImage?: string | null;
+  hasCompletedProfile?: boolean;
+  createdAt?: any;
+  updatedAt?: any;
+  // Analytics fields (if present)
+  analytics?: {
+    totalReviews?: number;
+    totalComments?: number;
+  };
 }
 
 export function UserView() {
@@ -98,15 +110,35 @@ export function UserView() {
 
   const getUsers = useCallback(async () => {
     try {
+      // Fetch users from Firestore 'users' collection (NOT Firebase Auth)
       const data = await getDocs(usersCollection);
-      const filteredData: Users[] = data.docs.map((doc) => ({
-        ...doc.data(),
-        id: doc.id,
-      }) as Users);
+      const filteredData: Users[] = data.docs.map((doc) => {
+        const docData = doc.data();
+        return {
+          id: doc.id, // Document ID
+          email: docData.email || docData.emailAddress || null,
+          phoneNumber: docData.phoneNumber || docData.phone || null,
+          mobile: docData.mobile || docData.phoneNumber || docData.phone || null,
+          firstname: docData.firstname || docData.firstName || null,
+          lastname: docData.lastname || docData.lastName || null,
+          fullName: docData.fullName || docData.full_name || null,
+          displayName: docData.displayName || docData.display_name || null,
+          location: docData.location || docData.address || null,
+          isActive: docData.isActive !== undefined ? docData.isActive : true,
+          profileImage: docData.profileImage || docData.profile_image || docData.photoURL || null,
+          hasCompletedProfile: docData.hasCompletedProfile || docData.has_completed_profile || false,
+          createdAt: docData.createdAt || null,
+          updatedAt: docData.updatedAt || null,
+          analytics: docData.analytics || null,
+        } as Users;
+      });
 
       setUserList(filteredData);
     } catch (err) {
-      console.error("Error fetching users:", err);
+      console.error("Error fetching users from Firestore:", err);
+      setSnackbarMessage('Failed to fetch users from Firestore. Please try again.');
+      setSnackbarSeverity('error');
+      setSnackbarOpen(true);
     }
   }, [usersCollection]);
 
@@ -313,38 +345,77 @@ export function UserView() {
                 <TableHead>
                   <TableRow>
                     <TableCell sx={{ minWidth: 200 }}>Email</TableCell>
-                    <TableCell sx={{ minWidth: 150 }}>First Name</TableCell>
-                    <TableCell sx={{ minWidth: 150 }}>Last Name</TableCell>
-                    <TableCell sx={{ minWidth: 150 }}>Location</TableCell>
+                    <TableCell sx={{ minWidth: 150 }}>Name</TableCell>
                     <TableCell sx={{ minWidth: 150 }}>Phone</TableCell>
+                    <TableCell sx={{ minWidth: 150 }}>Location</TableCell>
                     <TableCell sx={{ minWidth: 100 }}>Status</TableCell>
+                    <TableCell sx={{ minWidth: 120 }}>Profile</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {paginatedUsers.map((user) => (
-                    <TableRow key={user.id}>
-                      <TableCell>
-                        <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
-                          {user.email || 'N/A'}
-                        </Typography>
-                      </TableCell>
-                      <TableCell>{user.firstname || 'N/A'}</TableCell>
-                      <TableCell>{user.lastname || 'N/A'}</TableCell>
-                      <TableCell>{user.location || 'N/A'}</TableCell>
-                      <TableCell>{user.mobile || 'N/A'}</TableCell>
-                      <TableCell>
-                        {user.isActive ? (
-                          <Typography variant="body2" sx={{ color: 'success.main' }}>
-                            Active
+                  {paginatedUsers.map((user) => {
+                    // Get display name - prefer fullName, then firstname+lastname, then displayName
+                    const displayName = user.fullName || 
+                      (user.firstname && user.lastname ? `${user.firstname} ${user.lastname}` : null) ||
+                      (user.firstname || user.lastname ? `${user.firstname || ''} ${user.lastname || ''}`.trim() : null) ||
+                      user.displayName ||
+                      'N/A';
+                    
+                    // Get phone - prefer mobile, then phoneNumber
+                    const phone = user.mobile || user.phoneNumber || 'N/A';
+                    
+                    return (
+                      <TableRow key={user.id}>
+                        <TableCell>
+                          <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
+                            {user.email || 'N/A'}
                           </Typography>
-                        ) : (
-                          <Typography variant="body2" sx={{ color: 'error.main' }}>
-                            Inactive
-                          </Typography>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                        </TableCell>
+                        <TableCell>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            {user.profileImage && (
+                              <Box
+                                component="img"
+                                src={user.profileImage}
+                                alt={displayName}
+                                sx={{
+                                  width: 32,
+                                  height: 32,
+                                  borderRadius: '50%',
+                                  objectFit: 'cover',
+                                }}
+                              />
+                            )}
+                            <Typography variant="body2">{displayName}</Typography>
+                          </Box>
+                        </TableCell>
+                        <TableCell>{phone}</TableCell>
+                        <TableCell>{user.location || 'N/A'}</TableCell>
+                        <TableCell>
+                          {user.isActive !== false ? (
+                            <Typography variant="body2" sx={{ color: 'success.main' }}>
+                              Active
+                            </Typography>
+                          ) : (
+                            <Typography variant="body2" sx={{ color: 'error.main' }}>
+                              Inactive
+                            </Typography>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {user.hasCompletedProfile ? (
+                            <Typography variant="body2" sx={{ color: 'success.main' }}>
+                              Complete
+                            </Typography>
+                          ) : (
+                            <Typography variant="body2" sx={{ color: 'warning.main' }}>
+                              Incomplete
+                            </Typography>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                   {paginatedUsers.length === 0 && (
                     <TableRow>
                       <TableCell colSpan={6} align="center">

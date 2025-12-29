@@ -1,9 +1,7 @@
 import 'src/global.css';
 
-import type { User} from 'firebase/auth';
-
-import { useState, useEffect } from 'react';
-import { getAuth, onAuthStateChanged } from 'firebase/auth';
+import { useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 
 import Box from '@mui/material/Box';
 import LinearProgress from '@mui/material/LinearProgress';
@@ -11,8 +9,9 @@ import LinearProgress from '@mui/material/LinearProgress';
 import { Router } from 'src/routes/sections';
 
 import { useScrollToTop } from 'src/hooks/use-scroll-to-top';
+import { useSuperAdminCheck } from 'src/hooks/use-super-admin-check';
+import { useAuth } from 'src/hooks/use-auth';
 
-import { app } from 'src/firebaseConfig';
 import { ThemeProvider } from 'src/theme/theme-provider';
 
 import { AuthRouter } from './routes/authRoutes';
@@ -21,23 +20,19 @@ import { AuthRouter } from './routes/authRoutes';
 
 export default function App() {
   useScrollToTop();
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
-  const auth = getAuth(app);
+  const { user, loading: authLoading } = useAuth();
+  const { checking, superAdminExists } = useSuperAdminCheck();
+  const location = useLocation();
 
+  // Redirect to setup if super admin doesn't exist and not already on setup page
   useEffect(() => {
-    // Subscribe to auth state changes
-    const unsubscribe = onAuthStateChanged(auth, (u) => {
-      setUser(u);
-      setLoading(false); // Auth state has been determined
-    });
-
-    // Cleanup subscription on unmount
-    return () => unsubscribe();
-  }, [auth]);
+    if (!checking && !superAdminExists && location.pathname !== '/setup') {
+      window.location.href = '/setup';
+    }
+  }, [checking, superAdminExists, location.pathname]);
 
   // Show loading screen while authentication state is being determined
-  if (loading) {
+  if (authLoading || checking) {
     return (
       <ThemeProvider>
         <Box

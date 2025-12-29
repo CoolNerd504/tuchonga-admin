@@ -946,6 +946,85 @@ export function ServiceDetail() {
     return { positive, negative };
   }, [serviceReviews]);
 
+  // Helper function to convert Firestore timestamp to Date
+  const convertToDate = (timestamp: any): Date | null => {
+    if (!timestamp) return null;
+    if (timestamp.toDate) return timestamp.toDate();
+    if (timestamp instanceof Date) return timestamp;
+    if (typeof timestamp === 'string') return new Date(timestamp);
+    return null;
+  };
+
+  // Helper function to get month name from date
+  const getMonthName = (date: Date): string => {
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return months[date.getMonth()];
+  };
+
+  // Helper function to calculate monthly trends from reviews/comments
+  const calculateMonthlyTrends = useCallback((items: any[], months: string[], dateField: string = 'timestamp'): number[] => {
+    const monthCounts: { [key: string]: number } = {};
+    months.forEach(month => { monthCounts[month] = 0; });
+
+    items.forEach((item) => {
+      const date = convertToDate(item[dateField] || item.createdAt || item.timestamp);
+      if (date) {
+        const monthName = getMonthName(date);
+        if (monthCounts[monthName] !== undefined) {
+          monthCounts[monthName] += 1;
+        }
+      }
+    });
+
+    // Calculate cumulative counts
+    let cumulative = 0;
+    return months.map(month => {
+      cumulative += monthCounts[month];
+      return cumulative;
+    });
+  }, []);
+
+  // Helper function to calculate percentage change
+  const calculatePercentageChange = (current: number, previous: number): number => {
+    if (previous === 0) return current > 0 ? 100 : 0;
+    return ((current - previous) / previous) * 100;
+  };
+
+  // Calculate analytics data from Firebase
+  const analyticsData = useMemo(() => {
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug'];
+    
+    // Calculate monthly trends for views (using comments as proxy for engagement)
+    const viewsSeries = calculateMonthlyTrends(serviceComments, months, 'createdAt');
+    const currentViews = editedService.total_views || 0;
+    const previousViews = viewsSeries[6] || 0; // 7th month (index 6)
+    const viewsPercent = calculatePercentageChange(currentViews, previousViews);
+
+    // Calculate monthly trends for positive reviews
+    const positiveReviews = serviceReviews.filter(
+      review => review.sentiment === "Its Good" || review.sentiment === "Would recommend"
+    );
+    const positiveSeries = calculateMonthlyTrends(positiveReviews, months, 'timestamp');
+    const currentPositive = reviewCounts.positive;
+    const previousPositive = positiveSeries[6] || 0;
+    const positivePercent = calculatePercentageChange(currentPositive, previousPositive);
+
+    // Calculate monthly trends for negative reviews
+    const negativeReviews = serviceReviews.filter(
+      review => review.sentiment === "It's bad"
+    );
+    const negativeSeries = calculateMonthlyTrends(negativeReviews, months, 'timestamp');
+    const currentNegative = reviewCounts.negative;
+    const previousNegative = negativeSeries[6] || 0;
+    const negativePercent = calculatePercentageChange(currentNegative, previousNegative);
+
+    return {
+      views: { series: viewsSeries, percent: viewsPercent },
+      positive: { series: positiveSeries, percent: positivePercent },
+      negative: { series: negativeSeries, percent: negativePercent },
+    };
+  }, [serviceComments, serviceReviews, editedService.total_views, reviewCounts, calculateMonthlyTrends]);
+
   // Early returns for loading/error
   if (loading) return <Box p={3}><LinearProgress /><Typography>Loading...</Typography></Box>;
   if (error) return <Box p={3}><Alert severity="error">{error}</Alert></Box>;
@@ -1249,25 +1328,25 @@ export function ServiceDetail() {
             <Grid item xs={12} sm={6} md={4}>
               <AnalyticsWidgetSummary
                 title="Total views"
-                percent={-0.1}
+                percent={analyticsData.views.percent}
                 total={editedService.total_views || 0}
                 color="secondary"
                 icon={<Iconify width={50} icon="icon-park-solid:click" height="24" />}
                 chart={{
                   categories: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug'],
-                  series: [56, 47, 40, 62, 73, 30, 23, 54],
+                  series: analyticsData.views.series,
                 }}
               />
             </Grid>
             <Grid item xs={12} sm={6} md={4}>
               <AnalyticsWidgetSummary
                 title="Positive Reviews"
-                percent={2.6}
+                percent={analyticsData.positive.percent}
                 total={reviewCounts.positive}
                 icon={<Iconify width={50} icon="vaadin:thumbs-up" height="24" />}
                 chart={{
                   categories: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug'],
-                  series: [22, 8, 35, 50, 82, 84, 77, 12],
+                  series: analyticsData.positive.series,
                 }}
               />
             </Grid>
@@ -1275,13 +1354,13 @@ export function ServiceDetail() {
             <Grid item xs={12} sm={6} md={4}>
               <AnalyticsWidgetSummary
                 title="Negative Reviews"
-                percent={2.8}
+                percent={analyticsData.negative.percent}
                 total={reviewCounts.negative}
                 color="warning"
                 icon={<Iconify width={50} icon="vaadin:thumbs-down" height="50" />}
                 chart={{
                   categories: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug'],
-                  series: [40, 70, 50, 28, 70, 75, 7, 64],
+                  series: analyticsData.negative.series,
                 }}
               />
             </Grid>

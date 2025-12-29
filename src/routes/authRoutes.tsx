@@ -16,6 +16,7 @@ export const ServicesPage = lazy(() => import('src/pages/services'));
 export const SignInPage = lazy(() => import('src/pages/sign-in'));
 export const ProductsPage = lazy(() => import('src/pages/products'));
 export const Page404 = lazy(() => import('src/pages/page-not-found'));
+export const SuperAdminSetupPage = lazy(() => import('src/sections/admin/setup/super-admin-setup-view'));
 
 // ----------------------------------------------------------------------
 
@@ -24,8 +25,10 @@ console.log("Current User",auth.currentUser?.uid);
 
 export function AuthRouter() {
   return useRoutes([
-
-    
+    {
+      path: '/setup',
+      element: <SuperAdminSetupPage />,
+    },
     {
       path: '/',
       element: (

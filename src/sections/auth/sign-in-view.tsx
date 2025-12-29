@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { signInWithEmailAndPassword } from 'firebase/auth';
 
 import Box from '@mui/material/Box';
 import Link from '@mui/material/Link';
@@ -16,7 +15,7 @@ import { useRouter } from 'src/routes/hooks';
 import { Iconify } from 'src/components/iconify';
 import { Logo } from 'src/components/logo';
 
-import {auth} from "../../firebaseConfig";
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
 // ----------------------------------------------------------------------
 
@@ -39,17 +38,40 @@ export function SignInView() {
 
   const [showPassword, setShowPassword] = useState(false);
 
-  const handleSignIn  = async () => {
+  const handleSignIn = async () => {
     setErrorMessage(""); // Reset previous errors
     setSuccessMessage(""); // Reset previous success messages
 
+    if (!email || !password) {
+      setErrorMessage("Please enter both email and password");
+      return;
+    }
+
     try {
-      await signInWithEmailAndPassword(auth, email, password);
+      const response = await fetch(`${API_URL}/api/auth/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, password }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to sign in. Please check your credentials.");
+      }
+
+      // Store token and admin data
+      localStorage.setItem('authToken', data.token);
+      localStorage.setItem('admin', JSON.stringify(data.admin));
+
       setSuccessMessage("Sign-in successful! Redirecting...");
       setTimeout(() => {
-        router.push('/'); // Redirect after successful sign-in
+        // Reload to update auth state
+        window.location.href = '/';
       }, 1500);
-    } catch (err) {
+    } catch (err: any) {
       setErrorMessage(err.message || "Failed to sign in. Please check your credentials.");
     }
   };
