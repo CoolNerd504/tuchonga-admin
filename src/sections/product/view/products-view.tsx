@@ -162,7 +162,7 @@ function useTable() {
  */
 export function ProductsView() {
   // Add this near the other state declarations
-  const [availableCategories, setAvailableCategories] = useState<string[]>([]);
+  const [availableCategories, setAvailableCategories] = useState<Array<{ id: string; name: string }>>([]);
   const [productComments, setProductComments] = useState<ProductOrServiceComment[]>([]);
   const [productReviews, setProductReviews] = useState<any[]>([]);
   const [availableProductOwners, setAvailableProductOwners] = useState<string[]>([]);
@@ -176,7 +176,11 @@ export function ProductsView() {
       try {
         const response = await apiGet('/api/categories', { type: 'PRODUCT' });
         if (response.success && response.data) {
-          const categories = response.data.map((cat: any) => cat.name);
+          // Store both ID and name for categories
+          const categories = response.data.map((cat: any) => ({
+            id: cat.id,
+            name: cat.name,
+          }));
           setAvailableCategories(categories);
         } else {
           setAvailableCategories([]);
@@ -566,7 +570,7 @@ export function ProductsView() {
   const filteredProducts = useMemo(() => productList.filter((prod: Product) => {
     const matchesSearch = prod.product_name.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesCategory = selectedCategoryFilter === 'all' || 
-      (prod.category && prod.category.includes(selectedCategoryFilter));
+      (prod.category && Array.isArray(prod.category) && prod.category.includes(selectedCategoryFilter));
     return matchesSearch && matchesCategory;
   }), [productList, searchTerm, selectedCategoryFilter]);
 
@@ -793,8 +797,8 @@ export function ProductsView() {
                     </Box>
                   </MenuItem>
                   {availableCategories.map((category) => (
-                    <MenuItem key={category} value={category}>
-                      {category}
+                    <MenuItem key={category.id} value={category.id}>
+                      {category.name}
                     </MenuItem>
                   ))}
                 </Select>
@@ -863,7 +867,13 @@ export function ProductsView() {
                   open={categoryMenuOpen}
                   onClose={() => setCategoryMenuOpen(false)}
                   onOpen={() => setCategoryMenuOpen(true)}
-                  renderValue={(selected) => (selected as string[]).join(', ')}
+                  renderValue={(selected) => {
+                    const selectedIds = selected as string[];
+                    const selectedNames = selectedIds
+                      .map((id) => availableCategories.find((cat) => cat.id === id)?.name)
+                      .filter(Boolean);
+                    return selectedNames.join(', ');
+                  }}
                   MenuProps={{
                     PaperProps: {
                       style: { maxHeight: 300 },
@@ -880,11 +890,11 @@ export function ProductsView() {
                   </MenuItem>
                   <MenuItem disabled divider />
                   {availableCategories.map((category) => (
-                    <MenuItem key={category} value={category}>
-                      {productData.category.includes(category) && (
+                    <MenuItem key={category.id} value={category.id}>
+                      {productData.category.includes(category.id) && (
                         <CheckIcon fontSize="small" color="primary" sx={{ mr: 1 }} />
                       )}
-                      {category}
+                      {category.name}
                     </MenuItem>
                   ))}
                   <MenuItem disabled divider />
@@ -1126,14 +1136,17 @@ export function ProductsView() {
                  
                     <TableCell>
                       <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                        {product.category?.map((cat, index) => (
-                          <Chip
-                            key={`${cat}-${index}`} // Add a unique key
-                            label={cat}
-                            size="small"
-                            variant="outlined" // Optional: style the chip
-                          />
-                        ))}
+                        {product.category?.map((catId, index) => {
+                          const category = availableCategories.find((c) => c.id === catId);
+                          return (
+                            <Chip
+                              key={`${catId}-${index}`}
+                              label={category?.name || catId}
+                              size="small"
+                              variant="outlined"
+                            />
+                          );
+                        })}
                       </Box>
                     </TableCell>
                     <TableCell>
