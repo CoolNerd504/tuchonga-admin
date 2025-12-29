@@ -10,7 +10,8 @@ import IconButton from '@mui/material/IconButton';
 import { Iconify } from 'src/components/iconify';
 import { Logo } from 'src/components/logo';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+// In production, use relative URLs (same origin). In development, use localhost:3001
+const API_URL = import.meta.env.VITE_API_URL ?? (import.meta.env.PROD ? '' : 'http://localhost:3001');
 
 export function SuperAdminSetupView() {
   const [formData, setFormData] = useState({

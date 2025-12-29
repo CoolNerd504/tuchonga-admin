@@ -23,16 +23,19 @@ const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID || '',
 };
 
-// Validate that required config is present
-if (!firebaseConfig.apiKey || !firebaseConfig.projectId) {
-  console.warn(
-    'Firebase configuration is missing. Please set VITE_FIREBASE_API_KEY and VITE_FIREBASE_PROJECT_ID in your .env file.'
+// Check if Firebase config is available
+const isFirebaseConfigured = firebaseConfig.apiKey && firebaseConfig.projectId;
+
+// Only warn once in development about missing config
+if (!isFirebaseConfigured && import.meta.env.DEV) {
+  console.info(
+    '[Firebase] Storage not configured. Set VITE_FIREBASE_* env vars for image uploads.'
   );
 }
 
-// Initialize Firebase (only for Storage)
+// Initialize Firebase (required for Storage/image uploads)
 export const app = initializeApp(firebaseConfig);
 
-// Export only Storage - all other services migrated to Prisma
+// Export Storage - used for image uploads
 export const storage = getStorage(app);
 
