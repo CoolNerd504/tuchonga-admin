@@ -3,7 +3,13 @@ import { adminService } from '../../src/services/adminService';
 import jwt from 'jsonwebtoken';
 
 const router = express.Router();
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
+const JWT_SECRET = process.env.JWT_SECRET || (() => {
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('JWT_SECRET must be set in production environment');
+  }
+  console.warn('⚠️  WARNING: Using default JWT_SECRET. Set JWT_SECRET in production!');
+  return 'your-secret-key-change-in-production';
+})();
 
 // Middleware to verify admin token
 const verifyAdmin = async (req: express.Request, res: express.Response, next: express.NextFunction) => {

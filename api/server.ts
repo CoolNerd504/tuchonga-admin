@@ -1,7 +1,12 @@
 import express from 'express';
 import dotenv from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import adminRoutes from './routes/admin.js';
 import authRoutes from './routes/auth.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // Load environment variables
 dotenv.config();
@@ -9,11 +14,25 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-// Middleware - CORS with manual configuration
+// Middleware - CORS with environment-aware configuration
+const allowedOrigins = process.env.ALLOWED_ORIGINS
+  ? process.env.ALLOWED_ORIGINS.split(',')
+  : process.env.NODE_ENV === 'production'
+  ? [] // Production should specify origins
+  : ['http://localhost:5173', 'http://localhost:3039', 'http://localhost:3000']; // Local development
+
 app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', '*');
+  const origin = req.headers.origin;
+  
+  // Allow requests from allowed origins or same origin
+  if (!origin || allowedOrigins.includes(origin) || process.env.NODE_ENV !== 'production') {
+    res.header('Access-Control-Allow-Origin', origin || '*');
+  }
+  
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
   res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  
   if (req.method === 'OPTIONS') {
     res.sendStatus(200);
   } else {
@@ -32,6 +51,20 @@ app.get('/health', (req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);
 
+// Serve static files from dist folder in production (frontend)
+if (process.env.NODE_ENV === 'production') {
+  app.use(express.static(path.join(__dirname, '../dist')));
+  
+  // Serve index.html for all non-API routes (SPA routing)
+  app.get('*', (req, res, next) => {
+    // Skip API routes
+    if (req.path.startsWith('/api')) {
+      return next();
+    }
+    res.sendFile(path.join(__dirname, '../dist/index.html'));
+  });
+}
+
 // Error handling middleware
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
   console.error('Error:', err);
@@ -41,9 +74,22 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
 });
 
 // Start server
-app.listen(PORT, () => {
-  console.log(`🚀 API Server running on http://localhost:${PORT}`);
+const server = app.listen(PORT, () => {
+  console.log(`🚀 API Server running on port ${PORT}`);
+  console.log(`📊 Environment: ${process.env.NODE_ENV || 'development'}`);
   console.log(`📊 Health check: http://localhost:${PORT}/health`);
+  
+  if (process.env.NODE_ENV === 'production') {
+    console.log(`🔒 Production mode: CORS restricted to: ${process.env.ALLOWED_ORIGINS || 'Not set (configure ALLOWED_ORIGINS)'}`);
+  }
+});
+
+// Graceful shutdown
+process.on('SIGTERM', () => {
+  console.log('SIGTERM signal received: closing HTTP server');
+  server.close(() => {
+    console.log('HTTP server closed');
+  });
 });
 
 export default app;
