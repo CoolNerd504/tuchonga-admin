@@ -5,22 +5,18 @@ import path from 'path';
 // Load environment variables FIRST, before any other imports that might use them
 dotenv.config();
 
-// Railway provides both DATABASE_URL (internal) and DATABASE_PUBLIC_URL (external)
-// Use DATABASE_PUBLIC_URL if DATABASE_URL is not set (for Railway deployments)
-if (!process.env.DATABASE_URL && process.env.DATABASE_PUBLIC_URL) {
-  process.env.DATABASE_URL = process.env.DATABASE_PUBLIC_URL;
-  console.log('ℹ️  Using DATABASE_PUBLIC_URL as DATABASE_URL');
-}
+// Railway automatically provides DATABASE_URL when PostgreSQL is connected
+// It's available in process.env - no manual setup needed!
+// Just make sure your PostgreSQL service is connected to this service in Railway
 
-// Verify critical environment variables are set
-if (!process.env.DATABASE_URL && process.env.NODE_ENV === 'production') {
-  console.error('❌ ERROR: DATABASE_URL is required in production but not set!');
-  console.error('Please set DATABASE_URL or DATABASE_PUBLIC_URL in Railway environment variables.');
-  process.exit(1);
-}
-
+// Log status (without exposing sensitive data)
 if (process.env.DATABASE_URL) {
-  console.log('✅ DATABASE_URL is configured');
+  const dbUrlPreview = process.env.DATABASE_URL.substring(0, 30) + '...';
+  console.log(`✅ DATABASE_URL is configured: ${dbUrlPreview}`);
+} else {
+  console.warn('⚠️  WARNING: DATABASE_URL not found');
+  console.warn('   Railway should auto-provide this when PostgreSQL is connected.');
+  console.warn('   Check Railway Dashboard → Your Service → Variables tab');
 }
 
 // Routes (imported after dotenv.config() so Prisma can access DATABASE_URL)

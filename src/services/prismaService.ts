@@ -4,17 +4,20 @@ const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
 };
 
-// Railway provides both DATABASE_URL (internal) and DATABASE_PUBLIC_URL (external)
-// Use DATABASE_PUBLIC_URL as fallback if DATABASE_URL is not set
-if (!process.env.DATABASE_URL && process.env.DATABASE_PUBLIC_URL) {
-  process.env.DATABASE_URL = process.env.DATABASE_PUBLIC_URL;
-}
+// Railway provides DATABASE_URL automatically when PostgreSQL is connected
+// But it might also provide it under different names. Check all possibilities:
+if (!process.env.DATABASE_URL) {
+  const possibleDbUrls = [
+    process.env.DATABASE_PUBLIC_URL,
+    process.env.POSTGRES_URL,
+    process.env.POSTGRES_PRIVATE_URL,
+    process.env.POSTGRES_PUBLIC_URL,
+    process.env.PGDATABASE_URL,
+  ].filter(Boolean);
 
-// Verify DATABASE_URL is available before creating PrismaClient
-if (!process.env.DATABASE_URL && process.env.NODE_ENV === 'production') {
-  console.error('❌ ERROR: DATABASE_URL environment variable is not set!');
-  console.error('Prisma Client requires DATABASE_URL to connect to the database.');
-  console.error('Please set DATABASE_URL or DATABASE_PUBLIC_URL in Railway environment variables.');
+  if (possibleDbUrls.length > 0) {
+    process.env.DATABASE_URL = possibleDbUrls[0];
+  }
 }
 
 export const prisma =
