@@ -61,18 +61,29 @@ const app = express();
 const PORT = Number(process.env.PORT) || 3001;
 
 // Middleware - CORS with environment-aware configuration
+// Since frontend and API are on the same Railway domain, same-origin requests don't need CORS
+// But we allow it for flexibility and development
 const allowedOrigins = process.env.ALLOWED_ORIGINS
-  ? process.env.ALLOWED_ORIGINS.split(',')
+  ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim())
   : process.env.NODE_ENV === 'production'
-  ? [] // Production should specify origins
+  ? [] // Production: if not set, allow same-origin (Railway same domain)
   : ['http://localhost:5173', 'http://localhost:3039', 'http://localhost:3000']; // Local development
 
 app.use((req, res, next) => {
   const origin = req.headers.origin;
   
-  // Allow requests from allowed origins or same origin
-  if (!origin || allowedOrigins.includes(origin) || process.env.NODE_ENV !== 'production') {
-    res.header('Access-Control-Allow-Origin', origin || '*');
+  // Same-origin requests (no origin) don't need CORS headers, but we'll add them anyway
+  if (!origin) {
+    // Same-origin request - allow it
+    res.header('Access-Control-Allow-Origin', '*');
+  } else if (process.env.NODE_ENV === 'production') {
+    // Production: allow if in allowed list, or if no list specified (same domain)
+    if (allowedOrigins.length === 0 || allowedOrigins.includes(origin)) {
+      res.header('Access-Control-Allow-Origin', origin);
+    }
+  } else {
+    // Development: allow all localhost origins
+    res.header('Access-Control-Allow-Origin', origin);
   }
   
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
