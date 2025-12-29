@@ -19,22 +19,45 @@ function fixImportsInFile(filePath) {
   let content = fs.readFileSync(filePath, 'utf8');
   const originalContent = content;
   
-  // Add .js extension to ../../src/services/ imports if missing (keep path as-is)
+  // Helper function to add .js extension if missing
+  const addJsExtension = (modulePath) => {
+    return modulePath.endsWith('.js') ? modulePath : `${modulePath}.js`;
+  };
+  
+  // Fix static imports: from '../../src/services/...'
   content = content.replace(/from ['"]\.\.\/\.\.\/src\/services\/([^'"]+)(['"])/g, (match, modulePath, quote) => {
-    const jsPath = modulePath.endsWith('.js') ? modulePath : `${modulePath}.js`;
+    const jsPath = addJsExtension(modulePath);
     return `from '../../src/services/${jsPath}${quote}`;
   });
   
-  // Add .js extension to ../middleware/ imports if missing
+  // Fix dynamic imports: import('../../src/services/...')
+  content = content.replace(/import\(['"]\.\.\/\.\.\/src\/services\/([^'"]+)(['"])\)/g, (match, modulePath, quote) => {
+    const jsPath = addJsExtension(modulePath);
+    return `import('../../src/services/${jsPath}${quote})`;
+  });
+  
+  // Fix static imports: from '../middleware/...'
   content = content.replace(/from ['"]\.\.\/middleware\/([^'"]+)(['"])/g, (match, modulePath, quote) => {
-    const jsPath = modulePath.endsWith('.js') ? modulePath : `${modulePath}.js`;
+    const jsPath = addJsExtension(modulePath);
     return `from '../middleware/${jsPath}${quote}`;
   });
   
-  // Add .js extension to ./routes/ imports if missing (in server.js)
+  // Fix dynamic imports: import('../middleware/...')
+  content = content.replace(/import\(['"]\.\.\/middleware\/([^'"]+)(['"])\)/g, (match, modulePath, quote) => {
+    const jsPath = addJsExtension(modulePath);
+    return `import('../middleware/${jsPath}${quote})`;
+  });
+  
+  // Fix static imports: from './routes/...'
   content = content.replace(/from ['"]\.\/routes\/([^'"]+)(['"])/g, (match, modulePath, quote) => {
-    const jsPath = modulePath.endsWith('.js') ? modulePath : `${modulePath}.js`;
+    const jsPath = addJsExtension(modulePath);
     return `from './routes/${jsPath}${quote}`;
+  });
+  
+  // Fix dynamic imports: import('./routes/...')
+  content = content.replace(/import\(['"]\.\/routes\/([^'"]+)(['"])\)/g, (match, modulePath, quote) => {
+    const jsPath = addJsExtension(modulePath);
+    return `import('./routes/${jsPath}${quote})`;
   });
   
   if (content !== originalContent) {
