@@ -44,6 +44,7 @@ module.exports = {
         '@typescript-eslint/no-unused-vars': 'off',
         '@typescript-eslint/consistent-type-exports': 'off',
         '@typescript-eslint/consistent-type-imports': 'off',
+        '@typescript-eslint/dot-notation': 'off',
       },
     },
   ],
