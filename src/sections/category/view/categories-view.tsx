@@ -29,7 +29,7 @@ import {
 
 import { Iconify } from 'src/components/iconify';
 
-import { firebaseDB } from '../../../firebaseConfig';
+// Firebase Firestore removed - migrating to Prisma API
 
 
 

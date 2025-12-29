@@ -46,7 +46,7 @@ import {
 
 import { Iconify } from 'src/components/iconify';
 
-import { auth, storage, firebaseDB } from '../../../firebaseConfig';
+import { storage } from '../../../firebaseConfig';
 
 // import Iconify from 'src/components/iconify';
 // import ArrowForwardIosIcon from '@mui/icons-material/ArrowForwardIos';

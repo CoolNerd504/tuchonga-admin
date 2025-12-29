@@ -1,31 +1,22 @@
-// Import the functions you need from the SDKs you need
-import{ getAuth} from "firebase/auth"
-import { initializeApp } from "firebase/app";
-import { getStorage } from "firebase/storage";
-import {getFirestore} from "firebase/firestore"
-import { getAnalytics } from "firebase/analytics";
+// Firebase Storage Configuration Only
+// All other Firebase services (Auth, Firestore) have been migrated to Prisma
 
-// TODO: Add SDKs for Firebase products that you want to use
-// https://firebase.google.com/docs/web/setup#available-libraries
+import { initializeApp } from 'firebase/app';
+import { getStorage } from 'firebase/storage';
 
 // Your web app's Firebase configuration
-// For Firebase JS SDK v7.20.0 and later, measurementId is optional
 const firebaseConfig = {
-  apiKey: "AIzaSyArhC49QRCUpji3JOaeO7fV_TGeE1hn-cU",
-  authDomain: "tuchonga-bf6af.firebaseapp.com",
-  projectId: "tuchonga-bf6af",
-  databaseURL:"https://tuchonga-bf6af-default-rtdb.firebaseio.com/",
-  storageBucket: "tuchonga-bf6af.firebasestorage.app",
-  messagingSenderId: "527986241949",
-  appId: "1:527986241949:web:c2116e04e1dcf69e997f74",
-  measurementId: "G-C4ZWK2EH0N"
+  apiKey: 'AIzaSyArhC49QRCUpji3JOaeO7fV_TGeE1hn-cU',
+  authDomain: 'tuchonga-bf6af.firebaseapp.com',
+  projectId: 'tuchonga-bf6af',
+  storageBucket: 'tuchonga-bf6af.firebasestorage.app',
+  messagingSenderId: '527986241949',
+  appId: '1:527986241949:web:c2116e04e1dcf69e997f74',
 };
 
-// Initialize Firebase
+// Initialize Firebase (only for Storage)
 export const app = initializeApp(firebaseConfig);
-// Analytics initialized but not exported (can be used later if needed)
-getAnalytics(app);
-export const auth = getAuth(app);
-// Initialize Firestore with auth persistence enabled
-export const firebaseDB = getFirestore(app);
+
+// Export only Storage - all other services migrated to Prisma
 export const storage = getStorage(app);
+

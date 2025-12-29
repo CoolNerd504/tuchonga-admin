@@ -1,12 +1,5 @@
-import type { User } from 'firebase/auth';
-
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getAuth, onAuthStateChanged } from 'firebase/auth';
-import {
-  getDocs,
-  collection,
-} from 'firebase/firestore';
 
 import { Box } from '@mui/material';
 import Alert from '@mui/material/Alert';
@@ -15,18 +8,17 @@ import Typography from '@mui/material/Typography';
 import CircularProgress from '@mui/material/CircularProgress';
 
 import { DashboardContent } from 'src/layouts/dashboard';
+import { useAuth } from 'src/hooks/use-auth';
 
-import { app, firebaseDB } from '../../../firebaseConfig';
 import { AnalyticsCurrentVisits } from '../analytics-current-visits';
 import { AnalyticsWebsiteVisits } from '../analytics-website-visits';
 import { AnalyticsWidgetSummary } from '../analytics-widget-summary';
 
 // ----------------------------------------------------------------------
-// Firestore collection reference
-const businessesCollection = collection(firebaseDB, 'businesses');
-const productsCollection = collection(firebaseDB, 'products');
-const servicesCollection = collection(firebaseDB, 'services');
-const usersCollection = collection(firebaseDB, 'users');
+// TODO: Migrate to Prisma API endpoints
+// - GET /api/analytics/overview
+// - GET /api/analytics/trends
+// Firestore collections removed - use API calls instead
 
 // Helper function to convert Firestore timestamp to Date
 const convertToDate = (timestamp: any): Date | null => {
@@ -74,10 +66,8 @@ const calculatePercentageChange = (current: number, previous: number): number =>
 };
 
 export function OverviewAnalyticsView() {
-  const auth = getAuth(app);
   const navigate = useNavigate();
-  
-  const [user, setUser] = useState<User | null>(null);
+  const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
@@ -107,30 +97,35 @@ export function OverviewAnalyticsView() {
   });
 
   // Wait for authentication state
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (u) => {
-      setUser(u);
-      setLoading(false);
-    });
-    return () => unsubscribe();
-  }, [auth]);
-
-  // Get all data from Firebase DB
+  // TODO: Migrate to Prisma API
+  // Use GET /api/analytics/overview endpoint instead of Firestore
   useEffect(() => {
     // Wait for user to be authenticated before fetching data
-    if (loading || !user) {
+    if (!user) {
       return;
     }
 
     const fetchAllData = async () => {
       setError(null);
+      setLoading(true);
       try {
-        const [usersSnap, businessesSnap, productsSnap, servicesSnap] = await Promise.all([
-          getDocs(usersCollection),
-          getDocs(businessesCollection),
-          getDocs(productsCollection),
-          getDocs(servicesCollection)
-        ]);
+        // TODO: Replace with API call
+        // const response = await fetch('/api/analytics/overview');
+        // const data = await response.json();
+        
+        // Temporarily disabled - Firestore removed
+        // const [usersSnap, businessesSnap, productsSnap, servicesSnap] = await Promise.all([
+        //   getDocs(usersCollection),
+        //   getDocs(businessesCollection),
+        //   getDocs(productsCollection),
+        //   getDocs(servicesCollection)
+        // ]);
+        
+        // Placeholder data until API migration
+        const usersSnap = { size: 0, docs: [] };
+        const businessesSnap = { size: 0, docs: [] };
+        const productsSnap = { size: 0, docs: [] };
+        const servicesSnap = { size: 0, docs: [] };
 
         // Get counts
         const userCount = usersSnap.size;

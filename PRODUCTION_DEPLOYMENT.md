@@ -23,7 +23,7 @@ DATABASE_URL="postgresql://user:password@host:port/database"
 
 # API Server
 PORT=3001
-JWT_SECRET="your-strong-random-secret-here"  # Generate with: openssl rand -base64 32
+JWT_SECRET="jAI+VHucsnFv21nTcvwdc2TCkPjQv5v2Jh8tBugthic=" # Generate with: openssl rand -base64 32
 NODE_ENV="production"
 
 # CORS (comma-separated list of allowed origins)

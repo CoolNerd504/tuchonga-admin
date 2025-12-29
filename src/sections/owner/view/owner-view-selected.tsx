@@ -52,7 +52,7 @@ import CheckIcon from '@mui/icons-material/Check';
 
 import { Iconify } from 'src/components/iconify';
 
-import { firebaseDB } from '../../../firebaseConfig';
+// Firebase Firestore removed - migrating to Prisma API
 
 // ----------------------------------------------------------------------
 // Mock data types

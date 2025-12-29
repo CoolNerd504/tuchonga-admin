@@ -1,11 +1,9 @@
 import { lazy, Suspense } from 'react';
-import { getAuth } from 'firebase/auth';
 import { Outlet, Navigate, useRoutes } from 'react-router-dom';
 
 import Box from '@mui/material/Box';
 import LinearProgress, { linearProgressClasses } from '@mui/material/LinearProgress';
 
-import { app } from 'src/firebaseConfig';
 import { varAlpha } from 'src/theme/styles';
 import { DashboardLayout } from 'src/layouts/dashboard';
 
@@ -28,9 +26,6 @@ export const AdminPage = lazy(() => import('src/pages/admin'));
 export const Page404 = lazy(() => import('src/pages/page-not-found'));
 
 // ----------------------------------------------------------------------
-
-const auth = getAuth(app);
-console.log("Current User", auth.currentUser?.uid);
 
 const renderFallback = (
   <Box display="flex" alignItems="center" justifyContent="center" flex="1 1 auto">

@@ -1,12 +1,10 @@
-import { createUserWithEmailAndPassword } from "firebase/auth";
+// Firebase Auth and Firestore removed - migrating to Prisma API
 import { useMemo, useState, useEffect, useCallback } from 'react';
-import {
-  addDoc,
-  getDocs,
-  collection,
-  doc,
-  setDoc,
-} from "firebase/firestore";
+// TODO: Replace Firestore calls with API calls:
+// - GET /api/staff
+// - POST /api/staff
+// - PUT /api/staff/:id
+// - DELETE /api/staff/:id
 
 import Box from '@mui/material/Box';
 import Grid from '@mui/material/Grid';
@@ -29,7 +27,7 @@ import { DashboardContent } from 'src/layouts/dashboard';
 
 import { Iconify } from 'src/components/iconify';
 
-import { auth, firebaseDB } from "../../../firebaseConfig";
+// Firebase Firestore removed - migrating to Prisma API
 
 
 // ----------------------------------------------------------------------

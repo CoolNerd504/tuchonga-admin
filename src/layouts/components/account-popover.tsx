@@ -1,6 +1,5 @@
 import type { IconButtonProps } from '@mui/material/IconButton';
 
-import { getAuth } from 'firebase/auth';
 import { useState, useCallback } from 'react';
 
 import Box from '@mui/material/Box';
@@ -14,9 +13,9 @@ import IconButton from '@mui/material/IconButton';
 import MenuItem, { menuItemClasses } from '@mui/material/MenuItem';
 
 import { useRouter, usePathname } from 'src/routes/hooks';
+import { useAuth } from 'src/hooks/use-auth';
 
 import { _myAccount } from 'src/_mock';
-import { app } from 'src/firebaseConfig';
 
 
 // ----------------------------------------------------------------------
@@ -52,12 +51,14 @@ export function AccountPopover({ data = [], sx, ...other }: AccountPopoverProps)
     },
     [handleClosePopover, router]
   );
-  const handleSignOut = () => {
-    auth.signOut()
- }
 
- const auth = getAuth(app);
-console.log("Current User",auth.currentUser?.email);
+  const { user, logout } = useAuth();
+
+  const handleSignOut = useCallback(() => {
+    logout();
+    handleClosePopover();
+    router.push('/sign-in');
+  }, [logout, handleClosePopover, router]);
   return (
     <>
       <IconButton
@@ -95,7 +96,7 @@ console.log("Current User",auth.currentUser?.email);
           </Typography> */}
 
           <Typography variant="body2" sx={{ color: 'text.secondary' }} noWrap>
-            {auth.currentUser?.email}
+            {user?.email || user?.fullName || 'Admin'}
           </Typography>
         </Box>
 
@@ -137,7 +138,7 @@ console.log("Current User",auth.currentUser?.email);
         <Divider sx={{ borderStyle: 'dashed' }} />
 
         <Box sx={{ p: 1 }}>
-          <Button  onClick={() => handleSignOut()} fullWidth color="error" size="medium" variant="text">
+          <Button onClick={handleSignOut} fullWidth color="error" size="medium" variant="text">
             Logout
           </Button>
         </Box>

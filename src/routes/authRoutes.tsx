@@ -1,8 +1,6 @@
 import { lazy } from 'react';
-import { getAuth } from 'firebase/auth';
 import { Navigate, useRoutes } from 'react-router-dom';
 
-import { app } from 'src/firebaseConfig';
 import { AuthLayout } from 'src/layouts/auth';
 
 // ----------------------------------------------------------------------
@@ -19,9 +17,6 @@ export const Page404 = lazy(() => import('src/pages/page-not-found'));
 export const SuperAdminSetupPage = lazy(() => import('src/sections/admin/setup/super-admin-setup-view'));
 
 // ----------------------------------------------------------------------
-
-const auth = getAuth(app);
-console.log("Current User",auth.currentUser?.uid);
 
 export function AuthRouter() {
   return useRoutes([

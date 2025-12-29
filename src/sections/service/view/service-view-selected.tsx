@@ -46,7 +46,7 @@ import {
 
 import { Iconify } from 'src/components/iconify';
 
-import { auth, storage, firebaseDB } from '../../../firebaseConfig';
+import { storage } from '../../../firebaseConfig';
 import { AnalyticsCurrentVisits } from './analytics-current-visits';
 import { AnalyticsWebsiteVisits } from './analytics-website-visits';
 import { AnalyticsWidgetSummary } from './analytics-widget-summary';
