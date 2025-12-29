@@ -29,11 +29,12 @@ if (!process.env.DATABASE_URL) {
 if (process.env.DATABASE_URL) {
   const dbUrlPreview = process.env.DATABASE_URL.substring(0, 30) + '...';
   console.log(`✅ DATABASE_URL is configured: ${dbUrlPreview}`);
+  console.log(`   Full DATABASE_URL length: ${process.env.DATABASE_URL.length} characters`);
 } else {
   console.error('❌ ERROR: DATABASE_URL not found!');
   console.error('   Railway should auto-provide this when PostgreSQL is connected.');
   console.error('');
-  console.error('   Debugging - All environment variables:');
+  console.error('   Debugging - Checking environment variables:');
   const allEnvVars = Object.keys(process.env).sort();
   const dbRelated = allEnvVars.filter(key => 
     key.includes('DATABASE') || key.includes('POSTGRES') || key.includes('DB') || key.includes('PG')
@@ -47,7 +48,8 @@ if (process.env.DATABASE_URL) {
     });
   } else {
     console.error('   ⚠️  No database-related environment variables found!');
-    console.error('   Total env vars:', allEnvVars.length);
+    console.error(`   Total env vars: ${allEnvVars.length}`);
+    console.error('   First 10 env vars:', allEnvVars.slice(0, 10).join(', '));
   }
   console.error('');
   console.error('   To fix:');
@@ -55,7 +57,8 @@ if (process.env.DATABASE_URL) {
   console.error('   2. Verify DATABASE_URL is set (check spelling - must be exactly "DATABASE_URL")');
   console.error('   3. If PostgreSQL is connected, Railway should auto-inject it');
   console.error('   4. If not, manually add DATABASE_URL with your PostgreSQL connection string');
-  // Don't exit - let Prisma handle the error gracefully
+  console.error('   5. After adding, Railway will auto-redeploy');
+  // Don't exit - let Prisma handle the error gracefully, but log clearly
 }
 
 // Routes (imported after dotenv.config() so Prisma can access DATABASE_URL)
