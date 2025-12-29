@@ -2,7 +2,28 @@ import express from 'express';
 import dotenv from 'dotenv';
 import path from 'path';
 
-// Routes
+// Load environment variables FIRST, before any other imports that might use them
+dotenv.config();
+
+// Railway provides both DATABASE_URL (internal) and DATABASE_PUBLIC_URL (external)
+// Use DATABASE_PUBLIC_URL if DATABASE_URL is not set (for Railway deployments)
+if (!process.env.DATABASE_URL && process.env.DATABASE_PUBLIC_URL) {
+  process.env.DATABASE_URL = process.env.DATABASE_PUBLIC_URL;
+  console.log('ℹ️  Using DATABASE_PUBLIC_URL as DATABASE_URL');
+}
+
+// Verify critical environment variables are set
+if (!process.env.DATABASE_URL && process.env.NODE_ENV === 'production') {
+  console.error('❌ ERROR: DATABASE_URL is required in production but not set!');
+  console.error('Please set DATABASE_URL or DATABASE_PUBLIC_URL in Railway environment variables.');
+  process.exit(1);
+}
+
+if (process.env.DATABASE_URL) {
+  console.log('✅ DATABASE_URL is configured');
+}
+
+// Routes (imported after dotenv.config() so Prisma can access DATABASE_URL)
 import adminRoutes from './routes/admin.js';
 import authRoutes from './routes/auth.js';
 import productRoutes from './routes/products.js';
@@ -18,9 +39,6 @@ import analyticsRoutes from './routes/analytics.js';
 
 // Get __dirname equivalent for CommonJS
 const __dirname = path.resolve();
-
-// Load environment variables
-dotenv.config();
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3001;
