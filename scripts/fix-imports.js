@@ -19,8 +19,17 @@ function fixImportsInFile(filePath) {
   let content = fs.readFileSync(filePath, 'utf8');
   const originalContent = content;
   
-  // Replace ../../src/services/ with ../src/services/
-  content = content.replace(/from ['"]\.\.\/\.\.\/src\/services\//g, "from '../src/services/");
+  // Replace ../../src/services/ with ../src/services/ and ensure .js extension
+  content = content.replace(/from ['"]\.\.\/\.\.\/src\/services\/([^'"]+)(['"])/g, (match, modulePath, quote) => {
+    const jsPath = modulePath.endsWith('.js') ? modulePath : `${modulePath}.js`;
+    return `from '../src/services/${jsPath}${quote}`;
+  });
+  
+  // Also fix any imports that already have ../src/services/ but missing .js
+  content = content.replace(/from ['"]\.\.\/src\/services\/([^'"]+)(['"])/g, (match, modulePath, quote) => {
+    const jsPath = modulePath.endsWith('.js') ? modulePath : `${modulePath}.js`;
+    return `from '../src/services/${jsPath}${quote}`;
+  });
   
   if (content !== originalContent) {
     fs.writeFileSync(filePath, content, 'utf8');

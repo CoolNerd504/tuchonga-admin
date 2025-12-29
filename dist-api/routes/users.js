@@ -1,5 +1,5 @@
 import express from 'express';
-import { mobileUserService } from '../src/services/mobileUserService';
+import { mobileUserService } from '../src/services/mobileUserService.js';
 import { verifyToken, verifyAdmin } from '../middleware/auth';
 const router = express.Router();
 // ============================================================================

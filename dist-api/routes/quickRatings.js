@@ -1,5 +1,5 @@
 import express from 'express';
-import { quickRatingServicePrisma } from '../src/services/quickRatingServicePrisma';
+import { quickRatingServicePrisma } from '../src/services/quickRatingServicePrisma.js';
 import { verifyToken, verifyAdmin } from '../middleware/auth';
 const router = express.Router();
 // ============================================================================
