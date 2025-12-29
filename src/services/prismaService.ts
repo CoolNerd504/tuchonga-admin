@@ -23,23 +23,22 @@ function ensureDatabaseUrl(): boolean {
       const varName = Object.keys(process.env).find(key => process.env[key] === possibleDbUrls[0]);
       console.log(`[PrismaService] Using ${varName} as DATABASE_URL`);
       return true;
-    } else {
-      // Debug: Log all environment variables that might be database-related
-      console.error('[PrismaService] DATABASE_URL not found. Available env vars:');
-      const dbRelatedVars = Object.keys(process.env).filter(key => 
-        key.includes('DATABASE') || key.includes('POSTGRES') || key.includes('DB')
-      );
-      if (dbRelatedVars.length > 0) {
-        dbRelatedVars.forEach(key => {
-          const value = process.env[key];
-          const preview = value ? `${value.substring(0, 30)}...` : 'undefined';
-          console.error(`  - ${key}: ${preview}`);
-        });
-      } else {
-        console.error('  No database-related environment variables found!');
-      }
-      return false;
     }
+    // Debug: Log all environment variables that might be database-related
+    console.error('[PrismaService] DATABASE_URL not found. Available env vars:');
+    const dbRelatedVars = Object.keys(process.env).filter(key => 
+      key.includes('DATABASE') || key.includes('POSTGRES') || key.includes('DB')
+    );
+    if (dbRelatedVars.length > 0) {
+      dbRelatedVars.forEach(key => {
+        const value = process.env[key];
+        const preview = value ? `${value.substring(0, 30)}...` : 'undefined';
+        console.error(`  - ${key}: ${preview}`);
+      });
+    } else {
+      console.error('  No database-related environment variables found!');
+    }
+    return false;
   }
   return true;
 }
@@ -66,10 +65,8 @@ function getPrismaClient(): PrismaClient {
     log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
   });
 
-  if (process.env.NODE_ENV !== 'production') {
-    // In development, store in global to prevent multiple instances during hot reload
-    globalForPrisma.prisma = globalForPrisma.prisma;
-  }
+  // In development, the global is already set above, no need to reassign
+  // This prevents multiple instances during hot reload
 
   return globalForPrisma.prisma;
 }
