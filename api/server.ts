@@ -32,11 +32,29 @@ if (process.env.DATABASE_URL) {
 } else {
   console.error('❌ ERROR: DATABASE_URL not found!');
   console.error('   Railway should auto-provide this when PostgreSQL is connected.');
+  console.error('');
+  console.error('   Debugging - All environment variables:');
+  const allEnvVars = Object.keys(process.env).sort();
+  const dbRelated = allEnvVars.filter(key => 
+    key.includes('DATABASE') || key.includes('POSTGRES') || key.includes('DB') || key.includes('PG')
+  );
+  if (dbRelated.length > 0) {
+    console.error('   Database-related variables found:');
+    dbRelated.forEach(key => {
+      const value = process.env[key];
+      const preview = value ? (value.length > 50 ? value.substring(0, 50) + '...' : value) : 'undefined';
+      console.error(`     ${key} = ${preview}`);
+    });
+  } else {
+    console.error('   ⚠️  No database-related environment variables found!');
+    console.error('   Total env vars:', allEnvVars.length);
+  }
+  console.error('');
   console.error('   To fix:');
   console.error('   1. Go to Railway Dashboard → Your Service → Variables');
-  console.error('   2. Check if PostgreSQL database is connected to this service');
-  console.error('   3. If not connected: Service → Settings → Connect Database');
-  console.error('   4. Or manually add DATABASE_URL variable with your PostgreSQL connection string');
+  console.error('   2. Verify DATABASE_URL is set (check spelling - must be exactly "DATABASE_URL")');
+  console.error('   3. If PostgreSQL is connected, Railway should auto-inject it');
+  console.error('   4. If not, manually add DATABASE_URL with your PostgreSQL connection string');
   // Don't exit - let Prisma handle the error gracefully
 }
 
