@@ -118,8 +118,10 @@ openssl rand -base64 32
 ### Recommended Build Command:
 
 ```bash
-npm install && npm run prisma:generate && npm run build && npm run build:api && npm run prisma:deploy
+npm install --legacy-peer-deps && npm run prisma:generate && npm run build && npm run build:api && npm run prisma:deploy
 ```
+
+**Note:** `--legacy-peer-deps` is required due to MUI version conflicts between `@mui/material@5.16.7` and `@mui/icons-material@7.3.6`.
 
 This ensures:
 - ✅ Dependencies installed
@@ -160,7 +162,7 @@ Should return:
    - Make sure `JWT_SECRET` is strong and random
 
 4. **Set Build & Start Commands:**
-   - Build: `npm install && npm run prisma:generate && npm run build && npm run build:api && npm run prisma:deploy`
+   - Build: `npm install --legacy-peer-deps && npm run prisma:generate && npm run build && npm run build:api && npm run prisma:deploy`
    - Start: `npm run start:api`
 
 5. **Deploy:**
