@@ -174,6 +174,8 @@ export const adminService = {
         id: true,
         email: true,
         fullName: true,
+        firstname: true,
+        lastname: true,
         displayName: true,
         phoneNumber: true,
         profileImage: true,

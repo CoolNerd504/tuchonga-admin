@@ -1,0 +1,219 @@
+"use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = __importDefault(require("express"));
+const commentServicePrisma_1 = require("../../src/services/commentServicePrisma");
+const auth_1 = require("../middleware/auth");
+const router = express_1.default.Router();
+// ============================================================================
+// Public Routes
+// ============================================================================
+// Get comments for a product
+router.get('/product/:productId', async (req, res) => {
+    try {
+        const { page, limit, sortBy, sortOrder, hasReplies, search } = req.query;
+        const result = await commentServicePrisma_1.commentServicePrisma.getProductComments(req.params.productId, {
+            page: page ? parseInt(page) : 1,
+            limit: limit ? parseInt(limit) : 20,
+            sortBy: sortBy,
+            sortOrder: sortOrder,
+            hasReplies: hasReplies === 'true',
+            search: search,
+        });
+        res.json({
+            success: true,
+            data: result.comments,
+            meta: result.meta,
+        });
+    }
+    catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+// Get comments for a service
+router.get('/service/:serviceId', async (req, res) => {
+    try {
+        const { page, limit, sortBy, sortOrder, hasReplies, search } = req.query;
+        const result = await commentServicePrisma_1.commentServicePrisma.getServiceComments(req.params.serviceId, {
+            page: page ? parseInt(page) : 1,
+            limit: limit ? parseInt(limit) : 20,
+            sortBy: sortBy,
+            sortOrder: sortOrder,
+            hasReplies: hasReplies === 'true',
+            search: search,
+        });
+        res.json({
+            success: true,
+            data: result.comments,
+            meta: result.meta,
+        });
+    }
+    catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+// Get comment by ID
+router.get('/:id', async (req, res) => {
+    try {
+        const comment = await commentServicePrisma_1.commentServicePrisma.getCommentById(req.params.id);
+        if (!comment) {
+            return res.status(404).json({ success: false, error: 'Comment not found' });
+        }
+        res.json({ success: true, data: comment });
+    }
+    catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+// Get replies for a comment
+router.get('/:id/replies', async (req, res) => {
+    try {
+        const { page, limit, sortBy, sortOrder } = req.query;
+        const result = await commentServicePrisma_1.commentServicePrisma.getCommentReplies(req.params.id, {
+            page: page ? parseInt(page) : 1,
+            limit: limit ? parseInt(limit) : 20,
+            sortBy: sortBy,
+            sortOrder: sortOrder,
+        });
+        res.json({
+            success: true,
+            data: result.comments,
+            meta: result.meta,
+        });
+    }
+    catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+// ============================================================================
+// Protected Routes
+// ============================================================================
+// Create comment
+router.post('/', auth_1.verifyToken, async (req, res) => {
+    try {
+        const { itemId, itemType, text, parentId } = req.body;
+        const user = req.user;
+        if (!itemId || !itemType || !text) {
+            return res.status(400).json({
+                success: false,
+                error: 'itemId, itemType, and text are required',
+            });
+        }
+        const comment = await commentServicePrisma_1.commentServicePrisma.createComment({
+            userId: user.userId,
+            userName: user.fullName || user.displayName || user.email || 'Anonymous',
+            userAvatar: user.profileImage,
+            itemId,
+            itemType,
+            text,
+            parentId,
+        });
+        res.status(201).json({
+            success: true,
+            message: 'Comment created successfully',
+            data: comment,
+        });
+    }
+    catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+// Update comment
+router.put('/:id', auth_1.verifyToken, async (req, res) => {
+    try {
+        const userId = req.user.userId;
+        const { text } = req.body;
+        if (!text) {
+            return res.status(400).json({
+                success: false,
+                error: 'Text is required',
+            });
+        }
+        const comment = await commentServicePrisma_1.commentServicePrisma.updateComment(req.params.id, userId, { text });
+        res.json({
+            success: true,
+            message: 'Comment updated successfully',
+            data: comment,
+        });
+    }
+    catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+// Delete comment
+router.delete('/:id', auth_1.verifyToken, async (req, res) => {
+    try {
+        const userId = req.user.userId;
+        const isAdmin = ['admin', 'super_admin'].includes(req.user.role);
+        await commentServicePrisma_1.commentServicePrisma.deleteComment(req.params.id, userId, isAdmin);
+        res.json({ success: true, message: 'Comment deleted successfully' });
+    }
+    catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+// React to comment (agree/disagree)
+router.post('/:id/react', auth_1.verifyToken, async (req, res) => {
+    try {
+        const userId = req.user.userId;
+        const { reactionType } = req.body;
+        if (!reactionType || !['AGREE', 'DISAGREE'].includes(reactionType)) {
+            return res.status(400).json({
+                success: false,
+                error: 'Valid reactionType (AGREE or DISAGREE) is required',
+            });
+        }
+        const result = await commentServicePrisma_1.commentServicePrisma.reactToComment(req.params.id, userId, reactionType);
+        res.json({
+            success: true,
+            message: `Reaction ${result.action}`,
+            data: result,
+        });
+    }
+    catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+// Remove reaction
+router.delete('/:id/react', auth_1.verifyToken, async (req, res) => {
+    try {
+        const userId = req.user.userId;
+        await commentServicePrisma_1.commentServicePrisma.removeReaction(req.params.id, userId);
+        res.json({ success: true, message: 'Reaction removed' });
+    }
+    catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+// Get user's reaction for a comment
+router.get('/:id/reaction', auth_1.verifyToken, async (req, res) => {
+    try {
+        const userId = req.user.userId;
+        const reaction = await commentServicePrisma_1.commentServicePrisma.getUserReaction(req.params.id, userId);
+        res.json({
+            success: true,
+            data: {
+                hasReacted: !!reaction,
+                reaction,
+            },
+        });
+    }
+    catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+// Report comment
+router.post('/:id/report', auth_1.verifyToken, async (req, res) => {
+    try {
+        const userId = req.user.userId;
+        const { reason } = req.body;
+        await commentServicePrisma_1.commentServicePrisma.reportComment(req.params.id, userId, reason);
+        res.json({ success: true, message: 'Comment reported successfully' });
+    }
+    catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+exports.default = router;

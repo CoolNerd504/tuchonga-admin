@@ -1,7 +1,6 @@
 import express from 'express';
 import dotenv from 'dotenv';
 import path from 'path';
-import { fileURLToPath } from 'url';
 
 // Routes
 import adminRoutes from './routes/admin.js';
@@ -17,8 +16,8 @@ import userRoutes from './routes/users.js';
 import businessRoutes from './routes/businesses.js';
 import analyticsRoutes from './routes/analytics.js';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+// Get __dirname equivalent for CommonJS
+const __dirname = path.resolve();
 
 // Load environment variables
 dotenv.config();
@@ -97,7 +96,8 @@ app.use('/api/analytics', analyticsRoutes);
 
 // Serve static files from dist folder in production (frontend)
 if (process.env.NODE_ENV === 'production') {
-  app.use(express.static(path.join(__dirname, '../dist')));
+  const distPath = path.join(process.cwd(), 'dist');
+  app.use(express.static(distPath));
   
   // Serve index.html for all non-API routes (SPA routing)
   app.get('*', (req, res, next) => {
@@ -105,7 +105,7 @@ if (process.env.NODE_ENV === 'production') {
     if (req.path.startsWith('/api')) {
       return next();
     }
-    res.sendFile(path.join(__dirname, '../dist/index.html'));
+    res.sendFile(path.join(distPath, 'index.html'));
   });
 }
 
