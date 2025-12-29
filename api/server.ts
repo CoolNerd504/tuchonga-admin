@@ -64,7 +64,11 @@ const PORT = Number(process.env.PORT) || 3001;
 // Since frontend and API are on the same Railway domain, same-origin requests don't need CORS
 // But we allow it for flexibility and development
 const allowedOrigins = process.env.ALLOWED_ORIGINS
-  ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim())
+  ? process.env.ALLOWED_ORIGINS.split(',').map(o => {
+      // Normalize: remove trailing slashes for consistent matching
+      const normalized = o.trim().replace(/\/+$/, '');
+      return normalized;
+    })
   : process.env.NODE_ENV === 'production'
   ? [] // Production: if not set, allow same-origin (Railway same domain)
   : ['http://localhost:5173', 'http://localhost:3039', 'http://localhost:3000']; // Local development
@@ -72,13 +76,21 @@ const allowedOrigins = process.env.ALLOWED_ORIGINS
 app.use((req, res, next) => {
   const origin = req.headers.origin;
   
+  // Normalize origin (remove trailing slash) for comparison
+  const normalizedOrigin = origin ? origin.replace(/\/+$/, '') : null;
+  
   // Same-origin requests (no origin) don't need CORS headers, but we'll add them anyway
   if (!origin) {
     // Same-origin request - allow it
     res.header('Access-Control-Allow-Origin', '*');
   } else if (process.env.NODE_ENV === 'production') {
-    // Production: allow if in allowed list, or if no list specified (same domain)
-    if (allowedOrigins.length === 0 || allowedOrigins.includes(origin)) {
+    // Production: allow if in allowed list (normalized comparison), or if no list specified (same domain)
+    const isAllowed = allowedOrigins.length === 0 || allowedOrigins.some(allowed => {
+      // Compare normalized origins (handle trailing slashes)
+      return normalizedOrigin === allowed.replace(/\/+$/, '');
+    });
+    
+    if (isAllowed) {
       res.header('Access-Control-Allow-Origin', origin);
     }
   } else {
