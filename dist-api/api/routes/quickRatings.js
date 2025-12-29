@@ -1,19 +1,14 @@
-"use strict";
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-const express_1 = __importDefault(require("express"));
-const quickRatingServicePrisma_1 = require("../../src/services/quickRatingServicePrisma");
-const auth_1 = require("../middleware/auth");
-const router = express_1.default.Router();
+import express from 'express';
+import { quickRatingServicePrisma } from '../../src/services/quickRatingServicePrisma.js';
+import { verifyToken, verifyAdmin } from '../middleware/auth';
+const router = express.Router();
 // ============================================================================
 // Public Routes
 // ============================================================================
 // Get rating stats for a product
 router.get('/product/:productId', async (req, res) => {
     try {
-        const stats = await quickRatingServicePrisma_1.quickRatingServicePrisma.getProductRatingStats(req.params.productId);
+        const stats = await quickRatingServicePrisma.getProductRatingStats(req.params.productId);
         res.json({ success: true, data: stats });
     }
     catch (error) {
@@ -23,7 +18,7 @@ router.get('/product/:productId', async (req, res) => {
 // Get rating stats for a service
 router.get('/service/:serviceId', async (req, res) => {
     try {
-        const stats = await quickRatingServicePrisma_1.quickRatingServicePrisma.getServiceRatingStats(req.params.serviceId);
+        const stats = await quickRatingServicePrisma.getServiceRatingStats(req.params.serviceId);
         res.json({ success: true, data: stats });
     }
     catch (error) {
@@ -34,7 +29,7 @@ router.get('/service/:serviceId', async (req, res) => {
 // Protected Routes
 // ============================================================================
 // Submit or update quick rating
-router.post('/', auth_1.verifyToken, async (req, res) => {
+router.post('/', verifyToken, async (req, res) => {
     try {
         const { itemId, itemType, rating } = req.body;
         const userId = req.user.userId;
@@ -50,7 +45,7 @@ router.post('/', auth_1.verifyToken, async (req, res) => {
                 error: 'Rating must be between 1 and 5',
             });
         }
-        const result = await quickRatingServicePrisma_1.quickRatingServicePrisma.createOrUpdateRating({
+        const result = await quickRatingServicePrisma.createOrUpdateRating({
             userId,
             itemId,
             itemType,
@@ -75,10 +70,10 @@ router.post('/', auth_1.verifyToken, async (req, res) => {
     }
 });
 // Get user's rating for an item
-router.get('/user/:itemId', auth_1.verifyToken, async (req, res) => {
+router.get('/user/:itemId', verifyToken, async (req, res) => {
     try {
         const userId = req.user.userId;
-        const rating = await quickRatingServicePrisma_1.quickRatingServicePrisma.getUserRatingForItem(userId, req.params.itemId);
+        const rating = await quickRatingServicePrisma.getUserRatingForItem(userId, req.params.itemId);
         res.json({
             success: true,
             data: {
@@ -92,11 +87,11 @@ router.get('/user/:itemId', auth_1.verifyToken, async (req, res) => {
     }
 });
 // Get user's all ratings
-router.get('/user/me/all', auth_1.verifyToken, async (req, res) => {
+router.get('/user/me/all', verifyToken, async (req, res) => {
     try {
         const userId = req.user.userId;
         const { itemType, page, limit } = req.query;
-        const result = await quickRatingServicePrisma_1.quickRatingServicePrisma.getUserRatings(userId, {
+        const result = await quickRatingServicePrisma.getUserRatings(userId, {
             itemType: itemType,
             page: page ? parseInt(page) : 1,
             limit: limit ? parseInt(limit) : 20,
@@ -112,11 +107,11 @@ router.get('/user/me/all', auth_1.verifyToken, async (req, res) => {
     }
 });
 // Delete rating
-router.delete('/:id', auth_1.verifyToken, async (req, res) => {
+router.delete('/:id', verifyToken, async (req, res) => {
     try {
         const userId = req.user.userId;
         const isAdmin = ['admin', 'super_admin'].includes(req.user.role);
-        await quickRatingServicePrisma_1.quickRatingServicePrisma.deleteRating(req.params.id, userId, isAdmin);
+        await quickRatingServicePrisma.deleteRating(req.params.id, userId, isAdmin);
         res.json({ success: true, message: 'Rating deleted successfully' });
     }
     catch (error) {
@@ -127,10 +122,10 @@ router.delete('/:id', auth_1.verifyToken, async (req, res) => {
 // Admin Routes
 // ============================================================================
 // Get all ratings (admin)
-router.get('/', auth_1.verifyToken, auth_1.verifyAdmin, async (req, res) => {
+router.get('/', verifyToken, verifyAdmin, async (req, res) => {
     try {
         const { itemId, itemType, userId, page, limit } = req.query;
-        const result = await quickRatingServicePrisma_1.quickRatingServicePrisma.getAllRatings({
+        const result = await quickRatingServicePrisma.getAllRatings({
             itemId: itemId,
             itemType: itemType,
             userId: userId,
@@ -147,4 +142,4 @@ router.get('/', auth_1.verifyToken, auth_1.verifyAdmin, async (req, res) => {
         res.status(500).json({ success: false, error: error.message });
     }
 });
-exports.default = router;
+export default router;

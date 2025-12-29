@@ -1,5 +1,5 @@
 import type { Prisma, ItemType } from '@prisma/client';
-import { prisma } from './prismaService';
+import { prisma } from './prismaService.js';
 
 // Types
 export interface FavoriteFilters {

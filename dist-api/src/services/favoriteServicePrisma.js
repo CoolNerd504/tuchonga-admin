@@ -1,15 +1,12 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.favoriteServicePrisma = void 0;
-const prismaService_1 = require("./prismaService");
-exports.favoriteServicePrisma = {
+import { prisma } from './prismaService.js';
+export const favoriteServicePrisma = {
     // ============================================================================
     // CRUD Operations
     // ============================================================================
     async addFavorite(data) {
         const { userId, itemId, itemType } = data;
         // Check if already favorited
-        const existing = await prismaService_1.prisma.favorite.findUnique({
+        const existing = await prisma.favorite.findUnique({
             where: {
                 userId_itemId: {
                     userId,
@@ -22,7 +19,7 @@ exports.favoriteServicePrisma = {
         }
         const productId = itemType === 'PRODUCT' ? itemId : null;
         const serviceId = itemType === 'SERVICE' ? itemId : null;
-        return prismaService_1.prisma.favorite.create({
+        return prisma.favorite.create({
             data: {
                 userId,
                 itemId,
@@ -51,7 +48,7 @@ exports.favoriteServicePrisma = {
         });
     },
     async removeFavorite(userId, itemId) {
-        const favorite = await prismaService_1.prisma.favorite.findUnique({
+        const favorite = await prisma.favorite.findUnique({
             where: {
                 userId_itemId: {
                     userId,
@@ -62,13 +59,13 @@ exports.favoriteServicePrisma = {
         if (!favorite) {
             throw new Error('Favorite not found');
         }
-        await prismaService_1.prisma.favorite.delete({
+        await prisma.favorite.delete({
             where: { id: favorite.id },
         });
         return { success: true };
     },
     async isFavorited(userId, itemId) {
-        const favorite = await prismaService_1.prisma.favorite.findUnique({
+        const favorite = await prisma.favorite.findUnique({
             where: {
                 userId_itemId: {
                     userId,
@@ -96,7 +93,7 @@ exports.favoriteServicePrisma = {
         if (itemType)
             where.itemType = itemType;
         const [favorites, total] = await Promise.all([
-            prismaService_1.prisma.favorite.findMany({
+            prisma.favorite.findMany({
                 where,
                 include: {
                     product: {
@@ -136,7 +133,7 @@ exports.favoriteServicePrisma = {
                 skip: (page - 1) * limit,
                 take: limit,
             }),
-            prismaService_1.prisma.favorite.count({ where }),
+            prisma.favorite.count({ where }),
         ]);
         // Format favorites to include item details
         const formattedFavorites = favorites.map((f) => ({
@@ -166,18 +163,18 @@ exports.favoriteServicePrisma = {
         const where = { userId };
         if (itemType)
             where.itemType = itemType;
-        return prismaService_1.prisma.favorite.count({ where });
+        return prisma.favorite.count({ where });
     },
     // ============================================================================
     // Admin Functions
     // ============================================================================
     async getItemFavoriteCount(itemId) {
-        return prismaService_1.prisma.favorite.count({
+        return prisma.favorite.count({
             where: { itemId },
         });
     },
     async getItemFavoritedByUsers(itemId, limit = 10) {
-        return prismaService_1.prisma.favorite.findMany({
+        return prisma.favorite.findMany({
             where: { itemId },
             include: {
                 user: {
@@ -194,7 +191,7 @@ exports.favoriteServicePrisma = {
         });
     },
     async getMostFavoritedProducts(limit = 10) {
-        const favorites = await prismaService_1.prisma.favorite.groupBy({
+        const favorites = await prisma.favorite.groupBy({
             by: ['itemId'],
             where: { itemType: 'PRODUCT' },
             _count: true,
@@ -206,7 +203,7 @@ exports.favoriteServicePrisma = {
             take: limit,
         });
         const productIds = favorites.map((f) => f.itemId);
-        const products = await prismaService_1.prisma.product.findMany({
+        const products = await prisma.product.findMany({
             where: { id: { in: productIds } },
             include: {
                 categories: {
@@ -222,7 +219,7 @@ exports.favoriteServicePrisma = {
         }));
     },
     async getMostFavoritedServices(limit = 10) {
-        const favorites = await prismaService_1.prisma.favorite.groupBy({
+        const favorites = await prisma.favorite.groupBy({
             by: ['itemId'],
             where: { itemType: 'SERVICE' },
             _count: true,
@@ -234,7 +231,7 @@ exports.favoriteServicePrisma = {
             take: limit,
         });
         const serviceIds = favorites.map((f) => f.itemId);
-        const services = await prismaService_1.prisma.service.findMany({
+        const services = await prisma.service.findMany({
             where: { id: { in: serviceIds } },
             include: {
                 categories: {

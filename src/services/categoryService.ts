@@ -1,5 +1,5 @@
 import type { CategoryType } from '@prisma/client';
-import { prisma } from './prismaService';
+import { prisma } from './prismaService.js';
 
 export interface CreateCategoryData {
   name: string;

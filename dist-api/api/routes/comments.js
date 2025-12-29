@@ -1,12 +1,7 @@
-"use strict";
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-const express_1 = __importDefault(require("express"));
-const commentServicePrisma_1 = require("../../src/services/commentServicePrisma");
-const auth_1 = require("../middleware/auth");
-const router = express_1.default.Router();
+import express from 'express';
+import { commentServicePrisma } from '../../src/services/commentServicePrisma.js';
+import { verifyToken } from '../middleware/auth';
+const router = express.Router();
 // ============================================================================
 // Public Routes
 // ============================================================================
@@ -14,7 +9,7 @@ const router = express_1.default.Router();
 router.get('/product/:productId', async (req, res) => {
     try {
         const { page, limit, sortBy, sortOrder, hasReplies, search } = req.query;
-        const result = await commentServicePrisma_1.commentServicePrisma.getProductComments(req.params.productId, {
+        const result = await commentServicePrisma.getProductComments(req.params.productId, {
             page: page ? parseInt(page) : 1,
             limit: limit ? parseInt(limit) : 20,
             sortBy: sortBy,
@@ -36,7 +31,7 @@ router.get('/product/:productId', async (req, res) => {
 router.get('/service/:serviceId', async (req, res) => {
     try {
         const { page, limit, sortBy, sortOrder, hasReplies, search } = req.query;
-        const result = await commentServicePrisma_1.commentServicePrisma.getServiceComments(req.params.serviceId, {
+        const result = await commentServicePrisma.getServiceComments(req.params.serviceId, {
             page: page ? parseInt(page) : 1,
             limit: limit ? parseInt(limit) : 20,
             sortBy: sortBy,
@@ -57,7 +52,7 @@ router.get('/service/:serviceId', async (req, res) => {
 // Get comment by ID
 router.get('/:id', async (req, res) => {
     try {
-        const comment = await commentServicePrisma_1.commentServicePrisma.getCommentById(req.params.id);
+        const comment = await commentServicePrisma.getCommentById(req.params.id);
         if (!comment) {
             return res.status(404).json({ success: false, error: 'Comment not found' });
         }
@@ -71,7 +66,7 @@ router.get('/:id', async (req, res) => {
 router.get('/:id/replies', async (req, res) => {
     try {
         const { page, limit, sortBy, sortOrder } = req.query;
-        const result = await commentServicePrisma_1.commentServicePrisma.getCommentReplies(req.params.id, {
+        const result = await commentServicePrisma.getCommentReplies(req.params.id, {
             page: page ? parseInt(page) : 1,
             limit: limit ? parseInt(limit) : 20,
             sortBy: sortBy,
@@ -91,7 +86,7 @@ router.get('/:id/replies', async (req, res) => {
 // Protected Routes
 // ============================================================================
 // Create comment
-router.post('/', auth_1.verifyToken, async (req, res) => {
+router.post('/', verifyToken, async (req, res) => {
     try {
         const { itemId, itemType, text, parentId } = req.body;
         const user = req.user;
@@ -101,7 +96,7 @@ router.post('/', auth_1.verifyToken, async (req, res) => {
                 error: 'itemId, itemType, and text are required',
             });
         }
-        const comment = await commentServicePrisma_1.commentServicePrisma.createComment({
+        const comment = await commentServicePrisma.createComment({
             userId: user.userId,
             userName: user.fullName || user.displayName || user.email || 'Anonymous',
             userAvatar: user.profileImage,
@@ -121,7 +116,7 @@ router.post('/', auth_1.verifyToken, async (req, res) => {
     }
 });
 // Update comment
-router.put('/:id', auth_1.verifyToken, async (req, res) => {
+router.put('/:id', verifyToken, async (req, res) => {
     try {
         const userId = req.user.userId;
         const { text } = req.body;
@@ -131,7 +126,7 @@ router.put('/:id', auth_1.verifyToken, async (req, res) => {
                 error: 'Text is required',
             });
         }
-        const comment = await commentServicePrisma_1.commentServicePrisma.updateComment(req.params.id, userId, { text });
+        const comment = await commentServicePrisma.updateComment(req.params.id, userId, { text });
         res.json({
             success: true,
             message: 'Comment updated successfully',
@@ -143,11 +138,11 @@ router.put('/:id', auth_1.verifyToken, async (req, res) => {
     }
 });
 // Delete comment
-router.delete('/:id', auth_1.verifyToken, async (req, res) => {
+router.delete('/:id', verifyToken, async (req, res) => {
     try {
         const userId = req.user.userId;
         const isAdmin = ['admin', 'super_admin'].includes(req.user.role);
-        await commentServicePrisma_1.commentServicePrisma.deleteComment(req.params.id, userId, isAdmin);
+        await commentServicePrisma.deleteComment(req.params.id, userId, isAdmin);
         res.json({ success: true, message: 'Comment deleted successfully' });
     }
     catch (error) {
@@ -155,7 +150,7 @@ router.delete('/:id', auth_1.verifyToken, async (req, res) => {
     }
 });
 // React to comment (agree/disagree)
-router.post('/:id/react', auth_1.verifyToken, async (req, res) => {
+router.post('/:id/react', verifyToken, async (req, res) => {
     try {
         const userId = req.user.userId;
         const { reactionType } = req.body;
@@ -165,7 +160,7 @@ router.post('/:id/react', auth_1.verifyToken, async (req, res) => {
                 error: 'Valid reactionType (AGREE or DISAGREE) is required',
             });
         }
-        const result = await commentServicePrisma_1.commentServicePrisma.reactToComment(req.params.id, userId, reactionType);
+        const result = await commentServicePrisma.reactToComment(req.params.id, userId, reactionType);
         res.json({
             success: true,
             message: `Reaction ${result.action}`,
@@ -177,10 +172,10 @@ router.post('/:id/react', auth_1.verifyToken, async (req, res) => {
     }
 });
 // Remove reaction
-router.delete('/:id/react', auth_1.verifyToken, async (req, res) => {
+router.delete('/:id/react', verifyToken, async (req, res) => {
     try {
         const userId = req.user.userId;
-        await commentServicePrisma_1.commentServicePrisma.removeReaction(req.params.id, userId);
+        await commentServicePrisma.removeReaction(req.params.id, userId);
         res.json({ success: true, message: 'Reaction removed' });
     }
     catch (error) {
@@ -188,10 +183,10 @@ router.delete('/:id/react', auth_1.verifyToken, async (req, res) => {
     }
 });
 // Get user's reaction for a comment
-router.get('/:id/reaction', auth_1.verifyToken, async (req, res) => {
+router.get('/:id/reaction', verifyToken, async (req, res) => {
     try {
         const userId = req.user.userId;
-        const reaction = await commentServicePrisma_1.commentServicePrisma.getUserReaction(req.params.id, userId);
+        const reaction = await commentServicePrisma.getUserReaction(req.params.id, userId);
         res.json({
             success: true,
             data: {
@@ -205,15 +200,15 @@ router.get('/:id/reaction', auth_1.verifyToken, async (req, res) => {
     }
 });
 // Report comment
-router.post('/:id/report', auth_1.verifyToken, async (req, res) => {
+router.post('/:id/report', verifyToken, async (req, res) => {
     try {
         const userId = req.user.userId;
         const { reason } = req.body;
-        await commentServicePrisma_1.commentServicePrisma.reportComment(req.params.id, userId, reason);
+        await commentServicePrisma.reportComment(req.params.id, userId, reason);
         res.json({ success: true, message: 'Comment reported successfully' });
     }
     catch (error) {
         res.status(500).json({ success: false, error: error.message });
     }
 });
-exports.default = router;
+export default router;

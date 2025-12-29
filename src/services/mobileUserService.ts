@@ -1,6 +1,6 @@
 import type { Prisma } from '@prisma/client';
 import bcrypt from 'bcryptjs';
-import { prisma } from './prismaService';
+import { prisma } from './prismaService.js';
 
 // Types
 export interface CreateUserData {

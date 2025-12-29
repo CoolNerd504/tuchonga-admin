@@ -1,12 +1,7 @@
-"use strict";
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-const express_1 = __importDefault(require("express"));
-const prismaService_1 = require("../../src/services/prismaService");
-const auth_1 = require("../middleware/auth");
-const router = express_1.default.Router();
+import express from 'express';
+import { prisma } from '../../src/services/prismaService.js';
+import { verifyToken, verifyAdmin } from '../middleware/auth';
+const router = express.Router();
 const buildRecentMonths = (monthsBack) => {
     const now = new Date();
     const labels = [];
@@ -28,22 +23,22 @@ const aggregateMonthlyAdds = (items, labels) => {
     return counts;
 };
 // All analytics routes require admin auth
-router.use(auth_1.verifyToken, auth_1.verifyAdmin);
+router.use(verifyToken, verifyAdmin);
 // Get dashboard overview
 router.get('/overview', async (req, res) => {
     try {
         const [totalUsers, activeUsers, totalProducts, activeProducts, totalServices, activeServices, totalBusinesses, verifiedBusinesses, totalReviews, totalComments, totalFavorites,] = await Promise.all([
-            prismaService_1.prisma.user.count({ where: { role: 'user' } }),
-            prismaService_1.prisma.user.count({ where: { role: 'user', isActive: true } }),
-            prismaService_1.prisma.product.count(),
-            prismaService_1.prisma.product.count({ where: { isActive: true } }),
-            prismaService_1.prisma.service.count(),
-            prismaService_1.prisma.service.count({ where: { isActive: true } }),
-            prismaService_1.prisma.business.count(),
-            prismaService_1.prisma.business.count({ where: { isVerified: true } }),
-            prismaService_1.prisma.review.count(),
-            prismaService_1.prisma.comment.count({ where: { isDeleted: false } }),
-            prismaService_1.prisma.favorite.count(),
+            prisma.user.count({ where: { role: 'user' } }),
+            prisma.user.count({ where: { role: 'user', isActive: true } }),
+            prisma.product.count(),
+            prisma.product.count({ where: { isActive: true } }),
+            prisma.service.count(),
+            prisma.service.count({ where: { isActive: true } }),
+            prisma.business.count(),
+            prisma.business.count({ where: { isVerified: true } }),
+            prisma.review.count(),
+            prisma.comment.count({ where: { isDeleted: false } }),
+            prisma.favorite.count(),
         ]);
         res.json({
             success: true,
@@ -85,20 +80,20 @@ router.get('/users', async (req, res) => {
         const startDate = new Date();
         startDate.setDate(startDate.getDate() - days);
         const [totalUsers, newUsers, completedProfiles, usersByRole,] = await Promise.all([
-            prismaService_1.prisma.user.count({ where: { role: 'user' } }),
-            prismaService_1.prisma.user.count({
+            prisma.user.count({ where: { role: 'user' } }),
+            prisma.user.count({
                 where: {
                     role: 'user',
                     createdAt: { gte: startDate },
                 },
             }),
-            prismaService_1.prisma.user.count({
+            prisma.user.count({
                 where: {
                     role: 'user',
                     hasCompletedProfile: true,
                 },
             }),
-            prismaService_1.prisma.user.groupBy({
+            prisma.user.groupBy({
                 by: ['role'],
                 _count: true,
             }),
@@ -125,9 +120,9 @@ router.get('/users', async (req, res) => {
 router.get('/products', async (req, res) => {
     try {
         const [totalProducts, activeProducts, topRated, mostViewed, mostReviewed,] = await Promise.all([
-            prismaService_1.prisma.product.count(),
-            prismaService_1.prisma.product.count({ where: { isActive: true } }),
-            prismaService_1.prisma.product.findMany({
+            prisma.product.count(),
+            prisma.product.count({ where: { isActive: true } }),
+            prisma.product.findMany({
                 where: { isActive: true, quickRatingAvg: { not: null } },
                 orderBy: { quickRatingAvg: 'desc' },
                 take: 5,
@@ -138,7 +133,7 @@ router.get('/products', async (req, res) => {
                     quickRatingTotal: true,
                 },
             }),
-            prismaService_1.prisma.product.findMany({
+            prisma.product.findMany({
                 where: { isActive: true },
                 orderBy: { totalViews: 'desc' },
                 take: 5,
@@ -148,7 +143,7 @@ router.get('/products', async (req, res) => {
                     totalViews: true,
                 },
             }),
-            prismaService_1.prisma.product.findMany({
+            prisma.product.findMany({
                 where: { isActive: true },
                 orderBy: { totalReviews: 'desc' },
                 take: 5,
@@ -179,9 +174,9 @@ router.get('/products', async (req, res) => {
 router.get('/services', async (req, res) => {
     try {
         const [totalServices, activeServices, topRated, mostViewed, mostReviewed,] = await Promise.all([
-            prismaService_1.prisma.service.count(),
-            prismaService_1.prisma.service.count({ where: { isActive: true } }),
-            prismaService_1.prisma.service.findMany({
+            prisma.service.count(),
+            prisma.service.count({ where: { isActive: true } }),
+            prisma.service.findMany({
                 where: { isActive: true, quickRatingAvg: { not: null } },
                 orderBy: { quickRatingAvg: 'desc' },
                 take: 5,
@@ -192,7 +187,7 @@ router.get('/services', async (req, res) => {
                     quickRatingTotal: true,
                 },
             }),
-            prismaService_1.prisma.service.findMany({
+            prisma.service.findMany({
                 where: { isActive: true },
                 orderBy: { totalViews: 'desc' },
                 take: 5,
@@ -202,7 +197,7 @@ router.get('/services', async (req, res) => {
                     totalViews: true,
                 },
             }),
-            prismaService_1.prisma.service.findMany({
+            prisma.service.findMany({
                 where: { isActive: true },
                 orderBy: { totalReviews: 'desc' },
                 take: 5,
@@ -232,7 +227,7 @@ router.get('/services', async (req, res) => {
 // Product trends and engagement (no new data required)
 router.get('/products/trends', async (req, res) => {
     try {
-        const products = await prismaService_1.prisma.product.findMany({
+        const products = await prisma.product.findMany({
             select: {
                 id: true,
                 productName: true,
@@ -280,7 +275,7 @@ router.get('/products/trends', async (req, res) => {
 // Service trends and engagement (no new data required)
 router.get('/services/trends', async (req, res) => {
     try {
-        const services = await prismaService_1.prisma.service.findMany({
+        const services = await prisma.service.findMany({
             select: {
                 id: true,
                 serviceName: true,
@@ -329,14 +324,14 @@ router.get('/services/trends', async (req, res) => {
 router.get('/reviews', async (req, res) => {
     try {
         const [totalReviews, productReviews, serviceReviews, sentimentDistribution, recentReviews,] = await Promise.all([
-            prismaService_1.prisma.review.count(),
-            prismaService_1.prisma.review.count({ where: { productId: { not: null } } }),
-            prismaService_1.prisma.review.count({ where: { serviceId: { not: null } } }),
-            prismaService_1.prisma.review.groupBy({
+            prisma.review.count(),
+            prisma.review.count({ where: { productId: { not: null } } }),
+            prisma.review.count({ where: { serviceId: { not: null } } }),
+            prisma.review.groupBy({
                 by: ['sentiment'],
                 _count: true,
             }),
-            prismaService_1.prisma.review.findMany({
+            prisma.review.findMany({
                 orderBy: { createdAt: 'desc' },
                 take: 10,
                 include: {
@@ -386,11 +381,11 @@ router.get('/reviews', async (req, res) => {
 router.get('/comments', async (req, res) => {
     try {
         const [totalComments, productComments, serviceComments, reportedComments, topCommenters,] = await Promise.all([
-            prismaService_1.prisma.comment.count({ where: { isDeleted: false } }),
-            prismaService_1.prisma.comment.count({ where: { itemType: 'PRODUCT', isDeleted: false } }),
-            prismaService_1.prisma.comment.count({ where: { itemType: 'SERVICE', isDeleted: false } }),
-            prismaService_1.prisma.comment.count({ where: { isReported: true, isDeleted: false } }),
-            prismaService_1.prisma.comment.groupBy({
+            prisma.comment.count({ where: { isDeleted: false } }),
+            prisma.comment.count({ where: { itemType: 'PRODUCT', isDeleted: false } }),
+            prisma.comment.count({ where: { itemType: 'SERVICE', isDeleted: false } }),
+            prisma.comment.count({ where: { isReported: true, isDeleted: false } }),
+            prisma.comment.groupBy({
                 by: ['userId'],
                 where: { isDeleted: false },
                 _count: true,
@@ -404,7 +399,7 @@ router.get('/comments', async (req, res) => {
         ]);
         // Get user details for top commenters
         const userIds = topCommenters.map((c) => c.userId);
-        const users = await prismaService_1.prisma.user.findMany({
+        const users = await prisma.user.findMany({
             where: { id: { in: userIds } },
             select: {
                 id: true,
@@ -449,7 +444,7 @@ router.get('/trends', async (req, res) => {
         // Get data based on metric
         let data = [];
         if (metric === 'users') {
-            const users = await prismaService_1.prisma.user.findMany({
+            const users = await prisma.user.findMany({
                 where: {
                     role: 'user',
                     createdAt: { gte: dates[0] },
@@ -464,7 +459,7 @@ router.get('/trends', async (req, res) => {
             });
         }
         else if (metric === 'reviews') {
-            const reviews = await prismaService_1.prisma.review.findMany({
+            const reviews = await prisma.review.findMany({
                 where: { createdAt: { gte: dates[0] } },
                 select: { createdAt: true },
             });
@@ -476,7 +471,7 @@ router.get('/trends', async (req, res) => {
             });
         }
         else if (metric === 'comments') {
-            const comments = await prismaService_1.prisma.comment.findMany({
+            const comments = await prisma.comment.findMany({
                 where: { createdAt: { gte: dates[0] }, isDeleted: false },
                 select: { createdAt: true },
             });
@@ -501,4 +496,4 @@ router.get('/trends', async (req, res) => {
         res.status(500).json({ success: false, error: error.message });
     }
 });
-exports.default = router;
+export default router;

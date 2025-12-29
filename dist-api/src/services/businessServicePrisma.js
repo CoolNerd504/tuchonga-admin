@@ -1,22 +1,19 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.businessServicePrisma = void 0;
-const prismaService_1 = require("./prismaService");
-exports.businessServicePrisma = {
+import { prisma } from './prismaService.js';
+export const businessServicePrisma = {
     // ============================================================================
     // CRUD Operations
     // ============================================================================
     async createBusiness(data) {
         // Check if email already exists
         if (data.businessEmail) {
-            const existing = await prismaService_1.prisma.business.findUnique({
+            const existing = await prisma.business.findUnique({
                 where: { businessEmail: data.businessEmail },
             });
             if (existing) {
                 throw new Error('Business with this email already exists');
             }
         }
-        return prismaService_1.prisma.business.create({
+        return prisma.business.create({
             data,
             include: {
                 _count: {
@@ -29,7 +26,7 @@ exports.businessServicePrisma = {
         });
     },
     async getBusinessById(id) {
-        return prismaService_1.prisma.business.findUnique({
+        return prisma.business.findUnique({
             where: { id },
             include: {
                 _count: {
@@ -42,7 +39,7 @@ exports.businessServicePrisma = {
         });
     },
     async getBusinessByEmail(email) {
-        return prismaService_1.prisma.business.findUnique({
+        return prisma.business.findUnique({
             where: { businessEmail: email },
             include: {
                 _count: {
@@ -71,7 +68,7 @@ exports.businessServicePrisma = {
             ];
         }
         const [businesses, total] = await Promise.all([
-            prismaService_1.prisma.business.findMany({
+            prisma.business.findMany({
                 where,
                 include: {
                     _count: {
@@ -85,7 +82,7 @@ exports.businessServicePrisma = {
                 skip: (page - 1) * limit,
                 take: limit,
             }),
-            prismaService_1.prisma.business.count({ where }),
+            prisma.business.count({ where }),
         ]);
         return {
             businesses,
@@ -100,7 +97,7 @@ exports.businessServicePrisma = {
     async updateBusiness(id, data) {
         // Check if new email conflicts with existing
         if (data.businessEmail) {
-            const existing = await prismaService_1.prisma.business.findFirst({
+            const existing = await prisma.business.findFirst({
                 where: {
                     businessEmail: data.businessEmail,
                     NOT: { id },
@@ -110,7 +107,7 @@ exports.businessServicePrisma = {
                 throw new Error('Business with this email already exists');
             }
         }
-        return prismaService_1.prisma.business.update({
+        return prisma.business.update({
             where: { id },
             data,
             include: {
@@ -125,7 +122,7 @@ exports.businessServicePrisma = {
     },
     async deleteBusiness(id) {
         // Check if business has products or services
-        const business = await prismaService_1.prisma.business.findUnique({
+        const business = await prisma.business.findUnique({
             where: { id },
             include: {
                 _count: {
@@ -141,13 +138,13 @@ exports.businessServicePrisma = {
         }
         if (business._count.products > 0 || business._count.services > 0) {
             // Soft delete by setting status to false
-            return prismaService_1.prisma.business.update({
+            return prisma.business.update({
                 where: { id },
                 data: { status: false },
             });
         }
         // Hard delete if no products/services
-        await prismaService_1.prisma.business.delete({
+        await prisma.business.delete({
             where: { id },
         });
         return { success: true };
@@ -156,13 +153,13 @@ exports.businessServicePrisma = {
     // Verification
     // ============================================================================
     async verifyBusiness(id) {
-        return prismaService_1.prisma.business.update({
+        return prisma.business.update({
             where: { id },
             data: { isVerified: true },
         });
     },
     async unverifyBusiness(id) {
-        return prismaService_1.prisma.business.update({
+        return prisma.business.update({
             where: { id },
             data: { isVerified: false },
         });
@@ -173,7 +170,7 @@ exports.businessServicePrisma = {
     async getBusinessProducts(businessId, filters) {
         const { page = 1, limit = 20 } = filters || {};
         const [products, total] = await Promise.all([
-            prismaService_1.prisma.product.findMany({
+            prisma.product.findMany({
                 where: { businessId, isActive: true },
                 include: {
                     categories: {
@@ -186,7 +183,7 @@ exports.businessServicePrisma = {
                 skip: (page - 1) * limit,
                 take: limit,
             }),
-            prismaService_1.prisma.product.count({ where: { businessId, isActive: true } }),
+            prisma.product.count({ where: { businessId, isActive: true } }),
         ]);
         return {
             products,
@@ -201,7 +198,7 @@ exports.businessServicePrisma = {
     async getBusinessServices(businessId, filters) {
         const { page = 1, limit = 20 } = filters || {};
         const [services, total] = await Promise.all([
-            prismaService_1.prisma.service.findMany({
+            prisma.service.findMany({
                 where: { businessId, isActive: true },
                 include: {
                     categories: {
@@ -214,7 +211,7 @@ exports.businessServicePrisma = {
                 skip: (page - 1) * limit,
                 take: limit,
             }),
-            prismaService_1.prisma.service.count({ where: { businessId, isActive: true } }),
+            prisma.service.count({ where: { businessId, isActive: true } }),
         ]);
         return {
             services,
@@ -231,9 +228,9 @@ exports.businessServicePrisma = {
     // ============================================================================
     async getBusinessStats() {
         const [total, verified, active] = await Promise.all([
-            prismaService_1.prisma.business.count(),
-            prismaService_1.prisma.business.count({ where: { isVerified: true } }),
-            prismaService_1.prisma.business.count({ where: { status: true } }),
+            prisma.business.count(),
+            prisma.business.count({ where: { isVerified: true } }),
+            prisma.business.count({ where: { status: true } }),
         ]);
         return {
             total,
@@ -244,7 +241,7 @@ exports.businessServicePrisma = {
         };
     },
     async getBusinessAnalytics(businessId) {
-        const business = await prismaService_1.prisma.business.findUnique({
+        const business = await prisma.business.findUnique({
             where: { id: businessId },
             include: {
                 products: {

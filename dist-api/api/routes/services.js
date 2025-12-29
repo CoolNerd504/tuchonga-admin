@@ -1,12 +1,7 @@
-"use strict";
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-const express_1 = __importDefault(require("express"));
-const serviceServicePrisma_1 = require("../../src/services/serviceServicePrisma");
-const auth_1 = require("../middleware/auth");
-const router = express_1.default.Router();
+import express from 'express';
+import { serviceServicePrisma } from '../../src/services/serviceServicePrisma.js';
+import { verifyToken, verifyAdmin, verifyBusinessOrAdmin } from '../middleware/auth';
+const router = express.Router();
 // ============================================================================
 // Public Routes
 // ============================================================================
@@ -14,7 +9,7 @@ const router = express_1.default.Router();
 router.get('/', async (req, res) => {
     try {
         const { search, categories, businessId, isActive, page, limit, sortBy, sortOrder, } = req.query;
-        const result = await serviceServicePrisma_1.serviceServicePrisma.getAllServices({
+        const result = await serviceServicePrisma.getAllServices({
             search: search,
             categories: categories ? categories.split(',') : undefined,
             businessId: businessId,
@@ -37,7 +32,7 @@ router.get('/', async (req, res) => {
 // Get service by ID
 router.get('/:id', async (req, res) => {
     try {
-        const service = await serviceServicePrisma_1.serviceServicePrisma.getServiceById(req.params.id);
+        const service = await serviceServicePrisma.getServiceById(req.params.id);
         if (!service) {
             return res.status(404).json({ success: false, error: 'Service not found' });
         }
@@ -50,7 +45,7 @@ router.get('/:id', async (req, res) => {
 // Track service view
 router.post('/:id/view', async (req, res) => {
     try {
-        await serviceServicePrisma_1.serviceServicePrisma.incrementViews(req.params.id);
+        await serviceServicePrisma.incrementViews(req.params.id);
         res.json({ success: true, message: 'View tracked' });
     }
     catch (error) {
@@ -61,7 +56,7 @@ router.post('/:id/view', async (req, res) => {
 router.get('/search/:query', async (req, res) => {
     try {
         const { limit } = req.query;
-        const services = await serviceServicePrisma_1.serviceServicePrisma.searchServices(req.params.query, limit ? parseInt(limit) : 20);
+        const services = await serviceServicePrisma.searchServices(req.params.query, limit ? parseInt(limit) : 20);
         res.json({ success: true, data: services });
     }
     catch (error) {
@@ -72,13 +67,13 @@ router.get('/search/:query', async (req, res) => {
 // Protected Routes (Business/Admin)
 // ============================================================================
 // Create service
-router.post('/', auth_1.verifyToken, auth_1.verifyBusinessOrAdmin, async (req, res) => {
+router.post('/', verifyToken, verifyBusinessOrAdmin, async (req, res) => {
     try {
         const { serviceName, description, mainImage, additionalImages, businessId, serviceOwner, categoryIds, } = req.body;
         if (!serviceName) {
             return res.status(400).json({ success: false, error: 'Service name is required' });
         }
-        const service = await serviceServicePrisma_1.serviceServicePrisma.createService({
+        const service = await serviceServicePrisma.createService({
             serviceName,
             description,
             mainImage,
@@ -98,9 +93,9 @@ router.post('/', auth_1.verifyToken, auth_1.verifyBusinessOrAdmin, async (req, r
     }
 });
 // Update service
-router.put('/:id', auth_1.verifyToken, auth_1.verifyBusinessOrAdmin, async (req, res) => {
+router.put('/:id', verifyToken, verifyBusinessOrAdmin, async (req, res) => {
     try {
-        const service = await serviceServicePrisma_1.serviceServicePrisma.updateService(req.params.id, req.body);
+        const service = await serviceServicePrisma.updateService(req.params.id, req.body);
         res.json({
             success: true,
             message: 'Service updated successfully',
@@ -112,9 +107,9 @@ router.put('/:id', auth_1.verifyToken, auth_1.verifyBusinessOrAdmin, async (req,
     }
 });
 // Delete service (soft delete)
-router.delete('/:id', auth_1.verifyToken, auth_1.verifyAdmin, async (req, res) => {
+router.delete('/:id', verifyToken, verifyAdmin, async (req, res) => {
     try {
-        await serviceServicePrisma_1.serviceServicePrisma.deleteService(req.params.id);
+        await serviceServicePrisma.deleteService(req.params.id);
         res.json({ success: true, message: 'Service deleted successfully' });
     }
     catch (error) {
@@ -125,10 +120,10 @@ router.delete('/:id', auth_1.verifyToken, auth_1.verifyAdmin, async (req, res) =
 // Admin Routes
 // ============================================================================
 // Get service count
-router.get('/stats/count', auth_1.verifyToken, auth_1.verifyAdmin, async (req, res) => {
+router.get('/stats/count', verifyToken, verifyAdmin, async (req, res) => {
     try {
         const { businessId, isActive } = req.query;
-        const count = await serviceServicePrisma_1.serviceServicePrisma.getServiceCount({
+        const count = await serviceServicePrisma.getServiceCount({
             businessId: businessId,
             isActive: isActive === 'true' ? true : isActive === 'false' ? false : undefined,
         });
@@ -138,4 +133,4 @@ router.get('/stats/count', auth_1.verifyToken, auth_1.verifyAdmin, async (req, r
         res.status(500).json({ success: false, error: error.message });
     }
 });
-exports.default = router;
+export default router;

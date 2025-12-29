@@ -1,10 +1,7 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.reviewServicePrisma = void 0;
-const prismaService_1 = require("./prismaService");
-const productServicePrisma_1 = require("./productServicePrisma");
-const serviceServicePrisma_1 = require("./serviceServicePrisma");
-exports.reviewServicePrisma = {
+import { prisma } from './prismaService.js';
+import { productServicePrisma } from './productServicePrisma.js';
+import { serviceServicePrisma } from './serviceServicePrisma.js';
+export const reviewServicePrisma = {
     // ============================================================================
     // CRUD Operations
     // ============================================================================
@@ -14,7 +11,7 @@ exports.reviewServicePrisma = {
             throw new Error('Either productId or serviceId is required');
         }
         // Check for existing review
-        const existingReview = await prismaService_1.prisma.review.findFirst({
+        const existingReview = await prisma.review.findFirst({
             where: {
                 userId,
                 ...(productId ? { productId } : { serviceId }),
@@ -28,7 +25,7 @@ exports.reviewServicePrisma = {
                 sentiment: existingReview.sentiment,
                 timestamp: existingReview.updatedAt,
             });
-            review = await prismaService_1.prisma.review.update({
+            review = await prisma.review.update({
                 where: { id: existingReview.id },
                 data: {
                     sentiment,
@@ -49,7 +46,7 @@ exports.reviewServicePrisma = {
         }
         else {
             // Create new review
-            review = await prismaService_1.prisma.review.create({
+            review = await prisma.review.create({
                 data: {
                     userId,
                     productId,
@@ -73,15 +70,15 @@ exports.reviewServicePrisma = {
         }
         // Update product/service stats
         if (productId) {
-            await productServicePrisma_1.productServicePrisma.updateReviewStats(productId);
+            await productServicePrisma.updateReviewStats(productId);
         }
         else if (serviceId) {
-            await serviceServicePrisma_1.serviceServicePrisma.updateReviewStats(serviceId);
+            await serviceServicePrisma.updateReviewStats(serviceId);
         }
         return review;
     },
     async getReviewById(id) {
-        return prismaService_1.prisma.review.findUnique({
+        return prisma.review.findUnique({
             where: { id },
             include: {
                 user: {
@@ -119,7 +116,7 @@ exports.reviewServicePrisma = {
         if (sentiment)
             where.sentiment = sentiment;
         const [reviews, total] = await Promise.all([
-            prismaService_1.prisma.review.findMany({
+            prisma.review.findMany({
                 where,
                 include: {
                     user: {
@@ -147,7 +144,7 @@ exports.reviewServicePrisma = {
                 skip: (page - 1) * limit,
                 take: limit,
             }),
-            prismaService_1.prisma.review.count({ where }),
+            prisma.review.count({ where }),
         ]);
         return {
             reviews,
@@ -169,7 +166,7 @@ exports.reviewServicePrisma = {
         return this.getAllReviews({ ...filters, userId });
     },
     async updateReview(id, userId, data) {
-        const review = await prismaService_1.prisma.review.findUnique({
+        const review = await prisma.review.findUnique({
             where: { id },
         });
         if (!review) {
@@ -188,7 +185,7 @@ exports.reviewServicePrisma = {
             });
             updateData.sentimentHistory = sentimentHistory;
         }
-        const updatedReview = await prismaService_1.prisma.review.update({
+        const updatedReview = await prisma.review.update({
             where: { id },
             data: updateData,
             include: {
@@ -204,15 +201,15 @@ exports.reviewServicePrisma = {
         });
         // Update product/service stats
         if (review.productId) {
-            await productServicePrisma_1.productServicePrisma.updateReviewStats(review.productId);
+            await productServicePrisma.updateReviewStats(review.productId);
         }
         else if (review.serviceId) {
-            await serviceServicePrisma_1.serviceServicePrisma.updateReviewStats(review.serviceId);
+            await serviceServicePrisma.updateReviewStats(review.serviceId);
         }
         return updatedReview;
     },
     async deleteReview(id, userId, isAdmin = false) {
-        const review = await prismaService_1.prisma.review.findUnique({
+        const review = await prisma.review.findUnique({
             where: { id },
         });
         if (!review) {
@@ -221,15 +218,15 @@ exports.reviewServicePrisma = {
         if (!isAdmin && review.userId !== userId) {
             throw new Error('Not authorized to delete this review');
         }
-        await prismaService_1.prisma.review.delete({
+        await prisma.review.delete({
             where: { id },
         });
         // Update product/service stats
         if (review.productId) {
-            await productServicePrisma_1.productServicePrisma.updateReviewStats(review.productId);
+            await productServicePrisma.updateReviewStats(review.productId);
         }
         else if (review.serviceId) {
-            await serviceServicePrisma_1.serviceServicePrisma.updateReviewStats(review.serviceId);
+            await serviceServicePrisma.updateReviewStats(review.serviceId);
         }
         return { success: true };
     },
@@ -242,7 +239,7 @@ exports.reviewServicePrisma = {
             where.productId = productId;
         if (serviceId)
             where.serviceId = serviceId;
-        const stats = await prismaService_1.prisma.review.groupBy({
+        const stats = await prisma.review.groupBy({
             by: ['sentiment'],
             where,
             _count: true,
@@ -271,7 +268,7 @@ exports.reviewServicePrisma = {
     // ============================================================================
     async updateUserReviewAnalytics(userId, itemType) {
         const incrementField = itemType === 'product' ? { productReviews: { increment: 1 } } : { serviceReviews: { increment: 1 } };
-        await prismaService_1.prisma.userAnalytics.upsert({
+        await prisma.userAnalytics.upsert({
             where: { userId },
             update: {
                 totalReviews: { increment: 1 },
@@ -291,7 +288,7 @@ exports.reviewServicePrisma = {
     // Check User Review
     // ============================================================================
     async getUserReviewForItem(userId, productId, serviceId) {
-        return prismaService_1.prisma.review.findFirst({
+        return prisma.review.findFirst({
             where: {
                 userId,
                 ...(productId ? { productId } : { serviceId }),

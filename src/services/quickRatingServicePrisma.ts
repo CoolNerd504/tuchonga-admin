@@ -1,7 +1,7 @@
 import type { Prisma, ItemType } from '@prisma/client';
-import { prisma } from './prismaService';
-import { productServicePrisma } from './productServicePrisma';
-import { serviceServicePrisma } from './serviceServicePrisma';
+import { prisma } from './prismaService.js';
+import { productServicePrisma } from './productServicePrisma.js';
+import { serviceServicePrisma } from './serviceServicePrisma.js';
 
 // Types
 export interface CreateQuickRatingData {

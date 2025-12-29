@@ -1,14 +1,11 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.productServicePrisma = void 0;
-const prismaService_1 = require("./prismaService");
-exports.productServicePrisma = {
+import { prisma } from './prismaService.js';
+export const productServicePrisma = {
     // ============================================================================
     // CRUD Operations
     // ============================================================================
     async createProduct(data) {
         const { categoryIds, ...productData } = data;
-        const product = await prismaService_1.prisma.product.create({
+        const product = await prisma.product.create({
             data: {
                 ...productData,
                 additionalImages: productData.additionalImages || [],
@@ -32,7 +29,7 @@ exports.productServicePrisma = {
         return this.formatProduct(product);
     },
     async getProductById(id) {
-        const product = await prismaService_1.prisma.product.findUnique({
+        const product = await prisma.product.findUnique({
             where: { id },
             include: {
                 categories: {
@@ -79,7 +76,7 @@ exports.productServicePrisma = {
             };
         }
         const [products, total] = await Promise.all([
-            prismaService_1.prisma.product.findMany({
+            prisma.product.findMany({
                 where,
                 include: {
                     categories: {
@@ -100,7 +97,7 @@ exports.productServicePrisma = {
                 skip: (page - 1) * limit,
                 take: limit,
             }),
-            prismaService_1.prisma.product.count({ where }),
+            prisma.product.count({ where }),
         ]);
         return {
             products: products.map(this.formatProduct),
@@ -116,11 +113,11 @@ exports.productServicePrisma = {
         const { categoryIds, ...updateData } = data;
         // If categories are being updated, delete existing and create new
         if (categoryIds !== undefined) {
-            await prismaService_1.prisma.productCategory.deleteMany({
+            await prisma.productCategory.deleteMany({
                 where: { productId: id },
             });
             if (categoryIds.length > 0) {
-                await prismaService_1.prisma.productCategory.createMany({
+                await prisma.productCategory.createMany({
                     data: categoryIds.map((categoryId) => ({
                         productId: id,
                         categoryId,
@@ -128,7 +125,7 @@ exports.productServicePrisma = {
                 });
             }
         }
-        const product = await prismaService_1.prisma.product.update({
+        const product = await prisma.product.update({
             where: { id },
             data: {
                 ...updateData,
@@ -147,13 +144,13 @@ exports.productServicePrisma = {
     },
     async deleteProduct(id) {
         // Soft delete
-        return prismaService_1.prisma.product.update({
+        return prisma.product.update({
             where: { id },
             data: { isActive: false },
         });
     },
     async hardDeleteProduct(id) {
-        return prismaService_1.prisma.product.delete({
+        return prisma.product.delete({
             where: { id },
         });
     },
@@ -161,7 +158,7 @@ exports.productServicePrisma = {
     // Analytics
     // ============================================================================
     async incrementViews(id) {
-        return prismaService_1.prisma.product.update({
+        return prisma.product.update({
             where: { id },
             data: {
                 totalViews: { increment: 1 },
@@ -170,7 +167,7 @@ exports.productServicePrisma = {
     },
     async updateRatingStats(id) {
         // Calculate quick rating statistics
-        const ratings = await prismaService_1.prisma.quickRating.groupBy({
+        const ratings = await prisma.quickRating.groupBy({
             by: ['rating'],
             where: { productId: id },
             _count: true,
@@ -191,7 +188,7 @@ exports.productServicePrisma = {
             sum += r.rating * r._count;
         });
         const avg = total > 0 ? sum / total : null;
-        return prismaService_1.prisma.product.update({
+        return prisma.product.update({
             where: { id },
             data: {
                 ...ratingCounts,
@@ -202,7 +199,7 @@ exports.productServicePrisma = {
     },
     async updateReviewStats(id) {
         // Calculate review statistics
-        const reviews = await prismaService_1.prisma.review.groupBy({
+        const reviews = await prisma.review.groupBy({
             by: ['sentiment'],
             where: { productId: id },
             _count: true,
@@ -222,7 +219,7 @@ exports.productServicePrisma = {
             }
         });
         const total = positive + neutral + negative;
-        return prismaService_1.prisma.product.update({
+        return prisma.product.update({
             where: { id },
             data: {
                 totalReviews: total,
@@ -236,7 +233,7 @@ exports.productServicePrisma = {
     // Search
     // ============================================================================
     async searchProducts(query, limit = 20) {
-        return prismaService_1.prisma.product.findMany({
+        return prisma.product.findMany({
             where: {
                 isActive: true,
                 OR: [
@@ -285,7 +282,7 @@ exports.productServicePrisma = {
         if (filters?.isActive !== undefined) {
             where.isActive = filters.isActive;
         }
-        return prismaService_1.prisma.product.count({ where });
+        return prisma.product.count({ where });
     },
     // ============================================================================
     // Helpers

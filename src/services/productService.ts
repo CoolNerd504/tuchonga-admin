@@ -1,5 +1,5 @@
 import type { Product, Prisma } from '@prisma/client';
-import { prisma } from './prismaService';
+import { prisma } from './prismaService.js';
 
 export interface CreateProductData {
   productName: string;

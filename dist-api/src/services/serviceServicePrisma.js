@@ -1,14 +1,11 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.serviceServicePrisma = void 0;
-const prismaService_1 = require("./prismaService");
-exports.serviceServicePrisma = {
+import { prisma } from './prismaService.js';
+export const serviceServicePrisma = {
     // ============================================================================
     // CRUD Operations
     // ============================================================================
     async createService(data) {
         const { categoryIds, ...serviceData } = data;
-        const service = await prismaService_1.prisma.service.create({
+        const service = await prisma.service.create({
             data: {
                 ...serviceData,
                 additionalImages: serviceData.additionalImages || [],
@@ -32,7 +29,7 @@ exports.serviceServicePrisma = {
         return this.formatService(service);
     },
     async getServiceById(id) {
-        const service = await prismaService_1.prisma.service.findUnique({
+        const service = await prisma.service.findUnique({
             where: { id },
             include: {
                 categories: {
@@ -79,7 +76,7 @@ exports.serviceServicePrisma = {
             };
         }
         const [services, total] = await Promise.all([
-            prismaService_1.prisma.service.findMany({
+            prisma.service.findMany({
                 where,
                 include: {
                     categories: {
@@ -100,7 +97,7 @@ exports.serviceServicePrisma = {
                 skip: (page - 1) * limit,
                 take: limit,
             }),
-            prismaService_1.prisma.service.count({ where }),
+            prisma.service.count({ where }),
         ]);
         return {
             services: services.map(this.formatService),
@@ -116,11 +113,11 @@ exports.serviceServicePrisma = {
         const { categoryIds, ...updateData } = data;
         // If categories are being updated, delete existing and create new
         if (categoryIds !== undefined) {
-            await prismaService_1.prisma.serviceCategory.deleteMany({
+            await prisma.serviceCategory.deleteMany({
                 where: { serviceId: id },
             });
             if (categoryIds.length > 0) {
-                await prismaService_1.prisma.serviceCategory.createMany({
+                await prisma.serviceCategory.createMany({
                     data: categoryIds.map((categoryId) => ({
                         serviceId: id,
                         categoryId,
@@ -128,7 +125,7 @@ exports.serviceServicePrisma = {
                 });
             }
         }
-        const service = await prismaService_1.prisma.service.update({
+        const service = await prisma.service.update({
             where: { id },
             data: {
                 ...updateData,
@@ -147,13 +144,13 @@ exports.serviceServicePrisma = {
     },
     async deleteService(id) {
         // Soft delete
-        return prismaService_1.prisma.service.update({
+        return prisma.service.update({
             where: { id },
             data: { isActive: false },
         });
     },
     async hardDeleteService(id) {
-        return prismaService_1.prisma.service.delete({
+        return prisma.service.delete({
             where: { id },
         });
     },
@@ -161,7 +158,7 @@ exports.serviceServicePrisma = {
     // Analytics
     // ============================================================================
     async incrementViews(id) {
-        return prismaService_1.prisma.service.update({
+        return prisma.service.update({
             where: { id },
             data: {
                 totalViews: { increment: 1 },
@@ -169,7 +166,7 @@ exports.serviceServicePrisma = {
         });
     },
     async updateRatingStats(id) {
-        const ratings = await prismaService_1.prisma.quickRating.groupBy({
+        const ratings = await prisma.quickRating.groupBy({
             by: ['rating'],
             where: { serviceId: id },
             _count: true,
@@ -190,7 +187,7 @@ exports.serviceServicePrisma = {
             sum += r.rating * r._count;
         });
         const avg = total > 0 ? sum / total : null;
-        return prismaService_1.prisma.service.update({
+        return prisma.service.update({
             where: { id },
             data: {
                 ...ratingCounts,
@@ -200,7 +197,7 @@ exports.serviceServicePrisma = {
         });
     },
     async updateReviewStats(id) {
-        const reviews = await prismaService_1.prisma.review.groupBy({
+        const reviews = await prisma.review.groupBy({
             by: ['sentiment'],
             where: { serviceId: id },
             _count: true,
@@ -220,7 +217,7 @@ exports.serviceServicePrisma = {
             }
         });
         const total = positive + neutral + negative;
-        return prismaService_1.prisma.service.update({
+        return prisma.service.update({
             where: { id },
             data: {
                 totalReviews: total,
@@ -234,7 +231,7 @@ exports.serviceServicePrisma = {
     // Search
     // ============================================================================
     async searchServices(query, limit = 20) {
-        return prismaService_1.prisma.service.findMany({
+        return prisma.service.findMany({
             where: {
                 isActive: true,
                 OR: [
@@ -265,7 +262,7 @@ exports.serviceServicePrisma = {
         if (filters?.isActive !== undefined) {
             where.isActive = filters.isActive;
         }
-        return prismaService_1.prisma.service.count({ where });
+        return prisma.service.count({ where });
     },
     // ============================================================================
     // Helpers

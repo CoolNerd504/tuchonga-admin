@@ -1,25 +1,22 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.categoryServicePrisma = void 0;
-const prismaService_1 = require("./prismaService");
-exports.categoryServicePrisma = {
+import { prisma } from './prismaService.js';
+export const categoryServicePrisma = {
     // ============================================================================
     // CRUD Operations
     // ============================================================================
     async createCategory(data) {
         // Check if category already exists
-        const existing = await prismaService_1.prisma.category.findUnique({
+        const existing = await prisma.category.findUnique({
             where: { name: data.name },
         });
         if (existing) {
             throw new Error('Category with this name already exists');
         }
-        return prismaService_1.prisma.category.create({
+        return prisma.category.create({
             data,
         });
     },
     async getCategoryById(id) {
-        return prismaService_1.prisma.category.findUnique({
+        return prisma.category.findUnique({
             where: { id },
             include: {
                 _count: {
@@ -32,7 +29,7 @@ exports.categoryServicePrisma = {
         });
     },
     async getCategoryByName(name) {
-        return prismaService_1.prisma.category.findUnique({
+        return prisma.category.findUnique({
             where: { name },
             include: {
                 _count: {
@@ -56,7 +53,7 @@ exports.categoryServicePrisma = {
             ];
         }
         const [categories, total] = await Promise.all([
-            prismaService_1.prisma.category.findMany({
+            prisma.category.findMany({
                 where,
                 include: {
                     _count: {
@@ -70,7 +67,7 @@ exports.categoryServicePrisma = {
                 skip: (page - 1) * limit,
                 take: limit,
             }),
-            prismaService_1.prisma.category.count({ where }),
+            prisma.category.count({ where }),
         ]);
         return {
             categories,
@@ -91,7 +88,7 @@ exports.categoryServicePrisma = {
     async updateCategory(id, data) {
         // Check if new name conflicts with existing
         if (data.name) {
-            const existing = await prismaService_1.prisma.category.findFirst({
+            const existing = await prisma.category.findFirst({
                 where: {
                     name: data.name,
                     NOT: { id },
@@ -101,7 +98,7 @@ exports.categoryServicePrisma = {
                 throw new Error('Category with this name already exists');
             }
         }
-        return prismaService_1.prisma.category.update({
+        return prisma.category.update({
             where: { id },
             data,
             include: {
@@ -116,7 +113,7 @@ exports.categoryServicePrisma = {
     },
     async deleteCategory(id) {
         // Check if category has products or services
-        const category = await prismaService_1.prisma.category.findUnique({
+        const category = await prisma.category.findUnique({
             where: { id },
             include: {
                 _count: {
@@ -133,7 +130,7 @@ exports.categoryServicePrisma = {
         if (category._count.products > 0 || category._count.services > 0) {
             throw new Error(`Cannot delete category. It has ${category._count.products} products and ${category._count.services} services.`);
         }
-        await prismaService_1.prisma.category.delete({
+        await prisma.category.delete({
             where: { id },
         });
         return { success: true };
@@ -143,9 +140,9 @@ exports.categoryServicePrisma = {
     // ============================================================================
     async getCategoryStats() {
         const [productCategories, serviceCategories, categoriesWithCounts] = await Promise.all([
-            prismaService_1.prisma.category.count({ where: { type: 'PRODUCT' } }),
-            prismaService_1.prisma.category.count({ where: { type: 'SERVICE' } }),
-            prismaService_1.prisma.category.findMany({
+            prisma.category.count({ where: { type: 'PRODUCT' } }),
+            prisma.category.count({ where: { type: 'SERVICE' } }),
+            prisma.category.findMany({
                 include: {
                     _count: {
                         select: {

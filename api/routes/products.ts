@@ -1,5 +1,5 @@
 import express from 'express';
-import { productServicePrisma } from '../../src/services/productServicePrisma';
+import { productServicePrisma } from '../../src/services/productServicePrisma.js';
 import { verifyToken, verifyAdmin, verifyBusinessOrAdmin } from '../middleware/auth';
 
 const router = express.Router();

@@ -1,11 +1,8 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.categoryService = void 0;
-const prismaService_1 = require("./prismaService");
-exports.categoryService = {
+import { prisma } from './prismaService.js';
+export const categoryService = {
     // Get all categories
     async getAll(type) {
-        return prismaService_1.prisma.category.findMany({
+        return prisma.category.findMany({
             where: type ? { type } : undefined,
             include: {
                 _count: {
@@ -22,7 +19,7 @@ exports.categoryService = {
     },
     // Get category by ID
     async getById(id) {
-        return prismaService_1.prisma.category.findUnique({
+        return prisma.category.findUnique({
             where: { id },
             include: {
                 products: {
@@ -60,32 +57,32 @@ exports.categoryService = {
     },
     // Get category by name
     async getByName(name) {
-        return prismaService_1.prisma.category.findUnique({
+        return prisma.category.findUnique({
             where: { name },
         });
     },
     // Create category
     async create(data) {
-        return prismaService_1.prisma.category.create({
+        return prisma.category.create({
             data,
         });
     },
     // Update category
     async update(id, data) {
-        return prismaService_1.prisma.category.update({
+        return prisma.category.update({
             where: { id },
             data,
         });
     },
     // Delete category
     async delete(id) {
-        return prismaService_1.prisma.category.delete({
+        return prisma.category.delete({
             where: { id },
         });
     },
     // Get categories by type
     async getByType(type) {
-        return prismaService_1.prisma.category.findMany({
+        return prisma.category.findMany({
             where: { type },
             include: {
                 _count: {

@@ -1,16 +1,10 @@
-"use strict";
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.refreshToken = exports.generateToken = exports.verifyOwnerOrAdmin = exports.verifyBusinessOrAdmin = exports.verifySuperAdmin = exports.verifyAdmin = exports.optionalAuth = exports.verifyToken = void 0;
-const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
-const prismaService_1 = require("../../src/services/prismaService");
+import jwt from 'jsonwebtoken';
+import { prisma } from '../../src/services/prismaService.js';
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
 /**
  * Verify JWT token and attach user info to request
  */
-const verifyToken = async (req, res, next) => {
+export const verifyToken = async (req, res, next) => {
     try {
         const token = req.headers.authorization?.replace('Bearer ', '');
         if (!token) {
@@ -20,9 +14,9 @@ const verifyToken = async (req, res, next) => {
                 code: 'AUTH_TOKEN_REQUIRED',
             });
         }
-        const decoded = jsonwebtoken_1.default.verify(token, JWT_SECRET);
+        const decoded = jwt.verify(token, JWT_SECRET);
         // Get user from database
-        const user = await prismaService_1.prisma.user.findUnique({
+        const user = await prisma.user.findUnique({
             where: { id: decoded.userId },
             select: {
                 id: true,
@@ -74,18 +68,17 @@ const verifyToken = async (req, res, next) => {
         });
     }
 };
-exports.verifyToken = verifyToken;
 /**
  * Optional auth - attach user if token exists, but don't require it
  */
-const optionalAuth = async (req, res, next) => {
+export const optionalAuth = async (req, res, next) => {
     try {
         const token = req.headers.authorization?.replace('Bearer ', '');
         if (!token) {
             return next();
         }
-        const decoded = jsonwebtoken_1.default.verify(token, JWT_SECRET);
-        const user = await prismaService_1.prisma.user.findUnique({
+        const decoded = jwt.verify(token, JWT_SECRET);
+        const user = await prisma.user.findUnique({
             where: { id: decoded.userId },
             select: {
                 id: true,
@@ -114,11 +107,10 @@ const optionalAuth = async (req, res, next) => {
         next();
     }
 };
-exports.optionalAuth = optionalAuth;
 /**
  * Verify user has admin role (admin, super_admin, moderator, staff)
  */
-const verifyAdmin = (req, res, next) => {
+export const verifyAdmin = (req, res, next) => {
     const user = req.user;
     if (!user) {
         return res.status(401).json({
@@ -137,11 +129,10 @@ const verifyAdmin = (req, res, next) => {
     }
     next();
 };
-exports.verifyAdmin = verifyAdmin;
 /**
  * Verify user is super admin
  */
-const verifySuperAdmin = (req, res, next) => {
+export const verifySuperAdmin = (req, res, next) => {
     const user = req.user;
     if (!user) {
         return res.status(401).json({
@@ -159,11 +150,10 @@ const verifySuperAdmin = (req, res, next) => {
     }
     next();
 };
-exports.verifySuperAdmin = verifySuperAdmin;
 /**
  * Verify user is business owner or admin
  */
-const verifyBusinessOrAdmin = (req, res, next) => {
+export const verifyBusinessOrAdmin = (req, res, next) => {
     const user = req.user;
     if (!user) {
         return res.status(401).json({
@@ -182,11 +172,10 @@ const verifyBusinessOrAdmin = (req, res, next) => {
     }
     next();
 };
-exports.verifyBusinessOrAdmin = verifyBusinessOrAdmin;
 /**
  * Verify user owns the resource or is admin
  */
-const verifyOwnerOrAdmin = (ownerIdField) => {
+export const verifyOwnerOrAdmin = (ownerIdField) => {
     return (req, res, next) => {
         const user = req.user;
         if (!user) {
@@ -208,25 +197,23 @@ const verifyOwnerOrAdmin = (ownerIdField) => {
         next();
     };
 };
-exports.verifyOwnerOrAdmin = verifyOwnerOrAdmin;
 /**
  * Generate JWT token for a user
  */
-const generateToken = (user) => {
-    return jsonwebtoken_1.default.sign({
+export const generateToken = (user) => {
+    return jwt.sign({
         userId: user.id,
         email: user.email || '',
         role: user.role,
     }, JWT_SECRET, { expiresIn: '7d' });
 };
-exports.generateToken = generateToken;
 /**
  * Refresh token (generates new token from existing valid token)
  */
-const refreshToken = (token) => {
+export const refreshToken = (token) => {
     try {
-        const decoded = jsonwebtoken_1.default.verify(token, JWT_SECRET);
-        return jsonwebtoken_1.default.sign({
+        const decoded = jwt.verify(token, JWT_SECRET);
+        return jwt.sign({
             userId: decoded.userId,
             email: decoded.email,
             role: decoded.role,
@@ -236,4 +223,3 @@ const refreshToken = (token) => {
         return null;
     }
 };
-exports.refreshToken = refreshToken;

@@ -1,11 +1,8 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.quickRatingServicePrisma = void 0;
-const prismaService_1 = require("./prismaService");
-const productServicePrisma_1 = require("./productServicePrisma");
-const serviceServicePrisma_1 = require("./serviceServicePrisma");
+import { prisma } from './prismaService.js';
+import { productServicePrisma } from './productServicePrisma.js';
+import { serviceServicePrisma } from './serviceServicePrisma.js';
 const DAILY_UPDATE_LIMIT_HOURS = 24;
-exports.quickRatingServicePrisma = {
+export const quickRatingServicePrisma = {
     // ============================================================================
     // CRUD Operations
     // ============================================================================
@@ -16,7 +13,7 @@ exports.quickRatingServicePrisma = {
             throw new Error('Rating must be between 1 and 5');
         }
         // Check for existing rating
-        const existing = await prismaService_1.prisma.quickRating.findUnique({
+        const existing = await prisma.quickRating.findUnique({
             where: {
                 userId_itemId: {
                     userId,
@@ -34,7 +31,7 @@ exports.quickRatingServicePrisma = {
                 throw new Error(`You can only update your rating once every ${DAILY_UPDATE_LIMIT_HOURS} hours. ` +
                     `Time remaining: ${Math.ceil(DAILY_UPDATE_LIMIT_HOURS - hoursSinceUpdate)} hours`);
             }
-            result = await prismaService_1.prisma.quickRating.update({
+            result = await prisma.quickRating.update({
                 where: { id: existing.id },
                 data: {
                     rating,
@@ -43,7 +40,7 @@ exports.quickRatingServicePrisma = {
             });
         }
         else {
-            result = await prismaService_1.prisma.quickRating.create({
+            result = await prisma.quickRating.create({
                 data: {
                     userId,
                     itemId,
@@ -56,10 +53,10 @@ exports.quickRatingServicePrisma = {
         }
         // Update product/service rating stats
         if (productId) {
-            await productServicePrisma_1.productServicePrisma.updateRatingStats(productId);
+            await productServicePrisma.updateRatingStats(productId);
         }
         else if (serviceId) {
-            await serviceServicePrisma_1.serviceServicePrisma.updateRatingStats(serviceId);
+            await serviceServicePrisma.updateRatingStats(serviceId);
         }
         return {
             ...result,
@@ -67,7 +64,7 @@ exports.quickRatingServicePrisma = {
         };
     },
     async getRatingById(id) {
-        return prismaService_1.prisma.quickRating.findUnique({
+        return prisma.quickRating.findUnique({
             where: { id },
             include: {
                 user: {
@@ -82,7 +79,7 @@ exports.quickRatingServicePrisma = {
         });
     },
     async getUserRatingForItem(userId, itemId) {
-        const rating = await prismaService_1.prisma.quickRating.findUnique({
+        const rating = await prisma.quickRating.findUnique({
             where: {
                 userId_itemId: {
                     userId,
@@ -105,7 +102,7 @@ exports.quickRatingServicePrisma = {
         };
     },
     async deleteRating(id, userId, isAdmin = false) {
-        const rating = await prismaService_1.prisma.quickRating.findUnique({
+        const rating = await prisma.quickRating.findUnique({
             where: { id },
         });
         if (!rating) {
@@ -114,15 +111,15 @@ exports.quickRatingServicePrisma = {
         if (!isAdmin && rating.userId !== userId) {
             throw new Error('Not authorized to delete this rating');
         }
-        await prismaService_1.prisma.quickRating.delete({
+        await prisma.quickRating.delete({
             where: { id },
         });
         // Update product/service rating stats
         if (rating.productId) {
-            await productServicePrisma_1.productServicePrisma.updateRatingStats(rating.productId);
+            await productServicePrisma.updateRatingStats(rating.productId);
         }
         else if (rating.serviceId) {
-            await serviceServicePrisma_1.serviceServicePrisma.updateRatingStats(rating.serviceId);
+            await serviceServicePrisma.updateRatingStats(rating.serviceId);
         }
         return { success: true };
     },
@@ -133,7 +130,7 @@ exports.quickRatingServicePrisma = {
         const where = { itemId };
         if (itemType)
             where.itemType = itemType;
-        const ratings = await prismaService_1.prisma.quickRating.groupBy({
+        const ratings = await prisma.quickRating.groupBy({
             by: ['rating'],
             where,
             _count: true,
@@ -174,7 +171,7 @@ exports.quickRatingServicePrisma = {
         if (itemType)
             where.itemType = itemType;
         const [ratings, total] = await Promise.all([
-            prismaService_1.prisma.quickRating.findMany({
+            prisma.quickRating.findMany({
                 where,
                 include: {
                     product: {
@@ -196,7 +193,7 @@ exports.quickRatingServicePrisma = {
                 skip: (page - 1) * limit,
                 take: limit,
             }),
-            prismaService_1.prisma.quickRating.count({ where }),
+            prisma.quickRating.count({ where }),
         ]);
         return {
             ratings,
@@ -221,7 +218,7 @@ exports.quickRatingServicePrisma = {
         if (userId)
             where.userId = userId;
         const [ratings, total] = await Promise.all([
-            prismaService_1.prisma.quickRating.findMany({
+            prisma.quickRating.findMany({
                 where,
                 include: {
                     user: {
@@ -249,7 +246,7 @@ exports.quickRatingServicePrisma = {
                 skip: (page - 1) * limit,
                 take: limit,
             }),
-            prismaService_1.prisma.quickRating.count({ where }),
+            prisma.quickRating.count({ where }),
         ]);
         return {
             ratings,

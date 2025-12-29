@@ -1,12 +1,7 @@
-"use strict";
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-const express_1 = __importDefault(require("express"));
-const productServicePrisma_1 = require("../../src/services/productServicePrisma");
-const auth_1 = require("../middleware/auth");
-const router = express_1.default.Router();
+import express from 'express';
+import { productServicePrisma } from '../../src/services/productServicePrisma.js';
+import { verifyToken, verifyAdmin, verifyBusinessOrAdmin } from '../middleware/auth';
+const router = express.Router();
 // ============================================================================
 // Public Routes
 // ============================================================================
@@ -14,7 +9,7 @@ const router = express_1.default.Router();
 router.get('/', async (req, res) => {
     try {
         const { search, categories, businessId, isActive, page, limit, sortBy, sortOrder, } = req.query;
-        const result = await productServicePrisma_1.productServicePrisma.getAllProducts({
+        const result = await productServicePrisma.getAllProducts({
             search: search,
             categories: categories ? categories.split(',') : undefined,
             businessId: businessId,
@@ -37,7 +32,7 @@ router.get('/', async (req, res) => {
 // Get product by ID
 router.get('/:id', async (req, res) => {
     try {
-        const product = await productServicePrisma_1.productServicePrisma.getProductById(req.params.id);
+        const product = await productServicePrisma.getProductById(req.params.id);
         if (!product) {
             return res.status(404).json({ success: false, error: 'Product not found' });
         }
@@ -50,7 +45,7 @@ router.get('/:id', async (req, res) => {
 // Track product view
 router.post('/:id/view', async (req, res) => {
     try {
-        await productServicePrisma_1.productServicePrisma.incrementViews(req.params.id);
+        await productServicePrisma.incrementViews(req.params.id);
         res.json({ success: true, message: 'View tracked' });
     }
     catch (error) {
@@ -61,7 +56,7 @@ router.post('/:id/view', async (req, res) => {
 router.get('/search/:query', async (req, res) => {
     try {
         const { limit } = req.query;
-        const products = await productServicePrisma_1.productServicePrisma.searchProducts(req.params.query, limit ? parseInt(limit) : 20);
+        const products = await productServicePrisma.searchProducts(req.params.query, limit ? parseInt(limit) : 20);
         res.json({ success: true, data: products });
     }
     catch (error) {
@@ -72,13 +67,13 @@ router.get('/search/:query', async (req, res) => {
 // Protected Routes (Business/Admin)
 // ============================================================================
 // Create product
-router.post('/', auth_1.verifyToken, auth_1.verifyBusinessOrAdmin, async (req, res) => {
+router.post('/', verifyToken, verifyBusinessOrAdmin, async (req, res) => {
     try {
         const { productName, description, mainImage, additionalImages, businessId, productOwner, categoryIds, } = req.body;
         if (!productName) {
             return res.status(400).json({ success: false, error: 'Product name is required' });
         }
-        const product = await productServicePrisma_1.productServicePrisma.createProduct({
+        const product = await productServicePrisma.createProduct({
             productName,
             description,
             mainImage,
@@ -98,9 +93,9 @@ router.post('/', auth_1.verifyToken, auth_1.verifyBusinessOrAdmin, async (req, r
     }
 });
 // Update product
-router.put('/:id', auth_1.verifyToken, auth_1.verifyBusinessOrAdmin, async (req, res) => {
+router.put('/:id', verifyToken, verifyBusinessOrAdmin, async (req, res) => {
     try {
-        const product = await productServicePrisma_1.productServicePrisma.updateProduct(req.params.id, req.body);
+        const product = await productServicePrisma.updateProduct(req.params.id, req.body);
         res.json({
             success: true,
             message: 'Product updated successfully',
@@ -112,9 +107,9 @@ router.put('/:id', auth_1.verifyToken, auth_1.verifyBusinessOrAdmin, async (req,
     }
 });
 // Delete product (soft delete)
-router.delete('/:id', auth_1.verifyToken, auth_1.verifyAdmin, async (req, res) => {
+router.delete('/:id', verifyToken, verifyAdmin, async (req, res) => {
     try {
-        await productServicePrisma_1.productServicePrisma.deleteProduct(req.params.id);
+        await productServicePrisma.deleteProduct(req.params.id);
         res.json({ success: true, message: 'Product deleted successfully' });
     }
     catch (error) {
@@ -125,10 +120,10 @@ router.delete('/:id', auth_1.verifyToken, auth_1.verifyAdmin, async (req, res) =
 // Admin Routes
 // ============================================================================
 // Get product count
-router.get('/stats/count', auth_1.verifyToken, auth_1.verifyAdmin, async (req, res) => {
+router.get('/stats/count', verifyToken, verifyAdmin, async (req, res) => {
     try {
         const { businessId, isActive } = req.query;
-        const count = await productServicePrisma_1.productServicePrisma.getProductCount({
+        const count = await productServicePrisma.getProductCount({
             businessId: businessId,
             isActive: isActive === 'true' ? true : isActive === 'false' ? false : undefined,
         });
@@ -138,4 +133,4 @@ router.get('/stats/count', auth_1.verifyToken, auth_1.verifyAdmin, async (req, r
         res.status(500).json({ success: false, error: error.message });
     }
 });
-exports.default = router;
+export default router;

@@ -1,8 +1,5 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.serviceService = void 0;
-const prismaService_1 = require("./prismaService");
-exports.serviceService = {
+import { prisma } from './prismaService.js';
+export const serviceService = {
     // Get all services
     async getAll(options) {
         const where = {};
@@ -19,7 +16,7 @@ exports.serviceService = {
                 },
             };
         }
-        return prismaService_1.prisma.service.findMany({
+        return prisma.service.findMany({
             where,
             include: {
                 categories: {
@@ -45,7 +42,7 @@ exports.serviceService = {
     },
     // Get service by ID
     async getById(id) {
-        return prismaService_1.prisma.service.findUnique({
+        return prisma.service.findUnique({
             where: { id },
             include: {
                 categories: {
@@ -102,7 +99,7 @@ exports.serviceService = {
     // Create service
     async create(data) {
         const { categoryIds, ...serviceData } = data;
-        return prismaService_1.prisma.service.create({
+        return prisma.service.create({
             data: {
                 ...serviceData,
                 additionalImages: data.additionalImages || [],
@@ -130,12 +127,12 @@ exports.serviceService = {
         // If categoryIds are provided, update categories
         if (categoryIds !== undefined) {
             // Delete existing categories
-            await prismaService_1.prisma.serviceCategory.deleteMany({
+            await prisma.serviceCategory.deleteMany({
                 where: { serviceId: id },
             });
             // Create new categories
             if (categoryIds.length > 0) {
-                await prismaService_1.prisma.serviceCategory.createMany({
+                await prisma.serviceCategory.createMany({
                     data: categoryIds.map((categoryId) => ({
                         serviceId: id,
                         categoryId,
@@ -143,7 +140,7 @@ exports.serviceService = {
                 });
             }
         }
-        return prismaService_1.prisma.service.update({
+        return prisma.service.update({
             where: { id },
             data: serviceData,
             include: {
@@ -158,13 +155,13 @@ exports.serviceService = {
     },
     // Delete service
     async delete(id) {
-        return prismaService_1.prisma.service.delete({
+        return prisma.service.delete({
             where: { id },
         });
     },
     // Increment view count
     async incrementViews(id) {
-        return prismaService_1.prisma.service.update({
+        return prisma.service.update({
             where: { id },
             data: {
                 totalViews: {
@@ -175,7 +172,7 @@ exports.serviceService = {
     },
     // Get service statistics
     async getStats(id) {
-        const service = await prismaService_1.prisma.service.findUnique({
+        const service = await prisma.service.findUnique({
             where: { id },
             include: {
                 _count: {

@@ -1,20 +1,15 @@
-"use strict";
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-const express_1 = __importDefault(require("express"));
-const mobileUserService_1 = require("../../src/services/mobileUserService");
-const auth_1 = require("../middleware/auth");
-const router = express_1.default.Router();
+import express from 'express';
+import { mobileUserService } from '../../src/services/mobileUserService.js';
+import { verifyToken, verifyAdmin } from '../middleware/auth';
+const router = express.Router();
 // ============================================================================
 // Protected Routes (User)
 // ============================================================================
 // Get current user profile
-router.get('/me', auth_1.verifyToken, async (req, res) => {
+router.get('/me', verifyToken, async (req, res) => {
     try {
         const userId = req.user.userId;
-        const user = await mobileUserService_1.mobileUserService.getUserById(userId);
+        const user = await mobileUserService.getUserById(userId);
         if (!user) {
             return res.status(404).json({ success: false, error: 'User not found' });
         }
@@ -25,11 +20,11 @@ router.get('/me', auth_1.verifyToken, async (req, res) => {
     }
 });
 // Update current user profile
-router.put('/me', auth_1.verifyToken, async (req, res) => {
+router.put('/me', verifyToken, async (req, res) => {
     try {
         const userId = req.user.userId;
         const { fullName, displayName, profileImage, location, phoneNumber, email, gender } = req.body;
-        const user = await mobileUserService_1.mobileUserService.updateUser(userId, {
+        const user = await mobileUserService.updateUser(userId, {
             fullName,
             displayName,
             profileImage,
@@ -49,7 +44,7 @@ router.put('/me', auth_1.verifyToken, async (req, res) => {
     }
 });
 // Complete profile
-router.post('/me/complete-profile', auth_1.verifyToken, async (req, res) => {
+router.post('/me/complete-profile', verifyToken, async (req, res) => {
     try {
         const userId = req.user.userId;
         const { fullName, displayName, profileImage, location, phoneNumber, gender } = req.body;
@@ -59,7 +54,7 @@ router.post('/me/complete-profile', auth_1.verifyToken, async (req, res) => {
                 error: 'Full name is required',
             });
         }
-        const user = await mobileUserService_1.mobileUserService.completeProfile(userId, {
+        const user = await mobileUserService.completeProfile(userId, {
             fullName,
             displayName: displayName || fullName,
             profileImage,
@@ -78,10 +73,10 @@ router.post('/me/complete-profile', auth_1.verifyToken, async (req, res) => {
     }
 });
 // Get current user analytics
-router.get('/me/analytics', auth_1.verifyToken, async (req, res) => {
+router.get('/me/analytics', verifyToken, async (req, res) => {
     try {
         const userId = req.user.userId;
-        const analytics = await mobileUserService_1.mobileUserService.getUserAnalytics(userId);
+        const analytics = await mobileUserService.getUserAnalytics(userId);
         res.json({ success: true, data: analytics });
     }
     catch (error) {
@@ -92,10 +87,10 @@ router.get('/me/analytics', auth_1.verifyToken, async (req, res) => {
 // Admin Routes
 // ============================================================================
 // Get all users
-router.get('/', auth_1.verifyToken, auth_1.verifyAdmin, async (req, res) => {
+router.get('/', verifyToken, verifyAdmin, async (req, res) => {
     try {
         const { search, role, isActive, hasCompletedProfile, page, limit, sortBy, sortOrder, } = req.query;
-        const result = await mobileUserService_1.mobileUserService.getAllUsers({
+        const result = await mobileUserService.getAllUsers({
             search: search,
             role: role,
             isActive: isActive === 'true' ? true : isActive === 'false' ? false : undefined,
@@ -116,9 +111,9 @@ router.get('/', auth_1.verifyToken, auth_1.verifyAdmin, async (req, res) => {
     }
 });
 // Get user by ID
-router.get('/:id', auth_1.verifyToken, auth_1.verifyAdmin, async (req, res) => {
+router.get('/:id', verifyToken, verifyAdmin, async (req, res) => {
     try {
-        const user = await mobileUserService_1.mobileUserService.getUserById(req.params.id);
+        const user = await mobileUserService.getUserById(req.params.id);
         if (!user) {
             return res.status(404).json({ success: false, error: 'User not found' });
         }
@@ -129,9 +124,9 @@ router.get('/:id', auth_1.verifyToken, auth_1.verifyAdmin, async (req, res) => {
     }
 });
 // Update user
-router.put('/:id', auth_1.verifyToken, auth_1.verifyAdmin, async (req, res) => {
+router.put('/:id', verifyToken, verifyAdmin, async (req, res) => {
     try {
-        const user = await mobileUserService_1.mobileUserService.updateUser(req.params.id, req.body);
+        const user = await mobileUserService.updateUser(req.params.id, req.body);
         res.json({
             success: true,
             message: 'User updated successfully',
@@ -143,9 +138,9 @@ router.put('/:id', auth_1.verifyToken, auth_1.verifyAdmin, async (req, res) => {
     }
 });
 // Deactivate user
-router.post('/:id/deactivate', auth_1.verifyToken, auth_1.verifyAdmin, async (req, res) => {
+router.post('/:id/deactivate', verifyToken, verifyAdmin, async (req, res) => {
     try {
-        await mobileUserService_1.mobileUserService.deactivateUser(req.params.id);
+        await mobileUserService.deactivateUser(req.params.id);
         res.json({ success: true, message: 'User deactivated successfully' });
     }
     catch (error) {
@@ -153,9 +148,9 @@ router.post('/:id/deactivate', auth_1.verifyToken, auth_1.verifyAdmin, async (re
     }
 });
 // Reactivate user
-router.post('/:id/reactivate', auth_1.verifyToken, auth_1.verifyAdmin, async (req, res) => {
+router.post('/:id/reactivate', verifyToken, verifyAdmin, async (req, res) => {
     try {
-        await mobileUserService_1.mobileUserService.reactivateUser(req.params.id);
+        await mobileUserService.reactivateUser(req.params.id);
         res.json({ success: true, message: 'User reactivated successfully' });
     }
     catch (error) {
@@ -163,9 +158,9 @@ router.post('/:id/reactivate', auth_1.verifyToken, auth_1.verifyAdmin, async (re
     }
 });
 // Delete user (soft delete)
-router.delete('/:id', auth_1.verifyToken, auth_1.verifyAdmin, async (req, res) => {
+router.delete('/:id', verifyToken, verifyAdmin, async (req, res) => {
     try {
-        await mobileUserService_1.mobileUserService.deleteUser(req.params.id);
+        await mobileUserService.deleteUser(req.params.id);
         res.json({ success: true, message: 'User deleted successfully' });
     }
     catch (error) {
@@ -173,10 +168,10 @@ router.delete('/:id', auth_1.verifyToken, auth_1.verifyAdmin, async (req, res) =
     }
 });
 // Get user count
-router.get('/stats/count', auth_1.verifyToken, auth_1.verifyAdmin, async (req, res) => {
+router.get('/stats/count', verifyToken, verifyAdmin, async (req, res) => {
     try {
         const { role, isActive } = req.query;
-        const count = await mobileUserService_1.mobileUserService.getUserCount({
+        const count = await mobileUserService.getUserCount({
             role: role,
             isActive: isActive === 'true' ? true : isActive === 'false' ? false : undefined,
         });
@@ -187,13 +182,13 @@ router.get('/stats/count', auth_1.verifyToken, auth_1.verifyAdmin, async (req, r
     }
 });
 // Get user analytics by ID
-router.get('/:id/analytics', auth_1.verifyToken, auth_1.verifyAdmin, async (req, res) => {
+router.get('/:id/analytics', verifyToken, verifyAdmin, async (req, res) => {
     try {
-        const analytics = await mobileUserService_1.mobileUserService.getUserAnalytics(req.params.id);
+        const analytics = await mobileUserService.getUserAnalytics(req.params.id);
         res.json({ success: true, data: analytics });
     }
     catch (error) {
         res.status(500).json({ success: false, error: error.message });
     }
 });
-exports.default = router;
+export default router;

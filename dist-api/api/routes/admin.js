@@ -1,12 +1,7 @@
-"use strict";
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-const express_1 = __importDefault(require("express"));
-const adminService_1 = require("../../src/services/adminService");
-const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
-const router = express_1.default.Router();
+import express from 'express';
+import { adminService } from '../../src/services/adminService.js';
+import jwt from 'jsonwebtoken';
+const router = express.Router();
 const JWT_SECRET = process.env.JWT_SECRET || (() => {
     if (process.env.NODE_ENV === 'production') {
         throw new Error('JWT_SECRET must be set in production environment');
@@ -21,8 +16,8 @@ const verifyAdmin = async (req, res, next) => {
         if (!token) {
             return res.status(401).json({ error: 'No token provided' });
         }
-        const decoded = jsonwebtoken_1.default.verify(token, JWT_SECRET);
-        const admin = await adminService_1.adminService.getAdminById(decoded.userId);
+        const decoded = jwt.verify(token, JWT_SECRET);
+        const admin = await adminService.getAdminById(decoded.userId);
         if (!admin || !admin.isActive) {
             return res.status(401).json({ error: 'Invalid token' });
         }
@@ -50,7 +45,7 @@ const verifySuperAdmin = async (req, res, next) => {
 // Check if super admin exists (public endpoint for setup)
 router.get('/setup/check', async (req, res) => {
     try {
-        const exists = await adminService_1.adminService.superAdminExists();
+        const exists = await adminService.superAdminExists();
         res.json({ superAdminExists: exists });
     }
     catch (error) {
@@ -65,7 +60,7 @@ router.get('/setup/check', async (req, res) => {
 router.post('/setup/super-admin', async (req, res) => {
     try {
         // Check if super admin already exists
-        const exists = await adminService_1.adminService.superAdminExists();
+        const exists = await adminService.superAdminExists();
         if (exists) {
             return res.status(400).json({ error: 'Super admin already exists' });
         }
@@ -94,7 +89,7 @@ router.post('/setup/super-admin', async (req, res) => {
         }
         // Combine firstname and lastname into fullName for database
         const fullName = `${firstname.trim()} ${lastname.trim()}`.trim();
-        const admin = await adminService_1.adminService.createSuperAdmin({
+        const admin = await adminService.createSuperAdmin({
             email,
             password,
             fullName,
@@ -137,7 +132,7 @@ router.post('/setup/super-admin', async (req, res) => {
 router.get('/', verifyAdmin, async (req, res) => {
     try {
         const { role, isActive, limit, offset } = req.query;
-        const admins = await adminService_1.adminService.getAllAdmins({
+        const admins = await adminService.getAllAdmins({
             role: role,
             isActive: isActive === 'true' ? true : isActive === 'false' ? false : undefined,
             limit: limit ? parseInt(limit) : undefined,
@@ -152,7 +147,7 @@ router.get('/', verifyAdmin, async (req, res) => {
 // Get admin by ID
 router.get('/:id', verifyAdmin, async (req, res) => {
     try {
-        const admin = await adminService_1.adminService.getAdminById(req.params.id);
+        const admin = await adminService.getAdminById(req.params.id);
         if (!admin) {
             return res.status(404).json({ error: 'Admin not found' });
         }
@@ -171,7 +166,7 @@ router.post('/', verifyAdmin, verifySuperAdmin, async (req, res) => {
         }
         // Combine firstname and lastname into fullName for database
         const fullName = `${firstname.trim()} ${lastname.trim()}`.trim();
-        const admin = await adminService_1.adminService.createAdmin({
+        const admin = await adminService.createAdmin({
             email,
             password,
             fullName,
@@ -208,7 +203,7 @@ router.put('/:id', verifyAdmin, async (req, res) => {
         if (req.body.role && admin.role !== 'super_admin') {
             delete req.body.role;
         }
-        const updatedAdmin = await adminService_1.adminService.updateAdmin(targetId, req.body);
+        const updatedAdmin = await adminService.updateAdmin(targetId, req.body);
         res.json({
             message: 'Admin updated successfully',
             admin: updatedAdmin,
@@ -227,7 +222,7 @@ router.delete('/:id', verifyAdmin, verifySuperAdmin, async (req, res) => {
         if (admin.id === targetId) {
             return res.status(400).json({ error: 'Cannot delete your own account' });
         }
-        await adminService_1.adminService.deleteAdmin(targetId);
+        await adminService.deleteAdmin(targetId);
         res.json({ message: 'Admin deleted successfully' });
     }
     catch (error) {
@@ -238,11 +233,11 @@ router.delete('/:id', verifyAdmin, verifySuperAdmin, async (req, res) => {
 router.get('/stats/count', verifyAdmin, async (req, res) => {
     try {
         const { role } = req.query;
-        const count = await adminService_1.adminService.getAdminCount(role);
+        const count = await adminService.getAdminCount(role);
         res.json({ count });
     }
     catch (error) {
         res.status(500).json({ error: error.message });
     }
 });
-exports.default = router;
+export default router;

@@ -1,12 +1,7 @@
-"use strict";
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-const express_1 = __importDefault(require("express"));
-const reviewServicePrisma_1 = require("../../src/services/reviewServicePrisma");
-const auth_1 = require("../middleware/auth");
-const router = express_1.default.Router();
+import express from 'express';
+import { reviewServicePrisma } from '../../src/services/reviewServicePrisma.js';
+import { verifyToken } from '../middleware/auth';
+const router = express.Router();
 // ============================================================================
 // Public Routes
 // ============================================================================
@@ -14,7 +9,7 @@ const router = express_1.default.Router();
 router.get('/', async (req, res) => {
     try {
         const { userId, productId, serviceId, sentiment, page, limit, sortBy, sortOrder } = req.query;
-        const result = await reviewServicePrisma_1.reviewServicePrisma.getAllReviews({
+        const result = await reviewServicePrisma.getAllReviews({
             userId: userId,
             productId: productId,
             serviceId: serviceId,
@@ -37,7 +32,7 @@ router.get('/', async (req, res) => {
 // Get review by ID
 router.get('/:id', async (req, res) => {
     try {
-        const review = await reviewServicePrisma_1.reviewServicePrisma.getReviewById(req.params.id);
+        const review = await reviewServicePrisma.getReviewById(req.params.id);
         if (!review) {
             return res.status(404).json({ success: false, error: 'Review not found' });
         }
@@ -51,7 +46,7 @@ router.get('/:id', async (req, res) => {
 router.get('/product/:productId', async (req, res) => {
     try {
         const { page, limit, sortBy, sortOrder } = req.query;
-        const result = await reviewServicePrisma_1.reviewServicePrisma.getProductReviews(req.params.productId, {
+        const result = await reviewServicePrisma.getProductReviews(req.params.productId, {
             page: page ? parseInt(page) : 1,
             limit: limit ? parseInt(limit) : 20,
             sortBy: sortBy,
@@ -71,7 +66,7 @@ router.get('/product/:productId', async (req, res) => {
 router.get('/service/:serviceId', async (req, res) => {
     try {
         const { page, limit, sortBy, sortOrder } = req.query;
-        const result = await reviewServicePrisma_1.reviewServicePrisma.getServiceReviews(req.params.serviceId, {
+        const result = await reviewServicePrisma.getServiceReviews(req.params.serviceId, {
             page: page ? parseInt(page) : 1,
             limit: limit ? parseInt(limit) : 20,
             sortBy: sortBy,
@@ -91,7 +86,7 @@ router.get('/service/:serviceId', async (req, res) => {
 router.get('/stats/:itemType/:itemId', async (req, res) => {
     try {
         const { itemType, itemId } = req.params;
-        const stats = await reviewServicePrisma_1.reviewServicePrisma.getReviewStats(itemType === 'product' ? itemId : undefined, itemType === 'service' ? itemId : undefined);
+        const stats = await reviewServicePrisma.getReviewStats(itemType === 'product' ? itemId : undefined, itemType === 'service' ? itemId : undefined);
         res.json({ success: true, data: stats });
     }
     catch (error) {
@@ -102,7 +97,7 @@ router.get('/stats/:itemType/:itemId', async (req, res) => {
 // Protected Routes
 // ============================================================================
 // Create or update review
-router.post('/', auth_1.verifyToken, async (req, res) => {
+router.post('/', verifyToken, async (req, res) => {
     try {
         const { productId, serviceId, sentiment, text } = req.body;
         const userId = req.user.userId;
@@ -118,7 +113,7 @@ router.post('/', auth_1.verifyToken, async (req, res) => {
                 error: 'Sentiment is required',
             });
         }
-        const review = await reviewServicePrisma_1.reviewServicePrisma.createOrUpdateReview({
+        const review = await reviewServicePrisma.createOrUpdateReview({
             userId,
             productId,
             serviceId,
@@ -136,11 +131,11 @@ router.post('/', auth_1.verifyToken, async (req, res) => {
     }
 });
 // Update review
-router.put('/:id', auth_1.verifyToken, async (req, res) => {
+router.put('/:id', verifyToken, async (req, res) => {
     try {
         const userId = req.user.userId;
         const { sentiment, text } = req.body;
-        const review = await reviewServicePrisma_1.reviewServicePrisma.updateReview(req.params.id, userId, {
+        const review = await reviewServicePrisma.updateReview(req.params.id, userId, {
             sentiment,
             text,
         });
@@ -155,11 +150,11 @@ router.put('/:id', auth_1.verifyToken, async (req, res) => {
     }
 });
 // Delete review
-router.delete('/:id', auth_1.verifyToken, async (req, res) => {
+router.delete('/:id', verifyToken, async (req, res) => {
     try {
         const userId = req.user.userId;
         const isAdmin = ['admin', 'super_admin'].includes(req.user.role);
-        await reviewServicePrisma_1.reviewServicePrisma.deleteReview(req.params.id, userId, isAdmin);
+        await reviewServicePrisma.deleteReview(req.params.id, userId, isAdmin);
         res.json({ success: true, message: 'Review deleted successfully' });
     }
     catch (error) {
@@ -167,11 +162,11 @@ router.delete('/:id', auth_1.verifyToken, async (req, res) => {
     }
 });
 // Get user's reviews
-router.get('/user/me', auth_1.verifyToken, async (req, res) => {
+router.get('/user/me', verifyToken, async (req, res) => {
     try {
         const userId = req.user.userId;
         const { page, limit } = req.query;
-        const result = await reviewServicePrisma_1.reviewServicePrisma.getUserReviews(userId, {
+        const result = await reviewServicePrisma.getUserReviews(userId, {
             page: page ? parseInt(page) : 1,
             limit: limit ? parseInt(limit) : 20,
         });
@@ -186,11 +181,11 @@ router.get('/user/me', auth_1.verifyToken, async (req, res) => {
     }
 });
 // Check if user has reviewed an item
-router.get('/check/:itemType/:itemId', auth_1.verifyToken, async (req, res) => {
+router.get('/check/:itemType/:itemId', verifyToken, async (req, res) => {
     try {
         const userId = req.user.userId;
         const { itemType, itemId } = req.params;
-        const review = await reviewServicePrisma_1.reviewServicePrisma.getUserReviewForItem(userId, itemType === 'product' ? itemId : undefined, itemType === 'service' ? itemId : undefined);
+        const review = await reviewServicePrisma.getUserReviewForItem(userId, itemType === 'product' ? itemId : undefined, itemType === 'service' ? itemId : undefined);
         res.json({
             success: true,
             data: {
@@ -203,4 +198,4 @@ router.get('/check/:itemType/:itemId', auth_1.verifyToken, async (req, res) => {
         res.status(500).json({ success: false, error: error.message });
     }
 });
-exports.default = router;
+export default router;

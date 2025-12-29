@@ -1,12 +1,7 @@
-"use strict";
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-const express_1 = __importDefault(require("express"));
-const categoryServicePrisma_1 = require("../../src/services/categoryServicePrisma");
-const auth_1 = require("../middleware/auth");
-const router = express_1.default.Router();
+import express from 'express';
+import { categoryServicePrisma } from '../../src/services/categoryServicePrisma.js';
+import { verifyToken, verifyAdmin } from '../middleware/auth';
+const router = express.Router();
 // ============================================================================
 // Public Routes
 // ============================================================================
@@ -14,7 +9,7 @@ const router = express_1.default.Router();
 router.get('/', async (req, res) => {
     try {
         const { type, search, page, limit } = req.query;
-        const result = await categoryServicePrisma_1.categoryServicePrisma.getAllCategories({
+        const result = await categoryServicePrisma.getAllCategories({
             type: type,
             search: search,
             page: page ? parseInt(page) : 1,
@@ -33,7 +28,7 @@ router.get('/', async (req, res) => {
 // Get product categories
 router.get('/products', async (req, res) => {
     try {
-        const result = await categoryServicePrisma_1.categoryServicePrisma.getProductCategories();
+        const result = await categoryServicePrisma.getProductCategories();
         res.json({ success: true, data: result.categories });
     }
     catch (error) {
@@ -43,7 +38,7 @@ router.get('/products', async (req, res) => {
 // Get service categories
 router.get('/services', async (req, res) => {
     try {
-        const result = await categoryServicePrisma_1.categoryServicePrisma.getServiceCategories();
+        const result = await categoryServicePrisma.getServiceCategories();
         res.json({ success: true, data: result.categories });
     }
     catch (error) {
@@ -53,7 +48,7 @@ router.get('/services', async (req, res) => {
 // Get category by ID
 router.get('/:id', async (req, res) => {
     try {
-        const category = await categoryServicePrisma_1.categoryServicePrisma.getCategoryById(req.params.id);
+        const category = await categoryServicePrisma.getCategoryById(req.params.id);
         if (!category) {
             return res.status(404).json({ success: false, error: 'Category not found' });
         }
@@ -67,7 +62,7 @@ router.get('/:id', async (req, res) => {
 // Admin Routes
 // ============================================================================
 // Create category
-router.post('/', auth_1.verifyToken, auth_1.verifyAdmin, async (req, res) => {
+router.post('/', verifyToken, verifyAdmin, async (req, res) => {
     try {
         const { name, description, type } = req.body;
         if (!name || !type) {
@@ -76,7 +71,7 @@ router.post('/', auth_1.verifyToken, auth_1.verifyAdmin, async (req, res) => {
                 error: 'Name and type are required',
             });
         }
-        const category = await categoryServicePrisma_1.categoryServicePrisma.createCategory({
+        const category = await categoryServicePrisma.createCategory({
             name,
             description,
             type,
@@ -92,9 +87,9 @@ router.post('/', auth_1.verifyToken, auth_1.verifyAdmin, async (req, res) => {
     }
 });
 // Update category
-router.put('/:id', auth_1.verifyToken, auth_1.verifyAdmin, async (req, res) => {
+router.put('/:id', verifyToken, verifyAdmin, async (req, res) => {
     try {
-        const category = await categoryServicePrisma_1.categoryServicePrisma.updateCategory(req.params.id, req.body);
+        const category = await categoryServicePrisma.updateCategory(req.params.id, req.body);
         res.json({
             success: true,
             message: 'Category updated successfully',
@@ -106,9 +101,9 @@ router.put('/:id', auth_1.verifyToken, auth_1.verifyAdmin, async (req, res) => {
     }
 });
 // Delete category
-router.delete('/:id', auth_1.verifyToken, auth_1.verifyAdmin, async (req, res) => {
+router.delete('/:id', verifyToken, verifyAdmin, async (req, res) => {
     try {
-        await categoryServicePrisma_1.categoryServicePrisma.deleteCategory(req.params.id);
+        await categoryServicePrisma.deleteCategory(req.params.id);
         res.json({ success: true, message: 'Category deleted successfully' });
     }
     catch (error) {
@@ -116,9 +111,9 @@ router.delete('/:id', auth_1.verifyToken, auth_1.verifyAdmin, async (req, res) =
     }
 });
 // Get category stats
-router.get('/stats/overview', auth_1.verifyToken, auth_1.verifyAdmin, async (req, res) => {
+router.get('/stats/overview', verifyToken, verifyAdmin, async (req, res) => {
     try {
-        const stats = await categoryServicePrisma_1.categoryServicePrisma.getCategoryStats();
+        const stats = await categoryServicePrisma.getCategoryStats();
         res.json({ success: true, data: stats });
     }
     catch (error) {
@@ -126,7 +121,7 @@ router.get('/stats/overview', auth_1.verifyToken, auth_1.verifyAdmin, async (req
     }
 });
 // Bulk create categories
-router.post('/bulk', auth_1.verifyToken, auth_1.verifyAdmin, async (req, res) => {
+router.post('/bulk', verifyToken, verifyAdmin, async (req, res) => {
     try {
         const { categories } = req.body;
         if (!Array.isArray(categories)) {
@@ -135,7 +130,7 @@ router.post('/bulk', auth_1.verifyToken, auth_1.verifyAdmin, async (req, res) =>
                 error: 'Categories array is required',
             });
         }
-        const result = await categoryServicePrisma_1.categoryServicePrisma.bulkCreateCategories(categories);
+        const result = await categoryServicePrisma.bulkCreateCategories(categories);
         res.status(201).json({
             success: true,
             message: `Created ${result.created.length} categories`,
@@ -146,4 +141,4 @@ router.post('/bulk', auth_1.verifyToken, auth_1.verifyAdmin, async (req, res) =>
         res.status(500).json({ success: false, error: error.message });
     }
 });
-exports.default = router;
+export default router;

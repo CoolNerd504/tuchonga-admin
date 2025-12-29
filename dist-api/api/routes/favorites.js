@@ -1,21 +1,16 @@
-"use strict";
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-const express_1 = __importDefault(require("express"));
-const favoriteServicePrisma_1 = require("../../src/services/favoriteServicePrisma");
-const auth_1 = require("../middleware/auth");
-const router = express_1.default.Router();
+import express from 'express';
+import { favoriteServicePrisma } from '../../src/services/favoriteServicePrisma.js';
+import { verifyToken, verifyAdmin } from '../middleware/auth';
+const router = express.Router();
 // ============================================================================
 // Protected Routes
 // ============================================================================
 // Get user's favorites
-router.get('/', auth_1.verifyToken, async (req, res) => {
+router.get('/', verifyToken, async (req, res) => {
     try {
         const userId = req.user.userId;
         const { itemType, page, limit } = req.query;
-        const result = await favoriteServicePrisma_1.favoriteServicePrisma.getUserFavorites(userId, {
+        const result = await favoriteServicePrisma.getUserFavorites(userId, {
             itemType: itemType,
             page: page ? parseInt(page) : 1,
             limit: limit ? parseInt(limit) : 20,
@@ -31,10 +26,10 @@ router.get('/', auth_1.verifyToken, async (req, res) => {
     }
 });
 // Check if item is favorited
-router.get('/check/:itemId', auth_1.verifyToken, async (req, res) => {
+router.get('/check/:itemId', verifyToken, async (req, res) => {
     try {
         const userId = req.user.userId;
-        const isFavorited = await favoriteServicePrisma_1.favoriteServicePrisma.isFavorited(userId, req.params.itemId);
+        const isFavorited = await favoriteServicePrisma.isFavorited(userId, req.params.itemId);
         res.json({
             success: true,
             data: { isFavorited },
@@ -45,7 +40,7 @@ router.get('/check/:itemId', auth_1.verifyToken, async (req, res) => {
     }
 });
 // Add to favorites
-router.post('/', auth_1.verifyToken, async (req, res) => {
+router.post('/', verifyToken, async (req, res) => {
     try {
         const userId = req.user.userId;
         const { itemId, itemType } = req.body;
@@ -55,7 +50,7 @@ router.post('/', auth_1.verifyToken, async (req, res) => {
                 error: 'itemId and itemType are required',
             });
         }
-        const favorite = await favoriteServicePrisma_1.favoriteServicePrisma.addFavorite({
+        const favorite = await favoriteServicePrisma.addFavorite({
             userId,
             itemId,
             itemType,
@@ -71,7 +66,7 @@ router.post('/', auth_1.verifyToken, async (req, res) => {
     }
 });
 // Toggle favorite
-router.post('/toggle', auth_1.verifyToken, async (req, res) => {
+router.post('/toggle', verifyToken, async (req, res) => {
     try {
         const userId = req.user.userId;
         const { itemId, itemType } = req.body;
@@ -81,7 +76,7 @@ router.post('/toggle', auth_1.verifyToken, async (req, res) => {
                 error: 'itemId and itemType are required',
             });
         }
-        const result = await favoriteServicePrisma_1.favoriteServicePrisma.toggleFavorite({
+        const result = await favoriteServicePrisma.toggleFavorite({
             userId,
             itemId,
             itemType,
@@ -97,10 +92,10 @@ router.post('/toggle', auth_1.verifyToken, async (req, res) => {
     }
 });
 // Remove from favorites
-router.delete('/:itemId', auth_1.verifyToken, async (req, res) => {
+router.delete('/:itemId', verifyToken, async (req, res) => {
     try {
         const userId = req.user.userId;
-        await favoriteServicePrisma_1.favoriteServicePrisma.removeFavorite(userId, req.params.itemId);
+        await favoriteServicePrisma.removeFavorite(userId, req.params.itemId);
         res.json({ success: true, message: 'Removed from favorites' });
     }
     catch (error) {
@@ -108,11 +103,11 @@ router.delete('/:itemId', auth_1.verifyToken, async (req, res) => {
     }
 });
 // Get favorite count
-router.get('/count', auth_1.verifyToken, async (req, res) => {
+router.get('/count', verifyToken, async (req, res) => {
     try {
         const userId = req.user.userId;
         const { itemType } = req.query;
-        const count = await favoriteServicePrisma_1.favoriteServicePrisma.getFavoriteCount(userId, itemType);
+        const count = await favoriteServicePrisma.getFavoriteCount(userId, itemType);
         res.json({
             success: true,
             data: { count },
@@ -126,10 +121,10 @@ router.get('/count', auth_1.verifyToken, async (req, res) => {
 // Admin Routes
 // ============================================================================
 // Get most favorited products
-router.get('/top/products', auth_1.verifyToken, auth_1.verifyAdmin, async (req, res) => {
+router.get('/top/products', verifyToken, verifyAdmin, async (req, res) => {
     try {
         const { limit } = req.query;
-        const result = await favoriteServicePrisma_1.favoriteServicePrisma.getMostFavoritedProducts(limit ? parseInt(limit) : 10);
+        const result = await favoriteServicePrisma.getMostFavoritedProducts(limit ? parseInt(limit) : 10);
         res.json({ success: true, data: result });
     }
     catch (error) {
@@ -137,10 +132,10 @@ router.get('/top/products', auth_1.verifyToken, auth_1.verifyAdmin, async (req, 
     }
 });
 // Get most favorited services
-router.get('/top/services', auth_1.verifyToken, auth_1.verifyAdmin, async (req, res) => {
+router.get('/top/services', verifyToken, verifyAdmin, async (req, res) => {
     try {
         const { limit } = req.query;
-        const result = await favoriteServicePrisma_1.favoriteServicePrisma.getMostFavoritedServices(limit ? parseInt(limit) : 10);
+        const result = await favoriteServicePrisma.getMostFavoritedServices(limit ? parseInt(limit) : 10);
         res.json({ success: true, data: result });
     }
     catch (error) {
@@ -148,13 +143,13 @@ router.get('/top/services', auth_1.verifyToken, auth_1.verifyAdmin, async (req, 
     }
 });
 // Get favorite count for an item
-router.get('/item/:itemId/count', auth_1.verifyToken, auth_1.verifyAdmin, async (req, res) => {
+router.get('/item/:itemId/count', verifyToken, verifyAdmin, async (req, res) => {
     try {
-        const count = await favoriteServicePrisma_1.favoriteServicePrisma.getItemFavoriteCount(req.params.itemId);
+        const count = await favoriteServicePrisma.getItemFavoriteCount(req.params.itemId);
         res.json({ success: true, data: { count } });
     }
     catch (error) {
         res.status(500).json({ success: false, error: error.message });
     }
 });
-exports.default = router;
+export default router;

@@ -1,8 +1,5 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.commentServicePrisma = void 0;
-const prismaService_1 = require("./prismaService");
-exports.commentServicePrisma = {
+import { prisma } from './prismaService.js';
+export const commentServicePrisma = {
     // ============================================================================
     // CRUD Operations
     // ============================================================================
@@ -11,7 +8,7 @@ exports.commentServicePrisma = {
         // Calculate depth
         let depth = 0;
         if (parentId) {
-            const parent = await prismaService_1.prisma.comment.findUnique({
+            const parent = await prisma.comment.findUnique({
                 where: { id: parentId },
             });
             if (parent) {
@@ -21,7 +18,7 @@ exports.commentServicePrisma = {
         // Determine product/service ID based on itemType
         const productId = itemType === 'PRODUCT' ? itemId : null;
         const serviceId = itemType === 'SERVICE' ? itemId : null;
-        const comment = await prismaService_1.prisma.comment.create({
+        const comment = await prisma.comment.create({
             data: {
                 userId,
                 userName,
@@ -48,7 +45,7 @@ exports.commentServicePrisma = {
         });
         // Update parent reply count
         if (parentId) {
-            await prismaService_1.prisma.comment.update({
+            await prisma.comment.update({
                 where: { id: parentId },
                 data: {
                     replyCount: { increment: 1 },
@@ -60,7 +57,7 @@ exports.commentServicePrisma = {
         return comment;
     },
     async getCommentById(id) {
-        return prismaService_1.prisma.comment.findUnique({
+        return prisma.comment.findUnique({
             where: { id },
             include: {
                 user: {
@@ -95,7 +92,7 @@ exports.commentServicePrisma = {
             where.text = { contains: search, mode: 'insensitive' };
         }
         const [comments, total] = await Promise.all([
-            prismaService_1.prisma.comment.findMany({
+            prisma.comment.findMany({
                 where,
                 include: {
                     user: {
@@ -112,7 +109,7 @@ exports.commentServicePrisma = {
                 skip: (page - 1) * limit,
                 take: limit,
             }),
-            prismaService_1.prisma.comment.count({ where }),
+            prisma.comment.count({ where }),
         ]);
         return {
             comments,
@@ -147,7 +144,7 @@ exports.commentServicePrisma = {
         });
     },
     async updateComment(id, userId, data) {
-        const comment = await prismaService_1.prisma.comment.findUnique({
+        const comment = await prisma.comment.findUnique({
             where: { id },
         });
         if (!comment) {
@@ -156,7 +153,7 @@ exports.commentServicePrisma = {
         if (comment.userId !== userId) {
             throw new Error('Not authorized to update this comment');
         }
-        return prismaService_1.prisma.comment.update({
+        return prisma.comment.update({
             where: { id },
             data: {
                 text: data.text,
@@ -177,7 +174,7 @@ exports.commentServicePrisma = {
         });
     },
     async deleteComment(id, userId, isAdmin = false) {
-        const comment = await prismaService_1.prisma.comment.findUnique({
+        const comment = await prisma.comment.findUnique({
             where: { id },
         });
         if (!comment) {
@@ -187,13 +184,13 @@ exports.commentServicePrisma = {
             throw new Error('Not authorized to delete this comment');
         }
         // Soft delete
-        await prismaService_1.prisma.comment.update({
+        await prisma.comment.update({
             where: { id },
             data: { isDeleted: true },
         });
         // Update parent reply count
         if (comment.parentId) {
-            await prismaService_1.prisma.comment.update({
+            await prisma.comment.update({
                 where: { id: comment.parentId },
                 data: {
                     replyCount: { decrement: 1 },
@@ -207,7 +204,7 @@ exports.commentServicePrisma = {
     // ============================================================================
     async reactToComment(commentId, userId, reactionType) {
         // Check for existing reaction
-        const existingReaction = await prismaService_1.prisma.commentReaction.findUnique({
+        const existingReaction = await prisma.commentReaction.findUnique({
             where: {
                 userId_commentId: {
                     userId,
@@ -222,14 +219,14 @@ exports.commentServicePrisma = {
             }
             // Update reaction type
             const oldType = existingReaction.reactionType;
-            await prismaService_1.prisma.commentReaction.update({
+            await prisma.commentReaction.update({
                 where: { id: existingReaction.id },
                 data: { reactionType },
             });
             // Update comment counts
             const decrementField = oldType === 'AGREE' ? 'agreeCount' : 'disagreeCount';
             const incrementField = reactionType === 'AGREE' ? 'agreeCount' : 'disagreeCount';
-            await prismaService_1.prisma.comment.update({
+            await prisma.comment.update({
                 where: { id: commentId },
                 data: {
                     [decrementField]: { decrement: 1 },
@@ -239,7 +236,7 @@ exports.commentServicePrisma = {
             return { action: 'updated', reactionType };
         }
         // Create new reaction
-        await prismaService_1.prisma.commentReaction.create({
+        await prisma.commentReaction.create({
             data: {
                 commentId,
                 userId,
@@ -248,7 +245,7 @@ exports.commentServicePrisma = {
         });
         // Update comment counts
         const incrementField = reactionType === 'AGREE' ? 'agreeCount' : 'disagreeCount';
-        await prismaService_1.prisma.comment.update({
+        await prisma.comment.update({
             where: { id: commentId },
             data: {
                 [incrementField]: { increment: 1 },
@@ -259,7 +256,7 @@ exports.commentServicePrisma = {
         return { action: 'created', reactionType };
     },
     async removeReaction(commentId, userId) {
-        const reaction = await prismaService_1.prisma.commentReaction.findUnique({
+        const reaction = await prisma.commentReaction.findUnique({
             where: {
                 userId_commentId: {
                     userId,
@@ -270,12 +267,12 @@ exports.commentServicePrisma = {
         if (!reaction) {
             throw new Error('Reaction not found');
         }
-        await prismaService_1.prisma.commentReaction.delete({
+        await prisma.commentReaction.delete({
             where: { id: reaction.id },
         });
         // Update comment counts
         const decrementField = reaction.reactionType === 'AGREE' ? 'agreeCount' : 'disagreeCount';
-        await prismaService_1.prisma.comment.update({
+        await prisma.comment.update({
             where: { id: commentId },
             data: {
                 [decrementField]: { decrement: 1 },
@@ -284,7 +281,7 @@ exports.commentServicePrisma = {
         return { action: 'removed' };
     },
     async getUserReaction(commentId, userId) {
-        return prismaService_1.prisma.commentReaction.findUnique({
+        return prisma.commentReaction.findUnique({
             where: {
                 userId_commentId: {
                     userId,
@@ -297,7 +294,7 @@ exports.commentServicePrisma = {
     // Reporting
     // ============================================================================
     async reportComment(commentId, userId, reason) {
-        await prismaService_1.prisma.comment.update({
+        await prisma.comment.update({
             where: { id: commentId },
             data: { isReported: true },
         });
@@ -310,7 +307,7 @@ exports.commentServicePrisma = {
     // ============================================================================
     async updateUserCommentAnalytics(userId, itemType) {
         const incrementField = itemType === 'PRODUCT' ? { productComments: { increment: 1 } } : { serviceComments: { increment: 1 } };
-        await prismaService_1.prisma.userAnalytics.upsert({
+        await prisma.userAnalytics.upsert({
             where: { userId },
             update: {
                 totalComments: { increment: 1 },
@@ -328,7 +325,7 @@ exports.commentServicePrisma = {
     },
     async updateUserReactionAnalytics(userId, reactionType) {
         const incrementField = reactionType === 'AGREE' ? { totalAgrees: { increment: 1 } } : { totalDisagrees: { increment: 1 } };
-        await prismaService_1.prisma.userAnalytics.upsert({
+        await prisma.userAnalytics.upsert({
             where: { userId },
             update: incrementField,
             create: {
@@ -351,6 +348,6 @@ exports.commentServicePrisma = {
             where.itemType = filters.itemType;
         if (filters?.userId)
             where.userId = filters.userId;
-        return prismaService_1.prisma.comment.count({ where });
+        return prisma.comment.count({ where });
     },
 };

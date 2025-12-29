@@ -1,20 +1,14 @@
-"use strict";
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.mobileUserService = void 0;
-const bcryptjs_1 = __importDefault(require("bcryptjs"));
-const prismaService_1 = require("./prismaService");
-exports.mobileUserService = {
+import bcrypt from 'bcryptjs';
+import { prisma } from './prismaService.js';
+export const mobileUserService = {
     // ============================================================================
     // Authentication
     // ============================================================================
     async hashPassword(password) {
-        return bcryptjs_1.default.hash(password, 10);
+        return bcrypt.hash(password, 10);
     },
     async verifyPassword(password, hashedPassword) {
-        return bcryptjs_1.default.compare(password, hashedPassword);
+        return bcrypt.compare(password, hashedPassword);
     },
     // Register user with email/password
     async registerWithEmail(data) {
@@ -22,14 +16,14 @@ exports.mobileUserService = {
             throw new Error('Email and password are required');
         }
         // Check if email exists
-        const existing = await prismaService_1.prisma.user.findUnique({
+        const existing = await prisma.user.findUnique({
             where: { email: data.email },
         });
         if (existing) {
             throw new Error('Email already registered');
         }
         const hashedPassword = await this.hashPassword(data.password);
-        const user = await prismaService_1.prisma.user.create({
+        const user = await prisma.user.create({
             data: {
                 email: data.email,
                 fullName: data.fullName,
@@ -66,14 +60,14 @@ exports.mobileUserService = {
     // Register user with phone number
     async registerWithPhone(phoneNumber) {
         // Check if phone exists
-        const existing = await prismaService_1.prisma.user.findUnique({
+        const existing = await prisma.user.findUnique({
             where: { phoneNumber },
         });
         if (existing) {
             return existing; // Return existing user for login
         }
         // Create new user
-        const user = await prismaService_1.prisma.user.create({
+        const user = await prisma.user.create({
             data: {
                 phoneNumber,
                 role: 'user',
@@ -98,7 +92,7 @@ exports.mobileUserService = {
     },
     // Login with email
     async loginWithEmail(email, password) {
-        const user = await prismaService_1.prisma.user.findUnique({
+        const user = await prisma.user.findUnique({
             where: { email },
             include: {
                 adminAuth: true,
@@ -118,7 +112,7 @@ exports.mobileUserService = {
             throw new Error('Invalid credentials');
         }
         // Update last login
-        await prismaService_1.prisma.adminAuth.update({
+        await prisma.adminAuth.update({
             where: { userId: user.id },
             data: { lastLoginAt: new Date() },
         });
@@ -137,7 +131,7 @@ exports.mobileUserService = {
     // User Profile
     // ============================================================================
     async getUserById(id) {
-        return prismaService_1.prisma.user.findUnique({
+        return prisma.user.findUnique({
             where: { id },
             select: {
                 id: true,
@@ -156,7 +150,7 @@ exports.mobileUserService = {
         });
     },
     async getUserByEmail(email) {
-        return prismaService_1.prisma.user.findUnique({
+        return prisma.user.findUnique({
             where: { email },
             select: {
                 id: true,
@@ -174,7 +168,7 @@ exports.mobileUserService = {
         });
     },
     async getUserByPhone(phoneNumber) {
-        return prismaService_1.prisma.user.findUnique({
+        return prisma.user.findUnique({
             where: { phoneNumber },
             select: {
                 id: true,
@@ -216,7 +210,7 @@ exports.mobileUserService = {
                 updateData.profileCompletedAt = new Date();
             }
         }
-        return prismaService_1.prisma.user.update({
+        return prisma.user.update({
             where: { id },
             data: updateData,
             select: {
@@ -246,18 +240,18 @@ exports.mobileUserService = {
     // User Analytics
     // ============================================================================
     async getUserAnalytics(userId) {
-        let analytics = await prismaService_1.prisma.userAnalytics.findUnique({
+        let analytics = await prisma.userAnalytics.findUnique({
             where: { userId },
         });
         if (!analytics) {
-            analytics = await prismaService_1.prisma.userAnalytics.create({
+            analytics = await prisma.userAnalytics.create({
                 data: { userId },
             });
         }
         return analytics;
     },
     async updateUserAnalytics(userId, data) {
-        return prismaService_1.prisma.userAnalytics.upsert({
+        return prisma.userAnalytics.upsert({
             where: { userId },
             update: data,
             create: { userId, ...data },
@@ -286,7 +280,7 @@ exports.mobileUserService = {
             ];
         }
         const [users, total] = await Promise.all([
-            prismaService_1.prisma.user.findMany({
+            prisma.user.findMany({
                 where,
                 select: {
                     id: true,
@@ -306,7 +300,7 @@ exports.mobileUserService = {
                 skip: (page - 1) * limit,
                 take: limit,
             }),
-            prismaService_1.prisma.user.count({ where }),
+            prisma.user.count({ where }),
         ]);
         return {
             users,
@@ -326,16 +320,16 @@ exports.mobileUserService = {
         if (filters?.isActive !== undefined) {
             where.isActive = filters.isActive;
         }
-        return prismaService_1.prisma.user.count({ where });
+        return prisma.user.count({ where });
     },
     async deactivateUser(id) {
-        return prismaService_1.prisma.user.update({
+        return prisma.user.update({
             where: { id },
             data: { isActive: false },
         });
     },
     async reactivateUser(id) {
-        return prismaService_1.prisma.user.update({
+        return prisma.user.update({
             where: { id },
             data: { isActive: true },
         });
@@ -345,7 +339,7 @@ exports.mobileUserService = {
         return this.deactivateUser(id);
     },
     async hardDeleteUser(id) {
-        return prismaService_1.prisma.user.delete({
+        return prisma.user.delete({
             where: { id },
         });
     },

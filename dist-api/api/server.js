@@ -1,29 +1,24 @@
-"use strict";
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-const express_1 = __importDefault(require("express"));
-const dotenv_1 = __importDefault(require("dotenv"));
-const path_1 = __importDefault(require("path"));
+import express from 'express';
+import dotenv from 'dotenv';
+import path from 'path';
 // Routes
-const admin_js_1 = __importDefault(require("./routes/admin.js"));
-const auth_js_1 = __importDefault(require("./routes/auth.js"));
-const products_js_1 = __importDefault(require("./routes/products.js"));
-const services_js_1 = __importDefault(require("./routes/services.js"));
-const categories_js_1 = __importDefault(require("./routes/categories.js"));
-const reviews_js_1 = __importDefault(require("./routes/reviews.js"));
-const comments_js_1 = __importDefault(require("./routes/comments.js"));
-const quickRatings_js_1 = __importDefault(require("./routes/quickRatings.js"));
-const favorites_js_1 = __importDefault(require("./routes/favorites.js"));
-const users_js_1 = __importDefault(require("./routes/users.js"));
-const businesses_js_1 = __importDefault(require("./routes/businesses.js"));
-const analytics_js_1 = __importDefault(require("./routes/analytics.js"));
+import adminRoutes from './routes/admin.js';
+import authRoutes from './routes/auth.js';
+import productRoutes from './routes/products.js';
+import serviceRoutes from './routes/services.js';
+import categoryRoutes from './routes/categories.js';
+import reviewRoutes from './routes/reviews.js';
+import commentRoutes from './routes/comments.js';
+import quickRatingRoutes from './routes/quickRatings.js';
+import favoriteRoutes from './routes/favorites.js';
+import userRoutes from './routes/users.js';
+import businessRoutes from './routes/businesses.js';
+import analyticsRoutes from './routes/analytics.js';
 // Get __dirname equivalent for CommonJS
-const __dirname = path_1.default.resolve();
+const __dirname = path.resolve();
 // Load environment variables
-dotenv_1.default.config();
-const app = (0, express_1.default)();
+dotenv.config();
+const app = express();
 const PORT = Number(process.env.PORT) || 3001;
 // Middleware - CORS with environment-aware configuration
 const allowedOrigins = process.env.ALLOWED_ORIGINS
@@ -47,8 +42,8 @@ app.use((req, res, next) => {
         next();
     }
 });
-app.use(express_1.default.json());
-app.use(express_1.default.urlencoded({ extended: true }));
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 // Health check
 app.get('/health', (req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
@@ -75,29 +70,29 @@ app.get('/api', (req, res) => {
     });
 });
 // Mount Routes
-app.use('/api/auth', auth_js_1.default);
-app.use('/api/admin', admin_js_1.default);
-app.use('/api/users', users_js_1.default);
-app.use('/api/products', products_js_1.default);
-app.use('/api/services', services_js_1.default);
-app.use('/api/categories', categories_js_1.default);
-app.use('/api/reviews', reviews_js_1.default);
-app.use('/api/comments', comments_js_1.default);
-app.use('/api/quick-ratings', quickRatings_js_1.default);
-app.use('/api/favorites', favorites_js_1.default);
-app.use('/api/businesses', businesses_js_1.default);
-app.use('/api/analytics', analytics_js_1.default);
+app.use('/api/auth', authRoutes);
+app.use('/api/admin', adminRoutes);
+app.use('/api/users', userRoutes);
+app.use('/api/products', productRoutes);
+app.use('/api/services', serviceRoutes);
+app.use('/api/categories', categoryRoutes);
+app.use('/api/reviews', reviewRoutes);
+app.use('/api/comments', commentRoutes);
+app.use('/api/quick-ratings', quickRatingRoutes);
+app.use('/api/favorites', favoriteRoutes);
+app.use('/api/businesses', businessRoutes);
+app.use('/api/analytics', analyticsRoutes);
 // Serve static files from dist folder in production (frontend)
 if (process.env.NODE_ENV === 'production') {
-    const distPath = path_1.default.join(process.cwd(), 'dist');
-    app.use(express_1.default.static(distPath));
+    const distPath = path.join(process.cwd(), 'dist');
+    app.use(express.static(distPath));
     // Serve index.html for all non-API routes (SPA routing)
     app.get('*', (req, res, next) => {
         // Skip API routes
         if (req.path.startsWith('/api')) {
             return next();
         }
-        res.sendFile(path_1.default.join(distPath, 'index.html'));
+        res.sendFile(path.join(distPath, 'index.html'));
     });
 }
 // Error handling middleware
@@ -123,4 +118,4 @@ process.on('SIGTERM', () => {
         console.log('HTTP server closed');
     });
 });
-exports.default = app;
+export default app;

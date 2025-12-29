@@ -1,8 +1,5 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.productService = void 0;
-const prismaService_1 = require("./prismaService");
-exports.productService = {
+import { prisma } from './prismaService.js';
+export const productService = {
     // Get all products
     async getAll(options) {
         const where = {};
@@ -19,7 +16,7 @@ exports.productService = {
                 },
             };
         }
-        return prismaService_1.prisma.product.findMany({
+        return prisma.product.findMany({
             where,
             include: {
                 categories: {
@@ -45,7 +42,7 @@ exports.productService = {
     },
     // Get product by ID
     async getById(id) {
-        return prismaService_1.prisma.product.findUnique({
+        return prisma.product.findUnique({
             where: { id },
             include: {
                 categories: {
@@ -102,7 +99,7 @@ exports.productService = {
     // Create product
     async create(data) {
         const { categoryIds, ...productData } = data;
-        return prismaService_1.prisma.product.create({
+        return prisma.product.create({
             data: {
                 ...productData,
                 additionalImages: data.additionalImages || [],
@@ -130,12 +127,12 @@ exports.productService = {
         // If categoryIds are provided, update categories
         if (categoryIds !== undefined) {
             // Delete existing categories
-            await prismaService_1.prisma.productCategory.deleteMany({
+            await prisma.productCategory.deleteMany({
                 where: { productId: id },
             });
             // Create new categories
             if (categoryIds.length > 0) {
-                await prismaService_1.prisma.productCategory.createMany({
+                await prisma.productCategory.createMany({
                     data: categoryIds.map((categoryId) => ({
                         productId: id,
                         categoryId,
@@ -143,7 +140,7 @@ exports.productService = {
                 });
             }
         }
-        return prismaService_1.prisma.product.update({
+        return prisma.product.update({
             where: { id },
             data: productData,
             include: {
@@ -158,13 +155,13 @@ exports.productService = {
     },
     // Delete product
     async delete(id) {
-        return prismaService_1.prisma.product.delete({
+        return prisma.product.delete({
             where: { id },
         });
     },
     // Increment view count
     async incrementViews(id) {
-        return prismaService_1.prisma.product.update({
+        return prisma.product.update({
             where: { id },
             data: {
                 totalViews: {
@@ -175,7 +172,7 @@ exports.productService = {
     },
     // Get product statistics
     async getStats(id) {
-        const product = await prismaService_1.prisma.product.findUnique({
+        const product = await prisma.product.findUnique({
             where: { id },
             include: {
                 _count: {
