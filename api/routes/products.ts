@@ -120,7 +120,23 @@ router.post('/', verifyToken, verifyBusinessOrAdmin, async (req, res) => {
       data: product,
     });
   } catch (error: any) {
-    res.status(500).json({ success: false, error: error.message });
+    console.error('Create product error:', error);
+    
+    // Provide more specific error messages
+    let errorMessage = error.message || 'Failed to create product';
+    
+    // Handle Prisma foreign key errors
+    if (error.code === 'P2003') {
+      errorMessage = 'Invalid reference: One or more related records (business or category) do not exist';
+    } else if (error.code === 'P2002') {
+      errorMessage = 'A product with this name already exists';
+    }
+    
+    res.status(500).json({ 
+      success: false, 
+      error: errorMessage,
+      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
   }
 });
 
