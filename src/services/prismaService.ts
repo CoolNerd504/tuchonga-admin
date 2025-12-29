@@ -4,8 +4,8 @@ const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
 };
 
-// Railway provides DATABASE_URL automatically when PostgreSQL is connected
-// But it might also provide it under different names. Check all possibilities:
+// Railway should auto-provide DATABASE_URL when PostgreSQL is connected
+// But if it doesn't, check for alternative variable names
 if (!process.env.DATABASE_URL) {
   const possibleDbUrls = [
     process.env.DATABASE_PUBLIC_URL,
@@ -13,6 +13,7 @@ if (!process.env.DATABASE_URL) {
     process.env.POSTGRES_PRIVATE_URL,
     process.env.POSTGRES_PUBLIC_URL,
     process.env.PGDATABASE_URL,
+    process.env.RAILWAY_DATABASE_URL,
   ].filter(Boolean);
 
   if (possibleDbUrls.length > 0) {

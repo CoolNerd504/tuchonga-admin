@@ -5,18 +5,39 @@ import path from 'path';
 // Load environment variables FIRST, before any other imports that might use them
 dotenv.config();
 
-// Railway automatically provides DATABASE_URL when PostgreSQL is connected
-// It's available in process.env - no manual setup needed!
-// Just make sure your PostgreSQL service is connected to this service in Railway
+// Railway should auto-provide DATABASE_URL when PostgreSQL is connected
+// But if it doesn't, we'll check for alternative variable names
+if (!process.env.DATABASE_URL) {
+  // Check all possible Railway database URL variable names
+  const possibleDbUrls = [
+    process.env.DATABASE_PUBLIC_URL,
+    process.env.POSTGRES_URL,
+    process.env.POSTGRES_PRIVATE_URL,
+    process.env.POSTGRES_PUBLIC_URL,
+    process.env.PGDATABASE_URL,
+    process.env.RAILWAY_DATABASE_URL,
+  ].filter(Boolean);
+
+  if (possibleDbUrls.length > 0) {
+    process.env.DATABASE_URL = possibleDbUrls[0];
+    const varName = Object.keys(process.env).find(key => process.env[key] === possibleDbUrls[0]);
+    console.log(`ℹ️  Using ${varName} as DATABASE_URL`);
+  }
+}
 
 // Log status (without exposing sensitive data)
 if (process.env.DATABASE_URL) {
   const dbUrlPreview = process.env.DATABASE_URL.substring(0, 30) + '...';
   console.log(`✅ DATABASE_URL is configured: ${dbUrlPreview}`);
 } else {
-  console.warn('⚠️  WARNING: DATABASE_URL not found');
-  console.warn('   Railway should auto-provide this when PostgreSQL is connected.');
-  console.warn('   Check Railway Dashboard → Your Service → Variables tab');
+  console.error('❌ ERROR: DATABASE_URL not found!');
+  console.error('   Railway should auto-provide this when PostgreSQL is connected.');
+  console.error('   To fix:');
+  console.error('   1. Go to Railway Dashboard → Your Service → Variables');
+  console.error('   2. Check if PostgreSQL database is connected to this service');
+  console.error('   3. If not connected: Service → Settings → Connect Database');
+  console.error('   4. Or manually add DATABASE_URL variable with your PostgreSQL connection string');
+  // Don't exit - let Prisma handle the error gracefully
 }
 
 // Routes (imported after dotenv.config() so Prisma can access DATABASE_URL)
