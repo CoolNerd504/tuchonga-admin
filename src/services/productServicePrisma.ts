@@ -42,14 +42,29 @@ export const productServicePrisma = {
   async createProduct(data: CreateProductData) {
     const { categoryIds, ...productData } = data;
 
+    // Validate categories exist if provided
+    if (categoryIds && categoryIds.length > 0) {
+      const existingCategories = await prisma.category.findMany({
+        where: { id: { in: categoryIds } },
+        select: { id: true },
+      });
+      
+      const existingIds = existingCategories.map(c => c.id);
+      const missingIds = categoryIds.filter(id => !existingIds.includes(id));
+      
+      if (missingIds.length > 0) {
+        throw new Error(`Categories not found: ${missingIds.join(', ')}`);
+      }
+    }
+
     const product = await prisma.product.create({
       data: {
         ...productData,
         additionalImages: productData.additionalImages || [],
-        categories: categoryIds
+        categories: categoryIds && categoryIds.length > 0
           ? {
               create: categoryIds.map((categoryId) => ({
-                category: { connect: { id: categoryId } },
+                categoryId,
               })),
             }
           : undefined,
