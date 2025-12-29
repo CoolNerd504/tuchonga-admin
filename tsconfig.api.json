@@ -1,7 +1,7 @@
 {
   "compilerOptions": {
     "target": "ES2020",
-    "module": "ESNext",
+    "module": "CommonJS",
     "lib": ["ES2020"],
     "moduleResolution": "node",
     "esModuleInterop": true,
@@ -10,12 +10,16 @@
     "skipLibCheck": true,
     "resolveJsonModule": true,
     "outDir": "./dist-api",
-    "rootDir": "./api",
+    "rootDir": ".",
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./src/*"]
+    },
     "types": ["node"],
     "declaration": false,
     "sourceMap": false
   },
-  "include": ["api/**/*"],
+  "include": ["api/**/*", "src/services/**/*"],
   "exclude": ["node_modules"]
 }
 

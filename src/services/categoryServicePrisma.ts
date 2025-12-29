@@ -234,14 +234,27 @@ export const categoryServicePrisma = {
       failed: [],
     };
 
-    for (const cat of categories) {
-      try {
-        await this.createCategory(cat);
-        results.created.push(cat.name);
-      } catch (error: any) {
-        results.failed.push({ name: cat.name, error: error.message });
+    const promises = categories.map((cat) =>
+      this.createCategory(cat)
+        .then(() => ({ success: true as const, name: cat.name }))
+        .catch((error: any) => ({ success: false as const, name: cat.name, error: error.message }))
+    );
+
+    const settled = await Promise.allSettled(promises);
+
+    settled.forEach((result) => {
+      if (result.status === 'fulfilled') {
+        if (result.value.success) {
+          results.created.push(result.value.name);
+        } else {
+          results.failed.push({ name: result.value.name, error: result.value.error });
+        }
+      } else {
+        // This shouldn't happen since we catch in the promise, but handle it anyway
+        const reason = result.reason as { message?: string } | undefined;
+        results.failed.push({ name: 'unknown', error: reason?.message || 'Unknown error' });
       }
-    }
+    });
 
     return results;
   },
