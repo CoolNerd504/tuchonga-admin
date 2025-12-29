@@ -100,7 +100,8 @@ if (process.env.NODE_ENV === 'production') {
   app.use(express.static(distPath));
   
   // Serve index.html for all non-API routes (SPA routing)
-  app.get('*', (req, res, next) => {
+  // Express 5.x requires named wildcard parameters
+  app.get('/{*splat}', (req, res, next) => {
     // Skip API routes
     if (req.path.startsWith('/api')) {
       return next();
