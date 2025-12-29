@@ -42,18 +42,33 @@ export const productServicePrisma = {
   async createProduct(data: CreateProductData) {
     const { categoryIds, ...productData } = data;
 
+    // Filter out empty/invalid category IDs
+    const validCategoryIds = categoryIds?.filter(id => id && typeof id === 'string' && id.trim() !== '') || [];
+
     // Validate categories exist if provided
-    if (categoryIds && categoryIds.length > 0) {
+    if (validCategoryIds.length > 0) {
       const existingCategories = await prisma.category.findMany({
-        where: { id: { in: categoryIds } },
+        where: { id: { in: validCategoryIds } },
         select: { id: true },
       });
       
       const existingIds = existingCategories.map(c => c.id);
-      const missingIds = categoryIds.filter(id => !existingIds.includes(id));
+      const missingIds = validCategoryIds.filter(id => !existingIds.includes(id));
       
       if (missingIds.length > 0) {
-        throw new Error(`Categories not found: ${missingIds.join(', ')}`);
+        throw new Error(`Categories not found: ${missingIds.join(', ')}. Please ensure categories exist before creating a product.`);
+      }
+    }
+
+    // Validate business exists if provided
+    if (productData.businessId) {
+      const business = await prisma.business.findUnique({
+        where: { id: productData.businessId },
+        select: { id: true },
+      });
+      
+      if (!business) {
+        throw new Error(`Business not found: ${productData.businessId}`);
       }
     }
 
@@ -61,9 +76,9 @@ export const productServicePrisma = {
       data: {
         ...productData,
         additionalImages: productData.additionalImages || [],
-        categories: categoryIds && categoryIds.length > 0
+        categories: validCategoryIds.length > 0
           ? {
-              create: categoryIds.map((categoryId) => ({
+              create: validCategoryIds.map((categoryId) => ({
                 categoryId,
               })),
             }
