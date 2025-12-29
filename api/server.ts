@@ -2,8 +2,20 @@ import express from 'express';
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
+
+// Routes
 import adminRoutes from './routes/admin.js';
 import authRoutes from './routes/auth.js';
+import productRoutes from './routes/products.js';
+import serviceRoutes from './routes/services.js';
+import categoryRoutes from './routes/categories.js';
+import reviewRoutes from './routes/reviews.js';
+import commentRoutes from './routes/comments.js';
+import quickRatingRoutes from './routes/quickRatings.js';
+import favoriteRoutes from './routes/favorites.js';
+import userRoutes from './routes/users.js';
+import businessRoutes from './routes/businesses.js';
+import analyticsRoutes from './routes/analytics.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -29,7 +41,7 @@ app.use((req, res, next) => {
     res.header('Access-Control-Allow-Origin', origin || '*');
   }
   
-  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
   res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
   res.header('Access-Control-Allow-Credentials', 'true');
   
@@ -47,9 +59,41 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// Routes
+// API Info endpoint
+app.get('/api', (req, res) => {
+  res.json({
+    name: 'TuChonga API',
+    version: '1.0.0',
+    endpoints: {
+      auth: '/api/auth',
+      admin: '/api/admin',
+      users: '/api/users',
+      products: '/api/products',
+      services: '/api/services',
+      categories: '/api/categories',
+      reviews: '/api/reviews',
+      comments: '/api/comments',
+      quickRatings: '/api/quick-ratings',
+      favorites: '/api/favorites',
+      businesses: '/api/businesses',
+      analytics: '/api/analytics',
+    },
+  });
+});
+
+// Mount Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/users', userRoutes);
+app.use('/api/products', productRoutes);
+app.use('/api/services', serviceRoutes);
+app.use('/api/categories', categoryRoutes);
+app.use('/api/reviews', reviewRoutes);
+app.use('/api/comments', commentRoutes);
+app.use('/api/quick-ratings', quickRatingRoutes);
+app.use('/api/favorites', favoriteRoutes);
+app.use('/api/businesses', businessRoutes);
+app.use('/api/analytics', analyticsRoutes);
 
 // Serve static files from dist folder in production (frontend)
 if (process.env.NODE_ENV === 'production') {
