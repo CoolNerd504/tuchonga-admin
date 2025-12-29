@@ -1,9 +1,40 @@
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
+    // Product images - allow read/write (admin app controls access via JWT)
+    match /product_thumbnails/{fileName} {
+      allow read, write: if true;
+    }
+    
+    // Product images in products folder
+    match /products/{fileName} {
+      allow read, write: if true;
+    }
+    
+    // Service images
+    match /services/{fileName} {
+      allow read, write: if true;
+    }
+    
+    // Service thumbnails
+    match /service_thumbnails/{fileName} {
+      allow read, write: if true;
+    }
+    
+    // Business images
+    match /businesses/{fileName} {
+      allow read, write: if true;
+    }
+    
+    // User profile images
+    match /user_profiles/{fileName} {
+      allow read, write: if true;
+    }
+    
+    // Default: allow read for all, write requires auth (for other paths)
     match /{allPaths=**} {
-      // Allow read and write access to authenticated users
-      allow read, write: if request.auth != null;
+      allow read: if true;
+      allow write: if request.auth != null;
     }
   }
 } 
