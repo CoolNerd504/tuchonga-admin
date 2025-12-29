@@ -29,7 +29,7 @@ if (!process.env.DATABASE_URL) {
     if (dbRelatedVars.length > 0) {
       dbRelatedVars.forEach(key => {
         const value = process.env[key];
-        const preview = value ? value.substring(0, 30) + '...' : 'undefined';
+        const preview = value ? `${value.substring(0, 30)}...` : 'undefined';
         console.error(`  - ${key}: ${preview}`);
       });
     } else {
