@@ -35,7 +35,9 @@
     "prisma:deploy": "DATABASE_URL=${DATABASE_URL:-${DATABASE_PUBLIC_URL}} prisma migrate deploy || echo 'Warning: Migration skipped - no DATABASE_URL or DATABASE_PUBLIC_URL set'",
     "prisma:deploy:optional": "prisma migrate deploy || echo 'Warning: prisma:deploy skipped - DATABASE_URL not set'",
     "prisma:reset": "prisma migrate reset --force --skip-seed",
-    "db:reset": "ts-node scripts/reset-database.ts"
+    "db:reset": "tsx scripts/reset-database.ts",
+    "db:test": "tsx scripts/test-db-connection.ts",
+    "db:fresh": "tsx scripts/reset-and-migrate.ts"
   },
   "engines": {
     "node": "20.x"
