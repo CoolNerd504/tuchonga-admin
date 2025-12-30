@@ -162,7 +162,7 @@ function useTable() {
  */
 export function ServicesView() {
   // Add this state for categories
-  const [availableCategories, setAvailableCategories] = useState<string[]>([]);
+  const [availableCategories, setAvailableCategories] = useState<Array<{ id: string; name: string }>>([]);
   const [serviceComments, setServiceComments] = useState<ProductOrServiceComment[]>([]);
   const [serviceList, setServiceList] = useState<Service[]>([]);
   const [availableServiceOwners, setAvailableServiceOwners] = useState<string[]>([]);
@@ -486,7 +486,12 @@ export function ServicesView() {
       try {
         const response = await apiGet('/api/categories', { type: 'SERVICE' });
         if (response.success && response.data) {
-          setAvailableCategories(response.data.map((cat: any) => cat.name));
+          // Store both ID and name for categories
+          const categories = response.data.map((cat: any) => ({
+            id: cat.id,
+            name: cat.name,
+          }));
+          setAvailableCategories(categories);
         } else {
           setAvailableCategories([]);
         }
@@ -529,7 +534,7 @@ export function ServicesView() {
   const filteredServices = useMemo(() => serviceList.filter((service: Service) => {
     const matchesSearch = service.service_name.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesCategory = selectedCategoryFilter === 'all' || 
-      (service.category && service.category.includes(selectedCategoryFilter));
+      (service.category && Array.isArray(service.category) && service.category.includes(selectedCategoryFilter));
     return matchesSearch && matchesCategory;
   }), [serviceList, searchTerm, selectedCategoryFilter]);
 
@@ -755,8 +760,8 @@ export function ServicesView() {
                     </Box>
                   </MenuItem>
                   {availableCategories.map((category) => (
-                    <MenuItem key={category} value={category}>
-                      {category}
+                    <MenuItem key={category.id} value={category.id}>
+                      {category.name}
                     </MenuItem>
                   ))}
                 </Select>
@@ -824,7 +829,13 @@ export function ServicesView() {
                   open={categoryMenuOpen}
                   onClose={() => setCategoryMenuOpen(false)}
                   onOpen={() => setCategoryMenuOpen(true)}
-                  renderValue={(selected) => (selected as string[]).join(', ')}
+                  renderValue={(selected) => {
+                    const selectedIds = selected as string[];
+                    const selectedNames = selectedIds
+                      .map((id) => availableCategories.find((cat) => cat.id === id)?.name)
+                      .filter(Boolean);
+                    return selectedNames.join(', ');
+                  }}
                   MenuProps={{
                     PaperProps: {
                       style: { maxHeight: 300 },
@@ -836,7 +847,7 @@ export function ServicesView() {
                   label="Category"
                   required
                 >
-                             <MenuItem onClick={() => setCategoryMenuOpen(false)} sx={{ justifyContent: 'center', fontWeight: 600, color: 'primary.main' }}>
+                  <MenuItem onClick={() => setCategoryMenuOpen(false)} sx={{ justifyContent: 'center', fontWeight: 600, color: 'primary.main' }}>
                     Done
                   </MenuItem>
                   <MenuItem disabled divider />
@@ -844,11 +855,11 @@ export function ServicesView() {
                     <MenuItem disabled>No service categories found</MenuItem>
                   ) : (
                     availableCategories.map((category) => (
-                      <MenuItem key={category} value={category}>
-                        {serviceData.category.includes(category) && (
+                      <MenuItem key={category.id} value={category.id}>
+                        {serviceData.category.includes(category.id) && (
                           <CheckIcon fontSize="small" color="primary" sx={{ mr: 1 }} />
                         )}
-                        {category}
+                        {category.name}
                       </MenuItem>
                     ))
                   )}
@@ -1082,14 +1093,17 @@ export function ServicesView() {
  <TableCell>{service.service_name}</TableCell>
                     <TableCell>
                       <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                        {service.category?.map((cat, index) => (
-                          <Chip
-                            key={`${cat}-${index}`} // Add a unique key
-                            label={cat}
-                            size="small"
-                            variant="outlined" // Optional: style the chip
-                          />
-                        ))}
+                        {service.category?.map((catId, index) => {
+                          const category = availableCategories.find((c) => c.id === catId);
+                          return (
+                            <Chip
+                              key={`${catId}-${index}`}
+                              label={category?.name || catId}
+                              size="small"
+                              variant="outlined"
+                            />
+                          );
+                        })}
                       </Box>
                     </TableCell>
                     <TableCell>
