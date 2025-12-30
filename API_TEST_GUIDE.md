@@ -818,11 +818,11 @@ Content-Type: application/json
 **Form Fields:**
 - `service_name` (required) → Maps to `serviceName`
 - `description` (optional) → Maps to `description`
-- `category` (required, array) → Maps to `categoryIds` ⚠️ **ISSUE: Still using names, should use IDs**
+- `category` (required, array of IDs) → Maps to `categoryIds` ✅ **FIXED: Now uses IDs**
 - `service_owner` (optional) → Maps to `businessId` and `serviceOwner`
 - `serviceThumbnailFile` (optional) → Uploaded to Firebase, URL maps to `mainImage`
 
-**⚠️ ISSUE FOUND:** Services form still uses category **names** instead of **IDs**. Needs to be fixed similar to products.
+**⚠️ IMPORTANT:** Categories must be **IDs**, not names. Form was fixed to use IDs.
 
 **Request:**
 ```http
@@ -1072,7 +1072,7 @@ Follow this order to test all endpoints:
 
 7. **Service Management** (Depends on categories, optionally businesses)
    - Get all services
-   - Create service (with category IDs) ⚠️ **Fix needed: Use IDs not names**
+   - Create service (with category IDs) ✅ **Fixed: Now uses IDs**
    - Update service
    - Delete service
 
@@ -1090,7 +1090,7 @@ Follow this order to test all endpoints:
 
 ## Known Issues
 
-1. **Services Form Category Selection:** Still uses category names instead of IDs. Needs fix similar to products form.
+1. ✅ **Services Form Category Selection:** Fixed - Now uses category IDs instead of names (aligned with products form).
 2. **Staff Form:** Sends `fullName` but correctly combines `firstname` and `lastname` - this is fine as endpoint accepts both.
 
 ---
