@@ -1388,5 +1388,99 @@ The comment system allows users to comment on products and services with full su
 
 ---
 
+## ❤️ Favorites Tracking
+
+The favorites tracking endpoint allows users to see all their favorited products and services with sentiment trend analysis showing whether sentiment is improving, declining, or stable over time.
+
+**See:** [FAVORITES_TRACKING_ENDPOINT.md](./FAVORITES_TRACKING_ENDPOINT.md) for complete documentation.
+
+### Get Favorites with Tracking
+
+**Endpoint:** `GET /api/favorites/tracking`
+
+**Description:** Get all user's favorites with sentiment tracking data showing trends over time.
+
+**Authentication:** Required (JWT token)
+
+**Query Parameters:**
+- `itemType` (string, optional) - Filter by `PRODUCT` or `SERVICE`
+- `page` (number, optional) - Page number (default: `1`)
+- `limit` (number, optional) - Items per page (default: `100`)
+
+**Success Response (200):**
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": "favorite-id",
+      "itemId": "product-id",
+      "itemType": "PRODUCT",
+      "favoritedAt": "2024-01-01T12:00:00.000Z",
+      "daysSinceFavorited": 30,
+      "item": {
+        "id": "product-id",
+        "productName": "Product Name",
+        "mainImage": "https://...",
+        "quickRatingAvg": 3.8,
+        "totalReviews": 100
+      },
+      "sentiment": {
+        "current": {
+          "score": 75,
+          "positive": 60,
+          "neutral": 20,
+          "negative": 20,
+          "total": 100,
+          "averageRating": 3.8,
+          "totalRatings": 150
+        },
+        "recent": {
+          "score": 80,
+          "total": 25
+        },
+        "older": {
+          "score": 70,
+          "total": 75
+        },
+        "trend": "improving",
+        "trendDifference": 10
+      }
+    }
+  ],
+  "meta": {
+    "total": 50,
+    "page": 1,
+    "limit": 100,
+    "totalPages": 1
+  }
+}
+```
+
+**Key Features:**
+- ✅ Sentiment score (0-100 scale)
+- ✅ Trend analysis (improving/declining/stable)
+- ✅ Recent vs older review comparison (30-day window)
+- ✅ Days since favorited
+- ✅ Complete product/service details
+
+**Usage Example:**
+```typescript
+const fetchFavoritesTracking = async () => {
+  const token = await SecureStore.getItemAsync('authToken');
+  
+  const response = await fetch(`${API_BASE_URL}/favorites/tracking`, {
+    headers: {
+      'Authorization': `Bearer ${token}`,
+    },
+  });
+  
+  const data = await response.json();
+  return data.data;
+};
+```
+
+---
+
 **Last Updated:** 2024-12-29
 

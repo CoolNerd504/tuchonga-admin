@@ -292,6 +292,223 @@ export const favoriteServicePrisma = {
       favoriteCount: f._count,
     }));
   },
+
+  // ============================================================================
+  // Tracking with Sentiment Trends
+  // ============================================================================
+
+  async getUserFavoritesWithTracking(userId: string, filters: FavoriteFilters = {}) {
+    const { itemType, page = 1, limit = 100 } = filters; // Higher limit for tracking
+
+    const where: Prisma.FavoriteWhereInput = { userId };
+    if (itemType) where.itemType = itemType;
+
+    const favorites = await prisma.favorite.findMany({
+      where,
+      include: {
+        product: {
+          select: {
+            id: true,
+            productName: true,
+            description: true,
+            mainImage: true,
+            productOwner: true,
+            quickRatingAvg: true,
+            quickRatingTotal: true,
+            totalReviews: true,
+            positiveReviews: true,
+            neutralReviews: true,
+            negativeReviews: true,
+            categories: {
+              include: {
+                category: true,
+              },
+            },
+          },
+        },
+        service: {
+          select: {
+            id: true,
+            serviceName: true,
+            description: true,
+            mainImage: true,
+            serviceOwner: true,
+            quickRatingAvg: true,
+            quickRatingTotal: true,
+            totalReviews: true,
+            positiveReviews: true,
+            neutralReviews: true,
+            negativeReviews: true,
+            categories: {
+              include: {
+                category: true,
+              },
+            },
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+      skip: (page - 1) * limit,
+      take: limit,
+    });
+
+    // Import services for sentiment calculation
+    const { reviewServicePrisma } = await import('./reviewServicePrisma.js');
+    const { quickRatingServicePrisma } = await import('./quickRatingServicePrisma.js');
+
+    // Process each favorite to add sentiment tracking
+    const favoritesWithTracking = await Promise.all(
+      favorites.map(async (favorite) => {
+        const item = favorite.itemType === 'PRODUCT' ? favorite.product : favorite.service;
+        if (!item) return null;
+
+        const itemId = item.id;
+
+        // Get current sentiment stats
+        const reviewStats = await reviewServicePrisma.getReviewStats(
+          favorite.itemType === 'PRODUCT' ? itemId : undefined,
+          favorite.itemType === 'SERVICE' ? itemId : undefined
+        );
+
+        // Get quick rating stats
+        const quickRatingStats = favorite.itemType === 'PRODUCT'
+          ? await quickRatingServicePrisma.getProductRatingStats(itemId)
+          : await quickRatingServicePrisma.getServiceRatingStats(itemId);
+
+        // Calculate current sentiment score (0-100, higher is better)
+        const totalReviews = reviewStats.total || 0;
+        const positiveCount = reviewStats.positive || 0;
+        const neutralCount = reviewStats.neutral || 0;
+        const negativeCount = reviewStats.negative || 0;
+
+        // Sentiment score: (positive * 2 + neutral) / (total * 2) * 100
+        // This gives positive reviews more weight
+        const currentSentimentScore = totalReviews > 0
+          ? Math.round(((positiveCount * 2 + neutralCount) / (totalReviews * 2)) * 100)
+          : 0;
+
+        // Calculate sentiment from quick ratings (1-5 scale, convert to 0-100)
+        const quickRatingScore = quickRatingStats.average > 0
+          ? Math.round(((quickRatingStats.average - 1) / 4) * 100)
+          : 0;
+
+        // Use quick rating if available, otherwise use review sentiment
+        const overallSentimentScore = quickRatingStats.total > 0
+          ? quickRatingScore
+          : currentSentimentScore;
+
+        // Get reviews from the last 30 days vs older reviews to calculate trend
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+        const recentReviews = await prisma.review.findMany({
+          where: {
+            ...(favorite.itemType === 'PRODUCT' ? { productId: itemId } : { serviceId: itemId }),
+            createdAt: { gte: thirtyDaysAgo },
+          },
+        });
+
+        const olderReviews = await prisma.review.findMany({
+          where: {
+            ...(favorite.itemType === 'PRODUCT' ? { productId: itemId } : { serviceId: itemId }),
+            createdAt: { lt: thirtyDaysAgo },
+          },
+        });
+
+        // Calculate recent sentiment score
+        const recentPositive = recentReviews.filter(
+          (r) => r.sentiment === 'WOULD_RECOMMEND' || r.sentiment === 'ITS_GOOD'
+        ).length;
+        const recentNeutral = recentReviews.filter((r) => r.sentiment === 'DONT_MIND_IT').length;
+        const recentNegative = recentReviews.filter((r) => r.sentiment === 'ITS_BAD').length;
+        const recentTotal = recentReviews.length;
+
+        const recentSentimentScore = recentTotal > 0
+          ? Math.round(((recentPositive * 2 + recentNeutral) / (recentTotal * 2)) * 100)
+          : overallSentimentScore;
+
+        // Calculate older sentiment score
+        const olderPositive = olderReviews.filter(
+          (r) => r.sentiment === 'WOULD_RECOMMEND' || r.sentiment === 'ITS_GOOD'
+        ).length;
+        const olderNeutral = olderReviews.filter((r) => r.sentiment === 'DONT_MIND_IT').length;
+        const olderNegative = olderReviews.filter((r) => r.sentiment === 'ITS_BAD').length;
+        const olderTotal = olderReviews.length;
+
+        const olderSentimentScore = olderTotal > 0
+          ? Math.round(((olderPositive * 2 + olderNeutral) / (olderTotal * 2)) * 100)
+          : overallSentimentScore;
+
+        // Determine trend
+        let trend: 'improving' | 'declining' | 'stable' = 'stable';
+        const trendDifference = recentSentimentScore - olderSentimentScore;
+
+        if (Math.abs(trendDifference) < 5) {
+          trend = 'stable';
+        } else if (trendDifference > 0) {
+          trend = 'improving';
+        } else {
+          trend = 'declining';
+        }
+
+        // Calculate days since favorited
+        const daysSinceFavorited = Math.floor(
+          (new Date().getTime() - favorite.createdAt.getTime()) / (1000 * 60 * 60 * 24)
+        );
+
+        return {
+          id: favorite.id,
+          itemId: favorite.itemId,
+          itemType: favorite.itemType,
+          favoritedAt: favorite.createdAt,
+          daysSinceFavorited,
+          item: {
+            ...item,
+            name: favorite.itemType === 'PRODUCT' 
+              ? (item as any).productName 
+              : (item as any).serviceName,
+          },
+          sentiment: {
+            current: {
+              score: overallSentimentScore,
+              positive: positiveCount,
+              neutral: neutralCount,
+              negative: negativeCount,
+              total: totalReviews,
+              averageRating: quickRatingStats.average || 0,
+              totalRatings: quickRatingStats.total || 0,
+            },
+            recent: {
+              score: recentSentimentScore,
+              total: recentTotal,
+            },
+            older: {
+              score: olderSentimentScore,
+              total: olderTotal,
+            },
+            trend,
+            trendDifference: Math.abs(trendDifference),
+          },
+        };
+      })
+    );
+
+    // Filter out nulls
+    const validFavorites = favoritesWithTracking.filter((f) => f !== null);
+
+    // Get total count
+    const total = await prisma.favorite.count({ where });
+
+    return {
+      favorites: validFavorites,
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
+  },
 };
 
 

@@ -75,6 +75,7 @@ import favoriteRoutes from './routes/favorites.js';
 import userRoutes from './routes/users.js';
 import businessRoutes from './routes/businesses.js';
 import analyticsRoutes from './routes/analytics.js';
+import activityFeedRoutes from './routes/activityFeed.js';
 
 // Get __dirname equivalent for CommonJS
 const __dirname = path.resolve();
@@ -156,6 +157,7 @@ app.get('/api', (req, res) => {
       favorites: '/api/favorites',
       businesses: '/api/businesses',
       analytics: '/api/analytics',
+      activityFeed: '/api/activity-feed',
     },
   });
 });
@@ -173,6 +175,7 @@ app.use('/api/quick-ratings', quickRatingRoutes);
 app.use('/api/favorites', favoriteRoutes);
 app.use('/api/businesses', businessRoutes);
 app.use('/api/analytics', analyticsRoutes);
+app.use('/api/activity-feed', activityFeedRoutes);
 
 // Serve static files from dist folder in production (frontend)
 if (process.env.NODE_ENV === 'production') {

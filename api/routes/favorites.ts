@@ -133,6 +133,29 @@ router.get('/count', verifyToken, async (req, res) => {
   }
 });
 
+// Get user's favorites with sentiment tracking
+router.get('/tracking', verifyToken, async (req, res) => {
+  try {
+    const userId = (req as any).user.userId;
+    const { itemType, page, limit } = req.query;
+
+    const result = await favoriteServicePrisma.getUserFavoritesWithTracking(userId, {
+      itemType: itemType as any,
+      page: page ? parseInt(page as string) : 1,
+      limit: limit ? parseInt(limit as string) : 100,
+    });
+
+    res.json({
+      success: true,
+      data: result.favorites,
+      meta: result.meta,
+    });
+  } catch (error: any) {
+    console.error('Get favorites tracking error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // ============================================================================
 // Admin Routes
 // ============================================================================
