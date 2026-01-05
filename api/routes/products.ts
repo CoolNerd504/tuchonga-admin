@@ -176,30 +176,51 @@ router.get('/:id', optionalAuth, async (req, res) => {
     }
 
     // 3. Review Stats (sentiment distribution)
+    // Priority 1: Calculate from actual reviews array (individual votes)
+    const allReviewsResult = await reviewServicePrisma.getProductReviews(product.id, {
+      page: 1,
+      limit: 1000, // Get all reviews for accurate breakdown
+    });
+    const allReviews = allReviewsResult.reviews || [];
+
+    // Calculate sentiment breakdown from actual reviews array
+    const sentimentBreakdown = {
+      "Would recommend": allReviews.filter((r: any) => r.sentiment === 'WOULD_RECOMMEND').length,
+      "Its Good": allReviews.filter((r: any) => r.sentiment === 'ITS_GOOD').length,
+      "Dont mind it": allReviews.filter((r: any) => r.sentiment === 'DONT_MIND_IT').length,
+      "It's bad": allReviews.filter((r: any) => r.sentiment === 'ITS_BAD').length,
+    };
+
+    // Calculate aggregated sentiment counts
+    const positiveCount = sentimentBreakdown["Would recommend"] + sentimentBreakdown["Its Good"];
+    const neutralCount = sentimentBreakdown["Dont mind it"];
+    const negativeCount = sentimentBreakdown["It's bad"];
+
+    // Priority 2: Fallback to reviewStats distribution if reviews array is empty
     const reviewStats = await reviewServicePrisma.getReviewStats(product.id, undefined);
-    
-    // Map sentiment enum to display strings
     const sentimentDistribution: Record<string, number> = {
-      "Would recommend": reviewStats.distribution?.WOULD_RECOMMEND || 0,
-      "Its Good": reviewStats.distribution?.ITS_GOOD || 0,
-      "Dont mind it": reviewStats.distribution?.DONT_MIND_IT || 0,
-      "It's bad": reviewStats.distribution?.ITS_BAD || 0,
+      "Would recommend": sentimentBreakdown["Would recommend"] || reviewStats.distribution?.WOULD_RECOMMEND || 0,
+      "Its Good": sentimentBreakdown["Its Good"] || reviewStats.distribution?.ITS_GOOD || 0,
+      "Dont mind it": sentimentBreakdown["Dont mind it"] || reviewStats.distribution?.DONT_MIND_IT || 0,
+      "It's bad": sentimentBreakdown["It's bad"] || reviewStats.distribution?.ITS_BAD || 0,
     };
 
     response.reviewStats = {
-      totalReviews: product.totalReviews || 0,
+      totalReviews: allReviews.length || product.totalReviews || 0,
       totalSentimentReviews: reviewStats.total || 0,
-      positiveReviews: product.positiveReviews || 0,
-      neutralReviews: product.neutralReviews || 0,
-      negativeReviews: product.negativeReviews || 0,
+      positiveReviews: positiveCount || product.positiveReviews || 0,
+      neutralReviews: neutralCount || product.neutralReviews || 0,
+      negativeReviews: negativeCount || product.negativeReviews || 0,
       sentimentDistribution,
+      sentimentBreakdown, // Individual vote breakdown
     };
     response.sentimentDistribution = sentimentDistribution;
-    response.totalSentimentReviews = reviewStats.total || 0;
-    response.positive_reviews = product.positiveReviews || 0;
-    response.neutral_reviews = product.neutralReviews || 0;
-    response.negative_reviews = product.negativeReviews || 0;
-    response.total_reviews = product.totalReviews || 0;
+    response.sentimentBreakdown = sentimentBreakdown; // For bar graph display
+    response.totalSentimentReviews = allReviews.length || reviewStats.total || 0;
+    response.positive_reviews = positiveCount || product.positiveReviews || 0;
+    response.neutral_reviews = neutralCount || product.neutralReviews || 0;
+    response.negative_reviews = negativeCount || product.negativeReviews || 0;
+    response.total_reviews = allReviews.length || product.totalReviews || 0;
 
     // 4. User's Review Status
     if (user && user.userId) {
@@ -339,18 +360,15 @@ router.get('/:id', optionalAuth, async (req, res) => {
       };
     }
 
-    // 7. Reviews (if requested)
-    if (includeReviews === 'true') {
-      const reviewsResult = await reviewServicePrisma.getProductReviews(product.id, {
-        page: 1,
-        limit: 10,
-      });
-      response.reviews = {
-        items: reviewsResult.reviews,
-        total: reviewsResult.meta.total,
-        hasMore: reviewsResult.meta.page < reviewsResult.meta.totalPages,
-      };
-    }
+    // 7. Reviews (always include for sentiment breakdown calculation)
+    // Use the already fetched allReviews, return first 10 for display
+    response.reviews = {
+      items: allReviews.slice(0, 10), // Return first 10 for display
+      total: allReviewsResult.meta.total || allReviews.length,
+      hasMore: allReviews.length > 10,
+      // Include all reviews if explicitly requested (for complete breakdown calculation on client)
+      allReviews: includeReviews === 'true' ? allReviews : undefined,
+    };
 
     res.json({ success: true, data: response });
   } catch (error: any) {

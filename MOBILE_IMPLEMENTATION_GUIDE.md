@@ -1482,5 +1482,27 @@ const fetchFavoritesTracking = async () => {
 
 ---
 
-**Last Updated:** 2024-12-29
+## 📚 Additional Documentation
+
+### Related Guides
+
+- **[Sentiment Breakdown Guide](./SENTIMENT_BREAKDOWN_GUIDE.md)**: Complete guide for displaying review sentiment breakdown in bar graphs
+  - Individual vote counting from reviews array
+  - Bar graph implementation examples
+  - Sentiment categorization (Positive/Neutral/Negative)
+  - React Native code examples
+
+- **[Product Details Endpoint](./PRODUCT_DETAILS_ENDPOINT.md)**: Comprehensive product details endpoint documentation
+
+- **[Activity Feed Guide](./ACTIVITY_FEED_GUIDE.md)**: Home page activity feed implementation
+
+- **[Favorites Tracking](./FAVORITES_TRACKING_ENDPOINT.md)**: User favorites with sentiment tracking
+
+- **[Comment System Guide](./COMMENT_SYSTEM_GUIDE.md)**: Nested comments and reactions
+
+- **[Quick Rating Guide](./QUICK_RATING_IMPLEMENTATION_GUIDE.md)**: Emoji-based quick rating system
+
+---
+
+**Last Updated:** 2025-01-05
 
