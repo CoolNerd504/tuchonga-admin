@@ -121,5 +121,79 @@ router.get('/verify', async (req, res) => {
   }
 });
 
+// Exchange Firebase token for JWT token
+// This endpoint is called when a user signs up on Firebase
+// It creates the user in the database if they don't exist and returns a JWT token
+router.post('/firebase-token', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.replace('Bearer ', '');
+    
+    if (!token) {
+      return res.status(401).json({
+        success: false,
+        error: 'Firebase token required',
+      });
+    }
+
+    // Import Firebase Admin service
+    const { verifyFirebaseToken, getOrCreateUserFromFirebase } = await import('../../src/services/firebaseAdminService.js');
+    const { generateToken } = await import('../middleware/auth.js');
+
+    // Verify Firebase token
+    let firebaseUser;
+    try {
+      firebaseUser = await verifyFirebaseToken(token);
+    } catch (error: any) {
+      return res.status(401).json({
+        success: false,
+        error: error.message || 'Invalid Firebase token',
+        code: 'INVALID_FIREBASE_TOKEN',
+      });
+    }
+    
+    // Get or create user in database
+    const user = await getOrCreateUserFromFirebase(firebaseUser);
+
+    if (!user.isActive) {
+      return res.status(403).json({
+        success: false,
+        error: 'Account is deactivated',
+        code: 'ACCOUNT_DEACTIVATED',
+      });
+    }
+
+    // Generate JWT token
+    const jwtToken = generateToken({
+      id: user.id,
+      email: user.email,
+      role: user.role,
+    });
+
+    // Return JWT token and user data
+    res.json({
+      success: true,
+      token: jwtToken,
+      data: {
+        id: user.id,
+        email: user.email,
+        phoneNumber: user.phoneNumber,
+        fullName: user.fullName,
+        displayName: user.displayName,
+        profileImage: user.profileImage,
+        hasCompletedProfile: user.hasCompletedProfile,
+        role: user.role,
+        createdAt: user.createdAt,
+        updatedAt: user.updatedAt,
+      },
+    });
+  } catch (error: any) {
+    console.error('Firebase token exchange error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Internal server error',
+    });
+  }
+});
+
 export default router;
 
