@@ -54,6 +54,8 @@ model User {
   userAnalytics        UserAnalytics?
   staffProfile         Staff?
   adminAuth            AdminAuth?
+  createdProducts      Product[]       @relation("ProductCreator")
+  createdServices      Service[]       @relation("ServiceCreator")
 
   @@index([email])
   @@index([phoneNumber])
@@ -224,11 +226,16 @@ model Product {
   
   // Status
   isActive          Boolean           @default(true)
+  isVerified        Boolean           @default(false)  // Admin verification status
   
   // Business Owner
   businessId        String?
   business          Business?         @relation(fields: [businessId], references: [id], onDelete: SetNull)
   productOwner      String?           // Business name (denormalized for quick access)
+  
+  // Creator
+  createdBy         String?           // User ID who created this product
+  user              User?             @relation("ProductCreator", fields: [createdBy], references: [id], onDelete: SetNull)
   
   // Analytics
   totalViews        Int               @default(0)
@@ -261,6 +268,8 @@ model Product {
   @@index([productName])
   @@index([businessId])
   @@index([isActive])
+  @@index([isVerified])
+  @@index([createdBy])
   @@index([createdAt])
   @@index([totalViews])
   @@index([quickRatingAvg])
@@ -292,11 +301,16 @@ model Service {
   
   // Status
   isActive          Boolean           @default(true)
+  isVerified        Boolean           @default(false)  // Admin verification status
   
   // Business Owner
   businessId        String?
   business          Business?         @relation(fields: [businessId], references: [id], onDelete: SetNull)
   serviceOwner      String?           // Business name (denormalized)
+  
+  // Creator
+  createdBy         String?           // User ID who created this service
+  user              User?             @relation("ServiceCreator", fields: [createdBy], references: [id], onDelete: SetNull)
   
   // Analytics
   totalViews        Int               @default(0)
@@ -329,6 +343,8 @@ model Service {
   @@index([serviceName])
   @@index([businessId])
   @@index([isActive])
+  @@index([isVerified])
+  @@index([createdBy])
   @@index([createdAt])
   @@index([totalViews])
   @@index([quickRatingAvg])

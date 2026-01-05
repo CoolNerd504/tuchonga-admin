@@ -21,6 +21,8 @@ export interface CreateProductData {
   businessId?: string;
   productOwner?: string;
   categoryIds?: string[];
+  isVerified?: boolean;  // Admin can set this, regular users default to false
+  createdBy?: string;   // User ID who created this product
 }
 
 export interface UpdateProductData {
@@ -91,6 +93,7 @@ export const productServicePrisma = {
           },
         },
         business: true,
+        user: true,  // Include creator info
       },
     });
 
@@ -107,6 +110,7 @@ export const productServicePrisma = {
           },
         },
         business: true,
+        user: true,  // Include creator info
         _count: {
           select: {
             reviews: true,
@@ -411,9 +415,17 @@ export const productServicePrisma = {
       mainImage: product.mainImage,
       additionalImages: product.additionalImages,
       isActive: product.isActive,
+      isVerified: product.isVerified ?? false,
       businessId: product.businessId,
       business: product.business,
       productOwner: product.productOwner,
+      createdBy: product.createdBy,
+      creator: product.user ? {
+        id: product.user.id,
+        email: product.user.email,
+        fullName: product.user.fullName,
+        displayName: product.user.displayName,
+      } : null,
       categories: product.categories?.map((pc: any) => pc.category) || [],
       totalViews: product.totalViews,
       totalReviews: product.totalReviews,
@@ -432,6 +444,24 @@ export const productServicePrisma = {
       lastUpdate: product.lastUpdate,
       _count: product._count,
     };
+  },
+
+  // ============================================================================
+  // Verification
+  // ============================================================================
+
+  async verifyProduct(id: string) {
+    return prisma.product.update({
+      where: { id },
+      data: { isVerified: true },
+    });
+  },
+
+  async unverifyProduct(id: string) {
+    return prisma.product.update({
+      where: { id },
+      data: { isVerified: false },
+    });
   },
 };
 

@@ -765,7 +765,7 @@ If you're currently using Firebase Auth:
 
 **Endpoint:** `POST /api/products`
 
-**Description:** Create a new product (any authenticated user can create)
+**Description:** Create a new product (any authenticated user can create). Products created by regular users are **unverified by default** and require admin approval. Products created by business/admin users are verified automatically.
 
 **Authentication:** Required (JWT token)
 
@@ -807,6 +807,14 @@ If you're currently using Firebase Auth:
     "businessId": null,
     "productOwner": null,
     "isActive": true,
+    "isVerified": false,
+    "createdBy": "user-id",
+    "creator": {
+      "id": "user-id",
+      "email": "user@example.com",
+      "fullName": "User Name",
+      "displayName": "Display Name"
+    },
     "categories": [...],
     "createdAt": "2024-01-01T00:00:00.000Z"
   }
@@ -850,7 +858,7 @@ const createProduct = async (productData: {
 
 **Endpoint:** `POST /api/services`
 
-**Description:** Create a new service (any authenticated user can create)
+**Description:** Create a new service (any authenticated user can create). Services created by regular users are **unverified by default** and require admin approval. Services created by business/admin users are verified automatically.
 
 **Authentication:** Required (JWT token)
 
@@ -892,6 +900,14 @@ const createProduct = async (productData: {
     "businessId": null,
     "serviceOwner": null,
     "isActive": true,
+    "isVerified": false,
+    "createdBy": "user-id",
+    "creator": {
+      "id": "user-id",
+      "email": "user@example.com",
+      "fullName": "User Name",
+      "displayName": "Display Name"
+    },
     "categories": [...],
     "createdAt": "2024-01-01T00:00:00.000Z"
   }
@@ -928,6 +944,70 @@ const createService = async (serviceData: {
   return data.data;
 };
 ```
+
+---
+
+## 🔐 Admin Verification Endpoints
+
+### Verify Product
+
+**Endpoint:** `POST /api/products/:id/verify`
+
+**Description:** Admin endpoint to verify a product (admin only)
+
+**Authentication:** Required (JWT token with admin role)
+
+**Success Response (200):**
+```json
+{
+  "success": true,
+  "message": "Product verified successfully",
+  "data": {
+    "id": "product-id",
+    "isVerified": true,
+    ...
+  }
+}
+```
+
+### Unverify Product
+
+**Endpoint:** `POST /api/products/:id/unverify`
+
+**Description:** Admin endpoint to unverify a product (admin only)
+
+**Authentication:** Required (JWT token with admin role)
+
+### Verify Service
+
+**Endpoint:** `POST /api/services/:id/verify`
+
+**Description:** Admin endpoint to verify a service (admin only)
+
+**Authentication:** Required (JWT token with admin role)
+
+### Unverify Service
+
+**Endpoint:** `POST /api/services/:id/unverify`
+
+**Description:** Admin endpoint to unverify a service (admin only)
+
+**Authentication:** Required (JWT token with admin role)
+
+---
+
+## 📋 Verification Status
+
+### For Regular Users:
+- Products/services created by regular users (`role: "user"`) are **unverified by default** (`isVerified: false`)
+- These items require admin approval before being publicly visible
+- The `createdBy` field tracks which user created the item
+- The `creator` object contains user details (id, email, fullName, displayName)
+
+### For Business/Admin Users:
+- Products/services created by business/admin users are **verified automatically** (`isVerified: true`)
+- These items are immediately available publicly
+- Business/admin users can optionally set `isVerified: false` in the request body if needed
 
 ---
 

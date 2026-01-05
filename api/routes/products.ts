@@ -90,6 +90,7 @@ router.get('/search/:query', async (req, res) => {
 // Create product (any authenticated user can create)
 router.post('/', verifyToken, async (req, res) => {
   try {
+    const user = (req as any).user;
     const {
       productName,
       description,
@@ -104,6 +105,12 @@ router.post('/', verifyToken, async (req, res) => {
       return res.status(400).json({ success: false, error: 'Product name is required' });
     }
 
+    // Determine verification status based on user role
+    // Regular users: unverified (default false)
+    // Business/Admin: verified (can set isVerified in request, defaults to true)
+    const isAdminOrBusiness = ['admin', 'super_admin', 'business', 'moderator', 'staff'].includes(user.role);
+    const isVerified = isAdminOrBusiness ? (req.body.isVerified !== undefined ? req.body.isVerified : true) : false;
+
     const product = await productServicePrisma.createProduct({
       productName,
       description,
@@ -112,6 +119,8 @@ router.post('/', verifyToken, async (req, res) => {
       businessId,
       productOwner,
       categoryIds,
+      createdBy: user.id,  // Track who created this
+      isVerified,          // Set verification status
     });
 
     res.status(201).json({
@@ -160,6 +169,34 @@ router.delete('/:id', verifyToken, verifyAdmin, async (req, res) => {
   try {
     await productServicePrisma.deleteProduct(req.params.id);
     res.json({ success: true, message: 'Product deleted successfully' });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Verify product (admin only)
+router.post('/:id/verify', verifyToken, verifyAdmin, async (req, res) => {
+  try {
+    const product = await productServicePrisma.verifyProduct(req.params.id);
+    res.json({
+      success: true,
+      message: 'Product verified successfully',
+      data: product,
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Unverify product (admin only)
+router.post('/:id/unverify', verifyToken, verifyAdmin, async (req, res) => {
+  try {
+    const product = await productServicePrisma.unverifyProduct(req.params.id);
+    res.json({
+      success: true,
+      message: 'Product unverified successfully',
+      data: product,
+    });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });
   }

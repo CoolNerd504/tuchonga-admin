@@ -90,6 +90,7 @@ router.get('/search/:query', async (req, res) => {
 // Create service (any authenticated user can create)
 router.post('/', verifyToken, async (req, res) => {
   try {
+    const user = (req as any).user;
     const {
       serviceName,
       description,
@@ -104,6 +105,12 @@ router.post('/', verifyToken, async (req, res) => {
       return res.status(400).json({ success: false, error: 'Service name is required' });
     }
 
+    // Determine verification status based on user role
+    // Regular users: unverified (default false)
+    // Business/Admin: verified (can set isVerified in request, defaults to true)
+    const isAdminOrBusiness = ['admin', 'super_admin', 'business', 'moderator', 'staff'].includes(user.role);
+    const isVerified = isAdminOrBusiness ? (req.body.isVerified !== undefined ? req.body.isVerified : true) : false;
+
     const service = await serviceServicePrisma.createService({
       serviceName,
       description,
@@ -112,6 +119,8 @@ router.post('/', verifyToken, async (req, res) => {
       businessId,
       serviceOwner,
       categoryIds,
+      createdBy: user.id,  // Track who created this
+      isVerified,          // Set verification status
     });
 
     res.status(201).json({
@@ -144,6 +153,34 @@ router.delete('/:id', verifyToken, verifyAdmin, async (req, res) => {
   try {
     await serviceServicePrisma.deleteService(req.params.id);
     res.json({ success: true, message: 'Service deleted successfully' });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Verify service (admin only)
+router.post('/:id/verify', verifyToken, verifyAdmin, async (req, res) => {
+  try {
+    const service = await serviceServicePrisma.verifyService(req.params.id);
+    res.json({
+      success: true,
+      message: 'Service verified successfully',
+      data: service,
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Unverify service (admin only)
+router.post('/:id/unverify', verifyToken, verifyAdmin, async (req, res) => {
+  try {
+    const service = await serviceServicePrisma.unverifyService(req.params.id);
+    res.json({
+      success: true,
+      message: 'Service unverified successfully',
+      data: service,
+    });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });
   }
