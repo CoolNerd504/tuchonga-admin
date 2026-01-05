@@ -1,6 +1,9 @@
 import express from 'express';
 import { reviewServicePrisma } from '../../src/services/reviewServicePrisma.js';
 import { verifyToken, verifyAdmin, optionalAuth } from '../middleware/auth';
+import { productServicePrisma } from '../../src/services/productServicePrisma.js';
+import { serviceServicePrisma } from '../../src/services/serviceServicePrisma.js';
+import { prisma } from '../../src/services/prismaService.js';
 
 const router = express.Router();
 
@@ -132,7 +135,7 @@ router.post('/', verifyToken, async (req, res) => {
       });
     }
 
-    const review = await reviewServicePrisma.createOrUpdateReview({
+    const result = await reviewServicePrisma.createOrUpdateReview({
       userId,
       productId,
       serviceId,
@@ -143,7 +146,11 @@ router.post('/', verifyToken, async (req, res) => {
     res.status(201).json({
       success: true,
       message: 'Review submitted successfully',
-      data: review,
+      data: {
+        review: result.review,
+        stats: result.stats,
+        reviewCategory: result.reviewCategory, // 'positive', 'neutral', or 'negative'
+      },
     });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });
@@ -156,15 +163,67 @@ router.put('/:id', verifyToken, async (req, res) => {
     const userId = (req as any).user.userId;
     const { sentiment, text } = req.body;
 
+    // Get review before update to check product/service ID
+    const existingReview = await reviewServicePrisma.getReviewById(req.params.id);
+    if (!existingReview) {
+      return res.status(404).json({ success: false, error: 'Review not found' });
+    }
+
     const review = await reviewServicePrisma.updateReview(req.params.id, userId, {
       sentiment,
       text,
     });
 
+    // Get updated stats if sentiment was updated
+    let updatedStats = null;
+    let reviewCategory: 'positive' | 'neutral' | 'negative' | null = null;
+
+    if (sentiment) {
+      // Determine review category
+      if (sentiment === 'WOULD_RECOMMEND' || sentiment === 'ITS_GOOD') {
+        reviewCategory = 'positive';
+      } else if (sentiment === 'DONT_MIND_IT') {
+        reviewCategory = 'neutral';
+      } else {
+        reviewCategory = 'negative';
+      }
+
+      // Update stats and get updated counts
+      if (existingReview.productId) {
+        await productServicePrisma.updateReviewStats(existingReview.productId);
+        const product = await prisma.product.findUnique({
+          where: { id: existingReview.productId },
+          select: {
+            totalReviews: true,
+            positiveReviews: true,
+            neutralReviews: true,
+            negativeReviews: true,
+          },
+        });
+        updatedStats = product;
+      } else if (existingReview.serviceId) {
+        await serviceServicePrisma.updateReviewStats(existingReview.serviceId);
+        const service = await prisma.service.findUnique({
+          where: { id: existingReview.serviceId },
+          select: {
+            totalReviews: true,
+            positiveReviews: true,
+            neutralReviews: true,
+            negativeReviews: true,
+          },
+        });
+        updatedStats = service;
+      }
+    }
+
     res.json({
       success: true,
       message: 'Review updated successfully',
-      data: review,
+      data: {
+        review,
+        ...(updatedStats && { stats: updatedStats }),
+        ...(reviewCategory && { reviewCategory }),
+      },
     });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });

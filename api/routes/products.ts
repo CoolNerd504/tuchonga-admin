@@ -2,6 +2,9 @@ import express from 'express';
 import { productServicePrisma } from '../../src/services/productServicePrisma.js';
 import { verifyToken, verifyAdmin, verifyBusinessOrAdmin, optionalAuth } from '../middleware/auth';
 import { quickRatingServicePrisma } from '../../src/services/quickRatingServicePrisma.js';
+import { reviewServicePrisma } from '../../src/services/reviewServicePrisma.js';
+import { commentServicePrisma } from '../../src/services/commentServicePrisma.js';
+import { prisma } from '../../src/services/prismaService.js';
 
 const router = express.Router();
 
@@ -93,52 +96,263 @@ router.get('/', optionalAuth, async (req, res) => {
   }
 });
 
-// Get product by ID
+// Get product by ID (comprehensive details for mobile app)
 router.get('/:id', optionalAuth, async (req, res) => {
   try {
     const user = (req as any).user;
+    const { 
+      includeComments = 'true', 
+      includeReviews = 'false', 
+      commentsLimit = '20', 
+      commentsPage = '1' 
+    } = req.query;
+    
     const product = await productServicePrisma.getProductById(req.params.id);
 
     if (!product) {
       return res.status(404).json({ success: false, error: 'Product not found' });
     }
 
-    // If user is authenticated, fetch their rating for this product
-    let productWithRating = product;
+    // Build comprehensive response
+    const response: any = {
+      // Basic product info
+      id: product.id,
+      product_name: product.productName,
+      productName: product.productName,
+      description: product.description,
+      mainImage: product.mainImage,
+      additionalImages: product.additionalImages || [],
+      price: null, // Price field not in schema - add if needed
+      category: product.categories?.map((c: any) => c.name) || [],
+      productOwner: product.productOwner,
+      business: product.business,
+      isActive: product.isActive,
+      isVerified: product.isVerified,
+      createdAt: product.createdAt,
+      updatedAt: product.updatedAt,
+    };
+
+    // 1. Quick Rating Stats
+    const quickRatingStats = await quickRatingServicePrisma.getProductRatingStats(product.id);
+    response.quickRatingStats = {
+      totalRatings: quickRatingStats.total,
+      averageRating: quickRatingStats.average,
+      ratingDistribution: quickRatingStats.distribution,
+    };
+    response.averageRating = quickRatingStats.average;
+    response.totalRatings = quickRatingStats.total;
+
+    // 2. User's Quick Rating Status
     if (user && user.userId) {
       const userRating = await quickRatingServicePrisma.getUserRatingForItem(
         user.userId,
         product.id
       );
 
-      productWithRating = {
-        ...product,
-        userRating: userRating ? {
-          hasRated: true,
-          rating: userRating.rating,
-          canUpdate: userRating.canUpdate,
-          hoursUntilUpdate: userRating.hoursUntilUpdate,
-          lastUpdated: userRating.lastUpdated,
-        } : {
-          hasRated: false,
-          rating: null,
-          canUpdate: true,
-          hoursUntilUpdate: 0,
-        },
-      } as any;
+      response.userRating = userRating ? {
+        hasRated: true,
+        rating: userRating.rating,
+        canUpdate: userRating.canUpdate,
+        hoursUntilUpdate: userRating.hoursUntilUpdate,
+        lastUpdated: userRating.lastUpdated,
+        sentiment: userRating.rating === 4 ? "Would recommend" : 
+                   userRating.rating === 3 ? "Its Good" :
+                   userRating.rating === 2 ? "Dont mind it" : "It's bad",
+      } : {
+        hasRated: false,
+        rating: null,
+        canUpdate: true,
+        hoursUntilUpdate: 0,
+        sentiment: null,
+      };
     } else {
-      productWithRating = {
-        ...product,
-        userRating: {
-          hasRated: false,
-          rating: null,
-          canUpdate: true,
-          hoursUntilUpdate: 0,
-        },
-      } as any;
+      response.userRating = {
+        hasRated: false,
+        rating: null,
+        canUpdate: true,
+        hoursUntilUpdate: 0,
+        sentiment: null,
+      };
     }
 
-    res.json({ success: true, data: productWithRating });
+    // 3. Review Stats (sentiment distribution)
+    const reviewStats = await reviewServicePrisma.getReviewStats(product.id, undefined);
+    
+    // Map sentiment enum to display strings
+    const sentimentDistribution: Record<string, number> = {
+      "Would recommend": reviewStats.distribution?.WOULD_RECOMMEND || 0,
+      "Its Good": reviewStats.distribution?.ITS_GOOD || 0,
+      "Dont mind it": reviewStats.distribution?.DONT_MIND_IT || 0,
+      "It's bad": reviewStats.distribution?.ITS_BAD || 0,
+    };
+
+    response.reviewStats = {
+      totalReviews: product.totalReviews || 0,
+      totalSentimentReviews: reviewStats.total || 0,
+      positiveReviews: product.positiveReviews || 0,
+      neutralReviews: product.neutralReviews || 0,
+      negativeReviews: product.negativeReviews || 0,
+      sentimentDistribution,
+    };
+    response.sentimentDistribution = sentimentDistribution;
+    response.totalSentimentReviews = reviewStats.total || 0;
+    response.positive_reviews = product.positiveReviews || 0;
+    response.neutral_reviews = product.neutralReviews || 0;
+    response.negative_reviews = product.negativeReviews || 0;
+    response.total_reviews = product.totalReviews || 0;
+
+    // 4. User's Review Status
+    if (user && user.userId) {
+      const userReview = await reviewServicePrisma.getUserReviewForItem(
+        user.userId,
+        product.id,
+        undefined
+      );
+      response.userReview = userReview ? {
+        hasReviewed: true,
+        review: {
+          id: userReview.id,
+          sentiment: userReview.sentiment,
+          text: userReview.text,
+          createdAt: userReview.createdAt,
+        },
+      } : {
+        hasReviewed: false,
+        review: null,
+      };
+    } else {
+      response.userReview = {
+        hasReviewed: false,
+        review: null,
+      };
+    }
+
+    // 5. Favorite Status
+    if (user && user.userId) {
+      const favorite = await prisma.favorite.findUnique({
+        where: {
+          userId_itemId: {
+            userId: user.userId,
+            itemId: product.id,
+          },
+        },
+      });
+      response.isFavorite = !!favorite;
+    } else {
+      response.isFavorite = false;
+    }
+
+    // 6. Comments (if requested)
+    if (includeComments === 'true') {
+      const commentsResult = await commentServicePrisma.getProductComments(product.id, {
+        page: parseInt(commentsPage as string),
+        limit: parseInt(commentsLimit as string),
+        includeReplies: true,
+      });
+
+      // Add user reactions to comments if authenticated
+      let commentsWithReactions = commentsResult.comments;
+      if (user && user.userId) {
+        // Collect all comment IDs (including nested replies)
+        const getAllCommentIds = (comments: any[]): string[] => {
+          const ids: string[] = [];
+          comments.forEach((comment: any) => {
+            ids.push(comment.id);
+            if (comment.replies && comment.replies.length > 0) {
+              ids.push(...getAllCommentIds(comment.replies));
+            }
+          });
+          return ids;
+        };
+
+        const allCommentIds = getAllCommentIds(commentsResult.comments);
+        const userReactions = await commentServicePrisma.getUserReactionsForComments(
+          user.userId,
+          allCommentIds
+        );
+
+        const reactionMap = new Map(
+          userReactions.map((r: any) => [r.commentId, r])
+        );
+
+        // Recursively add reactions to comments and nested replies
+        const addReactionsToComments = (comments: any[]): any[] => {
+          return comments.map((comment: any) => {
+            const userReaction = reactionMap.get(comment.id);
+            return {
+              ...comment,
+              userReaction: userReaction ? {
+                hasReacted: true,
+                reactionType: userReaction.reactionType,
+              } : {
+                hasReacted: false,
+                reactionType: null,
+              },
+              replies: comment.replies ? addReactionsToComments(comment.replies) : [],
+            };
+          });
+        };
+
+        commentsWithReactions = addReactionsToComments(commentsResult.comments);
+      } else {
+        const addDefaultReactions = (comments: any[]): any[] => {
+          return comments.map((comment: any) => ({
+            ...comment,
+            userReaction: {
+              hasReacted: false,
+              reactionType: null,
+            },
+            replies: comment.replies ? addDefaultReactions(comment.replies) : [],
+          }));
+        };
+        commentsWithReactions = addDefaultReactions(commentsResult.comments);
+      }
+
+      response.comments = {
+        items: commentsWithReactions,
+        total: commentsResult.meta.total,
+        page: commentsResult.meta.page,
+        limit: commentsResult.meta.limit,
+        totalPages: commentsResult.meta.totalPages,
+        hasMore: commentsResult.meta.page < commentsResult.meta.totalPages,
+      };
+
+      // Comment Stats
+      const commentCount = await commentServicePrisma.getCommentCount({
+        itemId: product.id,
+        itemType: 'PRODUCT',
+      });
+      
+      // Calculate reply count
+      const repliesCount = await prisma.comment.count({
+        where: {
+          productId: product.id,
+          parentId: { not: null },
+          isDeleted: false,
+        },
+      });
+
+      response.commentStats = {
+        totalComments: commentCount,
+        totalReplies: repliesCount,
+        averageRepliesPerComment: commentCount > 0 ? Math.round((repliesCount / commentCount) * 10) / 10 : 0,
+      };
+    }
+
+    // 7. Reviews (if requested)
+    if (includeReviews === 'true') {
+      const reviewsResult = await reviewServicePrisma.getProductReviews(product.id, {
+        page: 1,
+        limit: 10,
+      });
+      response.reviews = {
+        items: reviewsResult.reviews,
+        total: reviewsResult.meta.total,
+        hasMore: reviewsResult.meta.page < reviewsResult.meta.totalPages,
+      };
+    }
+
+    res.json({ success: true, data: response });
   } catch (error: any) {
     console.error('Get product error:', error);
     res.status(500).json({ success: false, error: error.message });

@@ -102,14 +102,49 @@ export const reviewServicePrisma = {
       await this.updateUserReviewAnalytics(userId, productId ? 'product' : 'service');
     }
 
-    // Update product/service stats
+    // Update product/service stats and get updated counts
+    let updatedStats;
     if (productId) {
       await productServicePrisma.updateReviewStats(productId);
+      const product = await prisma.product.findUnique({
+        where: { id: productId },
+        select: {
+          totalReviews: true,
+          positiveReviews: true,
+          neutralReviews: true,
+          negativeReviews: true,
+        },
+      });
+      updatedStats = product;
     } else if (serviceId) {
       await serviceServicePrisma.updateReviewStats(serviceId);
+      const service = await prisma.service.findUnique({
+        where: { id: serviceId },
+        select: {
+          totalReviews: true,
+          positiveReviews: true,
+          neutralReviews: true,
+          negativeReviews: true,
+        },
+      });
+      updatedStats = service;
     }
 
-    return review;
+    // Determine review category (positive, neutral, negative)
+    let reviewCategory: 'positive' | 'neutral' | 'negative';
+    if (sentiment === 'WOULD_RECOMMEND' || sentiment === 'ITS_GOOD') {
+      reviewCategory = 'positive';
+    } else if (sentiment === 'DONT_MIND_IT') {
+      reviewCategory = 'neutral';
+    } else {
+      reviewCategory = 'negative';
+    }
+
+    return {
+      review,
+      stats: updatedStats || null,
+      reviewCategory,
+    };
   },
 
   async getReviewById(id: string) {
