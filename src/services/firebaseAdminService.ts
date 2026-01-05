@@ -19,12 +19,16 @@ function initializeFirebaseAdmin() {
     // Try to get service account from environment
     const serviceAccountKey = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
     
-    if (serviceAccountKey) {
+    if (serviceAccountKey && serviceAccountKey.trim()) {
       console.log('🔍 Found FIREBASE_SERVICE_ACCOUNT_KEY, attempting to parse...');
       console.log(`   Key length: ${serviceAccountKey.length} characters`);
       
       try {
         const serviceAccount = JSON.parse(serviceAccountKey);
+        
+        if (!serviceAccount || typeof serviceAccount !== 'object') {
+          throw new Error('Parsed value is not a valid object');
+        }
         console.log('✅ JSON parsed successfully');
         console.log(`   Project ID: ${serviceAccount.project_id || 'MISSING'}`);
         console.log(`   Client Email: ${serviceAccount.client_email || 'MISSING'}`);
@@ -34,9 +38,9 @@ function initializeFirebaseAdmin() {
         if (serviceAccount.private_key) {
           const rawKey = serviceAccountKey;
           const privateKeyMatch = rawKey.match(/"private_key"\s*:\s*"([^"]*)"/);
-          if (privateKeyMatch) {
+          if (privateKeyMatch && privateKeyMatch[1]) {
             const privateKeyInEnv = privateKeyMatch[1];
-            if (privateKeyInEnv.includes('\\n') && !privateKeyInEnv.includes('\\\\n')) {
+            if (privateKeyInEnv && privateKeyInEnv.includes('\\n') && !privateKeyInEnv.includes('\\\\n')) {
               console.error('❌ ERROR: Private key has single backslash \\n instead of double backslash \\\\n');
               console.error('   This will cause JSON parsing to fail!');
               console.error('   Fix: Replace all \\n with \\\\n in the private_key field in .env');
