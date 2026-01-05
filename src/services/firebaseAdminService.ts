@@ -28,7 +28,7 @@ function initializeFirebaseAdmin() {
         console.log('✅ JSON parsed successfully');
         console.log(`   Project ID: ${serviceAccount.project_id || 'MISSING'}`);
         console.log(`   Client Email: ${serviceAccount.client_email || 'MISSING'}`);
-        console.log(`   Private Key: ${serviceAccount.private_key ? 'Present (' + serviceAccount.private_key.length + ' chars)' : 'MISSING'}`);
+        console.log(`   Private Key: ${serviceAccount.private_key ? `Present (${serviceAccount.private_key.length} chars)` : 'MISSING'}`);
         
         // Check for single backslash issue
         if (serviceAccount.private_key) {
