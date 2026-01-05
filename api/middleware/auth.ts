@@ -117,6 +117,13 @@ export const verifyToken = async (
 
         return next();
       } catch (firebaseError: any) {
+        // Log the actual error for debugging
+        console.error('❌ Firebase token verification failed:');
+        console.error('   Error message:', firebaseError.message);
+        console.error('   Error stack:', firebaseError.stack);
+        console.error('   Error name:', firebaseError.name);
+        console.error('   Error code:', firebaseError.code);
+        
         // Both JWT and Firebase failed
         if (jwtError.name === 'TokenExpiredError') {
           return res.status(401).json({
@@ -127,7 +134,9 @@ export const verifyToken = async (
         }
 
         // Check if Firebase Admin SDK is not initialized
-        if (firebaseError.message?.includes('Firebase Admin SDK not initialized')) {
+        if (firebaseError.message?.includes('Firebase Admin SDK not initialized') || 
+            firebaseError.message?.includes('not configured on the server')) {
+          console.error('   ❌ Firebase Admin SDK is not initialized');
           return res.status(500).json({
             success: false,
             error: 'Firebase authentication is not configured on the server. Please contact support.',

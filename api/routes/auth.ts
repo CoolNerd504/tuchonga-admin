@@ -144,8 +144,17 @@ router.post('/firebase-token', async (req, res) => {
     try {
       firebaseUser = await verifyFirebaseToken(token);
     } catch (error: any) {
+      // Log the actual error for debugging
+      console.error('❌ Error in POST /api/auth/firebase-token:');
+      console.error('   Error message:', error.message);
+      console.error('   Error stack:', error.stack);
+      console.error('   Error name:', error.name);
+      console.error('   Error code:', error.code);
+      
       // Check if Firebase Admin SDK is not initialized
-      if (error.message?.includes('Firebase Admin SDK not initialized')) {
+      if (error.message?.includes('Firebase Admin SDK not initialized') || 
+          error.message?.includes('not configured on the server')) {
+        console.error('   ❌ Firebase Admin SDK is not initialized');
         return res.status(500).json({
           success: false,
           error: 'Firebase authentication is not configured on the server. Please contact support.',

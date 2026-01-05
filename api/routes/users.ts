@@ -20,6 +20,9 @@ router.get('/me', verifyToken, async (req, res) => {
 
     res.json({ success: true, data: user });
   } catch (error: any) {
+    console.error('❌ Error in GET /api/users/me:');
+    console.error('   Error message:', error.message);
+    console.error('   Error stack:', error.stack);
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -46,6 +49,9 @@ router.put('/me', verifyToken, async (req, res) => {
       data: user,
     });
   } catch (error: any) {
+    console.error('❌ Error in GET /api/users/me:');
+    console.error('   Error message:', error.message);
+    console.error('   Error stack:', error.stack);
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -78,6 +84,9 @@ router.post('/me/complete-profile', verifyToken, async (req, res) => {
       data: user,
     });
   } catch (error: any) {
+    console.error('❌ Error in GET /api/users/me:');
+    console.error('   Error message:', error.message);
+    console.error('   Error stack:', error.stack);
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -90,6 +99,9 @@ router.get('/me/analytics', verifyToken, async (req, res) => {
 
     res.json({ success: true, data: analytics });
   } catch (error: any) {
+    console.error('❌ Error in GET /api/users/me:');
+    console.error('   Error message:', error.message);
+    console.error('   Error stack:', error.stack);
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -130,6 +142,9 @@ router.get('/', verifyToken, verifyAdmin, async (req, res) => {
       meta: result.meta,
     });
   } catch (error: any) {
+    console.error('❌ Error in GET /api/users/me:');
+    console.error('   Error message:', error.message);
+    console.error('   Error stack:', error.stack);
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -145,6 +160,9 @@ router.get('/:id', verifyToken, verifyAdmin, async (req, res) => {
 
     res.json({ success: true, data: user });
   } catch (error: any) {
+    console.error('❌ Error in GET /api/users/me:');
+    console.error('   Error message:', error.message);
+    console.error('   Error stack:', error.stack);
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -160,6 +178,9 @@ router.put('/:id', verifyToken, verifyAdmin, async (req, res) => {
       data: user,
     });
   } catch (error: any) {
+    console.error('❌ Error in GET /api/users/me:');
+    console.error('   Error message:', error.message);
+    console.error('   Error stack:', error.stack);
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -170,6 +191,9 @@ router.post('/:id/deactivate', verifyToken, verifyAdmin, async (req, res) => {
     await mobileUserService.deactivateUser(req.params.id);
     res.json({ success: true, message: 'User deactivated successfully' });
   } catch (error: any) {
+    console.error('❌ Error in GET /api/users/me:');
+    console.error('   Error message:', error.message);
+    console.error('   Error stack:', error.stack);
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -180,6 +204,9 @@ router.post('/:id/reactivate', verifyToken, verifyAdmin, async (req, res) => {
     await mobileUserService.reactivateUser(req.params.id);
     res.json({ success: true, message: 'User reactivated successfully' });
   } catch (error: any) {
+    console.error('❌ Error in GET /api/users/me:');
+    console.error('   Error message:', error.message);
+    console.error('   Error stack:', error.stack);
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -190,6 +217,9 @@ router.delete('/:id', verifyToken, verifyAdmin, async (req, res) => {
     await mobileUserService.deleteUser(req.params.id);
     res.json({ success: true, message: 'User deleted successfully' });
   } catch (error: any) {
+    console.error('❌ Error in GET /api/users/me:');
+    console.error('   Error message:', error.message);
+    console.error('   Error stack:', error.stack);
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -205,6 +235,9 @@ router.get('/stats/count', verifyToken, verifyAdmin, async (req, res) => {
 
     res.json({ success: true, data: { count } });
   } catch (error: any) {
+    console.error('❌ Error in GET /api/users/me:');
+    console.error('   Error message:', error.message);
+    console.error('   Error stack:', error.stack);
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -215,6 +248,9 @@ router.get('/:id/analytics', verifyToken, verifyAdmin, async (req, res) => {
     const analytics = await mobileUserService.getUserAnalytics(req.params.id);
     res.json({ success: true, data: analytics });
   } catch (error: any) {
+    console.error('❌ Error in GET /api/users/me:');
+    console.error('   Error message:', error.message);
+    console.error('   Error stack:', error.stack);
     res.status(500).json({ success: false, error: error.message });
   }
 });
