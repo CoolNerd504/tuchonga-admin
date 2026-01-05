@@ -288,10 +288,55 @@ export const mobileUserService = {
   },
 
   async completeProfile(id: string, data: UpdateUserData) {
-    return this.updateUser(id, {
-      ...data,
-      hasCompletedProfile: true,
+    // Check if user exists
+    let user = await prisma.user.findUnique({
+      where: { id },
     });
+
+    if (!user) {
+      // Create user if doesn't exist (for Firebase users who haven't been created yet)
+      // This happens when complete-profile is called with Firebase token before firebase-token endpoint
+      user = await prisma.user.create({
+        data: {
+          id,
+          fullName: data.fullName,
+          displayName: data.displayName || data.fullName,
+          profileImage: data.profileImage,
+          location: data.location,
+          phoneNumber: data.phoneNumber,
+          gender: data.gender,
+          email: data.email,
+          role: 'user',
+          hasCompletedProfile: true,
+          isActive: true,
+          userAnalytics: {
+            create: {},
+          },
+        },
+        select: {
+          id: true,
+          email: true,
+          phoneNumber: true,
+          fullName: true,
+          displayName: true,
+          profileImage: true,
+          location: true,
+          gender: true,
+          hasCompletedProfile: true,
+          role: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      });
+    } else {
+      // Update existing user
+      user = await this.updateUser(id, {
+        ...data,
+        hasCompletedProfile: true,
+      });
+    }
+
+    return user;
   },
 
   // ============================================================================

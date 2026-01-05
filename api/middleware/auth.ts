@@ -18,6 +18,7 @@ export interface AuthenticatedRequest extends Request {
 
 /**
  * Verify JWT token and attach user info to request
+ * Also supports Firebase tokens as fallback for mobile app compatibility
  */
 export const verifyToken = async (
   req: Request,
@@ -35,62 +36,104 @@ export const verifyToken = async (
       });
     }
 
-    const decoded = jwt.verify(token, JWT_SECRET) as {
-      userId: string;
-      email: string;
-      role: string;
-    };
+    // Try JWT token first (faster, most common case)
+    try {
+      const decoded = jwt.verify(token, JWT_SECRET) as {
+        userId: string;
+        email: string;
+        role: string;
+      };
 
-    // Get user from database
-    const user = await prisma.user.findUnique({
-      where: { id: decoded.userId },
-      select: {
-        id: true,
-        email: true,
-        role: true,
-        fullName: true,
-        displayName: true,
-        profileImage: true,
-        isActive: true,
-      },
-    });
-
-    if (!user) {
-      return res.status(401).json({
-        success: false,
-        error: 'User not found',
-        code: 'AUTH_INVALID_TOKEN',
+      // Get user from database
+      const user = await prisma.user.findUnique({
+        where: { id: decoded.userId },
+        select: {
+          id: true,
+          email: true,
+          role: true,
+          fullName: true,
+          displayName: true,
+          profileImage: true,
+          isActive: true,
+        },
       });
+
+      if (!user) {
+        return res.status(401).json({
+          success: false,
+          error: 'User not found',
+          code: 'AUTH_INVALID_TOKEN',
+        });
+      }
+
+      if (!user.isActive) {
+        return res.status(403).json({
+          success: false,
+          error: 'Account is deactivated',
+          code: 'AUTH_ACCOUNT_DEACTIVATED',
+        });
+      }
+
+      // Attach user to request
+      (req as AuthenticatedRequest).user = {
+        userId: user.id,
+        email: user.email || '',
+        role: user.role,
+        fullName: user.fullName || undefined,
+        displayName: user.displayName || undefined,
+        profileImage: user.profileImage || undefined,
+      };
+
+      return next();
+    } catch (jwtError: any) {
+      // JWT verification failed, try Firebase token as fallback
+      // This is needed for mobile app compatibility when JWT hasn't been obtained yet
+      try {
+        const { verifyFirebaseToken, getOrCreateUserFromFirebase } = await import('../../src/services/firebaseAdminService.js');
+        
+        // Verify Firebase token
+        const firebaseUser = await verifyFirebaseToken(token);
+        
+        // Get or create user from Firebase
+        const user = await getOrCreateUserFromFirebase(firebaseUser);
+
+        if (!user.isActive) {
+          return res.status(403).json({
+            success: false,
+            error: 'Account is deactivated',
+            code: 'AUTH_ACCOUNT_DEACTIVATED',
+          });
+        }
+
+        // Attach user to request
+        (req as AuthenticatedRequest).user = {
+          userId: user.id,
+          email: user.email || '',
+          role: user.role,
+          fullName: user.fullName || undefined,
+          displayName: user.displayName || undefined,
+          profileImage: user.profileImage || undefined,
+        };
+
+        return next();
+      } catch (firebaseError: any) {
+        // Both JWT and Firebase failed
+        if (jwtError.name === 'TokenExpiredError') {
+          return res.status(401).json({
+            success: false,
+            error: 'Token has expired',
+            code: 'AUTH_TOKEN_EXPIRED',
+          });
+        }
+
+        return res.status(401).json({
+          success: false,
+          error: firebaseError.message || 'Invalid token',
+          code: 'AUTH_INVALID_TOKEN',
+        });
+      }
     }
-
-    if (!user.isActive) {
-      return res.status(403).json({
-        success: false,
-        error: 'Account is deactivated',
-        code: 'AUTH_ACCOUNT_DEACTIVATED',
-      });
-    }
-
-    // Attach user to request
-    (req as AuthenticatedRequest).user = {
-      userId: user.id,
-      email: user.email || '',
-      role: user.role,
-      fullName: user.fullName || undefined,
-      displayName: user.displayName || undefined,
-      profileImage: user.profileImage || undefined,
-    };
-
-    next();
   } catch (error: any) {
-    if (error.name === 'TokenExpiredError') {
-      return res.status(401).json({
-        success: false,
-        error: 'Token has expired',
-        code: 'AUTH_TOKEN_EXPIRED',
-      });
-    }
-
     return res.status(401).json({
       success: false,
       error: 'Invalid token',
