@@ -5,6 +5,133 @@ import { verifyToken, verifyAdmin } from '../middleware/auth';
 const router = express.Router();
 
 // ============================================================================
+// Public Routes (Registration)
+// ============================================================================
+
+// Register new user (no authentication required)
+router.post('/register', async (req, res) => {
+  try {
+    const { email, phoneNumber, password, fullName, displayName, profileImage, location, gender } = req.body;
+
+    // Validate required fields
+    if (!email && !phoneNumber) {
+      return res.status(400).json({
+        success: false,
+        error: 'Email or phone number is required',
+      });
+    }
+
+    let user;
+    
+    // Register with email/password if provided
+    if (email && password) {
+      user = await mobileUserService.registerWithEmail({
+        email,
+        password,
+        fullName,
+        displayName,
+        profileImage,
+        location,
+        gender,
+      });
+    } 
+    // Register with phone number if provided
+    else if (phoneNumber) {
+      user = await mobileUserService.registerWithPhone(phoneNumber);
+      // Update with additional profile data if provided
+      if (fullName || displayName || profileImage || location || gender) {
+        user = await mobileUserService.updateUser(user.id, {
+          fullName,
+          displayName,
+          profileImage,
+          location,
+          gender,
+        });
+      }
+    } else {
+      return res.status(400).json({
+        success: false,
+        error: 'Either email+password or phoneNumber is required',
+      });
+    }
+
+    res.status(201).json({
+      success: true,
+      message: 'User registered successfully',
+      data: user,
+    });
+  } catch (error: any) {
+    console.error('❌ Error in POST /api/users/register:');
+    console.error('   Error message:', error.message);
+    console.error('   Error stack:', error.stack);
+    res.status(400).json({ 
+      success: false, 
+      error: error.message || 'Registration failed' 
+    });
+  }
+});
+
+// Register and complete profile in one step (no authentication required)
+router.post('/register-complete', async (req, res) => {
+  try {
+    const { email, phoneNumber, password, fullName, displayName, profileImage, location, gender } = req.body;
+
+    if (!fullName) {
+      return res.status(400).json({
+        success: false,
+        error: 'Full name is required',
+      });
+    }
+
+    let user;
+    
+    // Register first
+    if (email && password) {
+      user = await mobileUserService.registerWithEmail({
+        email,
+        password,
+        fullName,
+        displayName: displayName || fullName,
+        profileImage,
+        location,
+        gender,
+      });
+    } else if (phoneNumber) {
+      user = await mobileUserService.registerWithPhone(phoneNumber);
+    } else {
+      return res.status(400).json({
+        success: false,
+        error: 'Either email+password or phoneNumber is required',
+      });
+    }
+
+    // Complete profile
+    user = await mobileUserService.completeProfile(user.id, {
+      fullName,
+      displayName: displayName || fullName,
+      profileImage,
+      location,
+      phoneNumber,
+      gender,
+    });
+
+    res.status(201).json({
+      success: true,
+      message: 'User registered and profile completed successfully',
+      data: user,
+    });
+  } catch (error: any) {
+    console.error('❌ Error in POST /api/users/register-complete:');
+    console.error('   Error message:', error.message);
+    console.error('   Error stack:', error.stack);
+    res.status(400).json({ 
+      success: false, 
+      error: error.message || 'Registration failed' 
+    });
+  }
+});
+
+// ============================================================================
 // Protected Routes (User)
 // ============================================================================
 

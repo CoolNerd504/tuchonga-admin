@@ -5,7 +5,66 @@ import jwt from 'jsonwebtoken';
 const router = express.Router();
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
 
-// Login
+// Mobile User Login (for regular users)
+router.post('/mobile-login', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    if (!email || !password) {
+      return res.status(400).json({
+        success: false,
+        error: 'Email and password are required',
+      });
+    }
+
+    const { mobileUserService } = await import('../../src/services/mobileUserService.js');
+    const { generateToken } = await import('../middleware/auth.js');
+
+    // Login user
+    const user = await mobileUserService.loginWithEmail(email, password);
+
+    // Generate JWT token
+    const token = generateToken({
+      id: user.id,
+      email: user.email,
+      role: user.role,
+    });
+
+    res.json({
+      success: true,
+      token,
+      data: user,
+    });
+  } catch (error: any) {
+    console.error('❌ Error in POST /api/auth/mobile-login:');
+    console.error('   Error message:', error.message);
+    console.error('   Error stack:', error.stack);
+    
+    if (error.message === 'Invalid credentials') {
+      return res.status(401).json({
+        success: false,
+        error: 'Invalid email or password',
+        code: 'INVALID_CREDENTIALS',
+      });
+    }
+    
+    if (error.message === 'Account is deactivated') {
+      return res.status(403).json({
+        success: false,
+        error: 'Account is deactivated',
+        code: 'ACCOUNT_DEACTIVATED',
+      });
+    }
+    
+    res.status(401).json({
+      success: false,
+      error: error.message || 'Login failed',
+      code: 'LOGIN_ERROR',
+    });
+  }
+});
+
+// Admin Login (existing)
 router.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body;
