@@ -149,11 +149,21 @@ router.get('/:id', optionalAuth, async (req, res) => {
         service.id
       );
 
+      // Format countdown timer (hours:minutes:seconds)
+      const formatCountdown = (hours: number): string => {
+        if (hours <= 0) return '0h 0m 0s';
+        const h = Math.floor(hours);
+        const m = Math.floor((hours - h) * 60);
+        const s = Math.floor(((hours - h) * 60 - m) * 60);
+        return `${h}h ${m}m ${s}s`;
+      };
+
       response.userRating = userRating ? {
         hasRated: true,
         rating: userRating.rating,
         canUpdate: userRating.canUpdate,
         hoursUntilUpdate: userRating.hoursUntilUpdate,
+        countdownTimer: formatCountdown(userRating.hoursUntilUpdate), // Formatted as "16h 17m 43s"
         lastUpdated: userRating.lastUpdated,
         sentiment: userRating.rating === 4 ? "Would recommend" : 
                    userRating.rating === 3 ? "Its Good" :
@@ -171,6 +181,7 @@ router.get('/:id', optionalAuth, async (req, res) => {
         rating: null,
         canUpdate: true,
         hoursUntilUpdate: 0,
+        countdownTimer: '0h 0m 0s',
         sentiment: null,
       };
     }
@@ -205,22 +216,34 @@ router.get('/:id', optionalAuth, async (req, res) => {
       "It's bad": sentimentBreakdown["It's bad"] || reviewStats.distribution?.ITS_BAD || 0,
     };
 
+    const totalReviewsCount = allReviews.length || service.totalReviews || 0;
+    
+    // Calculate percentages for progress bars
+    const sentimentPercentages = {
+      "Would recommend": totalReviewsCount > 0 ? Math.round((sentimentBreakdown["Would recommend"] / totalReviewsCount) * 100) : 0,
+      "Its Good": totalReviewsCount > 0 ? Math.round((sentimentBreakdown["Its Good"] / totalReviewsCount) * 100) : 0,
+      "Dont mind it": totalReviewsCount > 0 ? Math.round((sentimentBreakdown["Dont mind it"] / totalReviewsCount) * 100) : 0,
+      "It's bad": totalReviewsCount > 0 ? Math.round((sentimentBreakdown["It's bad"] / totalReviewsCount) * 100) : 0,
+    };
+
     response.reviewStats = {
-      totalReviews: allReviews.length || service.totalReviews || 0,
+      totalReviews: totalReviewsCount,
       totalSentimentReviews: reviewStats.total || 0,
       positiveReviews: positiveCount || service.positiveReviews || 0,
       neutralReviews: neutralCount || service.neutralReviews || 0,
       negativeReviews: negativeCount || service.negativeReviews || 0,
       sentimentDistribution,
       sentimentBreakdown, // Individual vote breakdown
+      sentimentPercentages, // Percentages for progress bars
     };
     response.sentimentDistribution = sentimentDistribution;
     response.sentimentBreakdown = sentimentBreakdown; // For bar graph display
+    response.sentimentPercentages = sentimentPercentages; // For progress bar display
     response.totalSentimentReviews = allReviews.length || reviewStats.total || 0;
     response.positive_reviews = positiveCount || service.positiveReviews || 0;
     response.neutral_reviews = neutralCount || service.neutralReviews || 0;
     response.negative_reviews = negativeCount || service.negativeReviews || 0;
-    response.total_reviews = allReviews.length || service.totalReviews || 0;
+    response.total_reviews = totalReviewsCount;
 
     // 4. User's Review Status
     if (user && user.userId) {
