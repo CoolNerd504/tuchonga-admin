@@ -16,46 +16,46 @@ datasource db {
 // ============================================================================
 
 model User {
-  id                   String    @id @default(uuid())
-  
+  id String @id @default(uuid())
+
   // Authentication
-  firebaseAuthId       String?   @unique // Firebase Auth UID (if migrated)
-  email                String?   @unique
-  phoneNumber          String?   @unique
-  
+  firebaseAuthId String? @unique // Firebase Auth UID (if migrated)
+  email          String? @unique
+  phoneNumber    String? @unique
+
   // Profile Information
-  fullName             String?
-  displayName          String?
-  firstname            String?   // Legacy field
-  lastname             String?   // Legacy field
-  profileImage         String?
-  location             String?
-  mobile               String?   // Alternative to phoneNumber
-  gender               String?   // "male" | "female" | "other" | null
-  
+  fullName     String?
+  displayName  String?
+  firstname    String? // Legacy field
+  lastname     String? // Legacy field
+  profileImage String?
+  location     String?
+  mobile       String? // Alternative to phoneNumber
+  gender       String? // "male" | "female" | "other" | null
+
   // Profile Status
-  hasCompletedProfile  Boolean   @default(false)
-  profileCompletedAt   DateTime?
-  isActive             Boolean   @default(true)
-  
+  hasCompletedProfile Boolean   @default(false)
+  profileCompletedAt  DateTime?
+  isActive            Boolean   @default(true)
+
   // Role
-  role                 String    @default("user") // "user" | "admin" | "super_admin" | "moderator" | "staff"
-  
+  role String @default("user") // "user" | "admin" | "super_admin" | "moderator" | "staff"
+
   // Timestamps
-  createdAt            DateTime  @default(now())
-  updatedAt            DateTime  @updatedAt
-  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   // Relations
-  reviews              Review[]
-  comments             Comment[]
-  quickRatings         QuickRating[]
-  favorites            Favorite[]
-  commentReactions     CommentReaction[]
-  userAnalytics        UserAnalytics?
-  staffProfile         Staff?
-  adminAuth            AdminAuth?
-  createdProducts      Product[]       @relation("ProductCreator")
-  createdServices      Service[]       @relation("ServiceCreator")
+  reviews          Review[]
+  comments         Comment[]
+  quickRatings     QuickRating[]
+  favorites        Favorite[]
+  commentReactions CommentReaction[]
+  userAnalytics    UserAnalytics?
+  staffProfile     Staff?
+  adminAuth        AdminAuth?
+  createdProducts  Product[]         @relation("ProductCreator")
+  createdServices  Service[]         @relation("ServiceCreator")
 
   @@index([email])
   @@index([phoneNumber])
@@ -68,38 +68,38 @@ model User {
 // ============================================================================
 
 model AdminAuth {
-  id              String   @id @default(uuid())
-  userId          String   @unique
-  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
+  id     String @id @default(uuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   // Password (hashed)
-  passwordHash    String
-  
+  passwordHash String
+
   // Security
-  lastLoginAt     DateTime?
-  loginAttempts   Int      @default(0)
-  lockedUntil     DateTime?
-  
+  lastLoginAt   DateTime?
+  loginAttempts Int       @default(0)
+  lockedUntil   DateTime?
+
   // Timestamps
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([userId])
 }
 
 model Staff {
-  id             String   @id @default(uuid())
-  userId         String   @unique // Foreign key to User
-  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
+  id     String @id @default(uuid())
+  userId String @unique // Foreign key to User
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   // Staff-specific fields
-  role           String   // "Manager" | "Records" | "Customer Service"
-  mobile         String?
-  isActive       Boolean  @default(true)
-  
+  role     String // "Manager" | "Records" | "Customer Service"
+  mobile   String?
+  isActive Boolean @default(true)
+
   // Timestamps
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([userId])
   @@index([role])
@@ -110,37 +110,37 @@ model Staff {
 // ============================================================================
 
 model UserAnalytics {
-  id                    String   @id @default(uuid())
-  userId                String   @unique
-  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
+  id     String @id @default(uuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   // Review Analytics
-  totalReviews          Int      @default(0)
-  productReviews        Int      @default(0)
-  serviceReviews        Int      @default(0)
-  reviewHistory         String[] // Array of review IDs
-  lastReviewAt          DateTime?
-  positiveReviews       Int      @default(0)
-  neutralReviews        Int      @default(0)
-  negativeReviews       Int      @default(0)
-  
+  totalReviews    Int       @default(0)
+  productReviews  Int       @default(0)
+  serviceReviews  Int       @default(0)
+  reviewHistory   String[] // Array of review IDs
+  lastReviewAt    DateTime?
+  positiveReviews Int       @default(0)
+  neutralReviews  Int       @default(0)
+  negativeReviews Int       @default(0)
+
   // Comment Analytics
-  totalComments         Int      @default(0)
-  productComments       Int      @default(0)
-  serviceComments       Int      @default(0)
-  commentHistory        String[] // Array of comment IDs
-  lastCommentAt         DateTime?
-  totalReplies          Int      @default(0)
-  totalAgrees           Int      @default(0)
-  totalDisagrees        Int      @default(0)
-  
+  totalComments   Int       @default(0)
+  productComments Int       @default(0)
+  serviceComments Int       @default(0)
+  commentHistory  String[] // Array of comment IDs
+  lastCommentAt   DateTime?
+  totalReplies    Int       @default(0)
+  totalAgrees     Int       @default(0)
+  totalDisagrees  Int       @default(0)
+
   // Legacy Analytics
-  totalCoSigns          Int      @default(0)
-  totalFiftyFifty       Int      @default(0)
-  
+  totalCoSigns    Int @default(0)
+  totalFiftyFifty Int @default(0)
+
   // Timestamps
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([userId])
   @@index([lastReviewAt])
@@ -152,31 +152,31 @@ model UserAnalytics {
 // ============================================================================
 
 model Business {
-  id                String    @id @default(uuid())
-  
+  id String @id @default(uuid())
+
   // Business Information
-  name              String
-  businessEmail     String?   @unique
-  businessPhone     String?
-  location          String?
-  logo              String?
-  
+  name          String
+  businessEmail String? @unique
+  businessPhone String?
+  location      String?
+  logo          String?
+
   // Point of Contact
-  pocFirstname      String?
-  pocLastname       String?
-  pocPhone          String?
-  
+  pocFirstname String?
+  pocLastname  String?
+  pocPhone     String?
+
   // Status
-  isVerified        Boolean   @default(false)
-  status            Boolean   @default(true)
-  
+  isVerified Boolean @default(false)
+  status     Boolean @default(true)
+
   // Timestamps
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
-  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   // Relations
-  products          Product[]
-  services          Service[]
+  products Product[]
+  services Service[]
 
   @@index([name])
   @@index([businessEmail])
@@ -189,18 +189,18 @@ model Business {
 // ============================================================================
 
 model Category {
-  id            String          @id @default(uuid())
-  name          String          @unique
-  description   String?
-  type          CategoryType    @default(PRODUCT)
-  
+  id          String       @id @default(uuid())
+  name        String       @unique
+  description String?
+  type        CategoryType @default(PRODUCT)
+
   // Timestamps
-  createdAt     DateTime        @default(now())
-  updatedAt     DateTime        @updatedAt
-  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   // Relations
-  products      ProductCategory[]
-  services      ServiceCategory[]
+  products ProductCategory[]
+  services ServiceCategory[]
 
   @@index([type])
   @@index([name])
@@ -216,54 +216,54 @@ enum CategoryType {
 // ============================================================================
 
 model Product {
-  id                String            @id @default(uuid())
-  
+  id String @id @default(uuid())
+
   // Basic Information
-  productName       String
-  description       String?
-  mainImage         String?
-  additionalImages  String[]          // Array of image URLs
-  
+  productName      String
+  description      String?
+  mainImage        String?
+  additionalImages String[] // Array of image URLs
+
   // Status
-  isActive          Boolean           @default(true)
-  isVerified        Boolean           @default(false)  // Admin verification status
-  
+  isActive   Boolean @default(true)
+  isVerified Boolean @default(false) // Admin verification status
+
   // Business Owner
-  businessId        String?
-  business          Business?         @relation(fields: [businessId], references: [id], onDelete: SetNull)
-  productOwner      String?           // Business name (denormalized for quick access)
-  
+  businessId   String?
+  business     Business? @relation(fields: [businessId], references: [id], onDelete: SetNull)
+  productOwner String? // Business name (denormalized for quick access)
+
   // Creator
-  createdBy         String?           // User ID who created this product
-  user              User?             @relation("ProductCreator", fields: [createdBy], references: [id], onDelete: SetNull)
-  
+  createdBy String? // User ID who created this product
+  user      User?   @relation("ProductCreator", fields: [createdBy], references: [id], onDelete: SetNull)
+
   // Analytics
-  totalViews        Int               @default(0)
-  totalReviews      Int               @default(0)
-  positiveReviews   Int               @default(0)
-  neutralReviews    Int               @default(0)
-  negativeReviews   Int               @default(0)
-  
+  totalViews      Int @default(0)
+  totalReviews    Int @default(0)
+  positiveReviews Int @default(0)
+  neutralReviews  Int @default(0)
+  negativeReviews Int @default(0)
+
   // Quick Rating
-  quickRatingAvg    Float?
-  quickRatingTotal  Int               @default(0)
-  quickRating1      Int               @default(0)
-  quickRating2      Int               @default(0)
-  quickRating3      Int               @default(0)
-  quickRating4      Int               @default(0)
-  quickRating5      Int               @default(0)
-  
+  quickRatingAvg   Float?
+  quickRatingTotal Int    @default(0)
+  quickRating1     Int    @default(0)
+  quickRating2     Int    @default(0)
+  quickRating3     Int    @default(0)
+  quickRating4     Int    @default(0)
+  quickRating5     Int    @default(0)
+
   // Timestamps
-  createdAt         DateTime          @default(now())
-  updatedAt         DateTime          @updatedAt
-  lastUpdate        DateTime?
-  
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  lastUpdate DateTime?
+
   // Relations
-  categories        ProductCategory[]
-  reviews           Review[]
-  comments          Comment[]
-  quickRatings      QuickRating[]
-  favorites         Favorite[]
+  categories   ProductCategory[]
+  reviews      Review[]
+  comments     Comment[]
+  quickRatings QuickRating[]
+  favorites    Favorite[]
 
   @@index([productName])
   @@index([businessId])
@@ -276,10 +276,10 @@ model Product {
 }
 
 model ProductCategory {
-  productId   String
-  categoryId  String
-  product     Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
-  category    Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  productId  String
+  categoryId String
+  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
 
   @@id([productId, categoryId])
   @@index([productId])
@@ -291,54 +291,54 @@ model ProductCategory {
 // ============================================================================
 
 model Service {
-  id                String            @id @default(uuid())
-  
+  id String @id @default(uuid())
+
   // Basic Information
-  serviceName       String
-  description       String?
-  mainImage         String?
-  additionalImages  String[]          // Array of image URLs
-  
+  serviceName      String
+  description      String?
+  mainImage        String?
+  additionalImages String[] // Array of image URLs
+
   // Status
-  isActive          Boolean           @default(true)
-  isVerified        Boolean           @default(false)  // Admin verification status
-  
+  isActive   Boolean @default(true)
+  isVerified Boolean @default(false) // Admin verification status
+
   // Business Owner
-  businessId        String?
-  business          Business?         @relation(fields: [businessId], references: [id], onDelete: SetNull)
-  serviceOwner      String?           // Business name (denormalized)
-  
+  businessId   String?
+  business     Business? @relation(fields: [businessId], references: [id], onDelete: SetNull)
+  serviceOwner String? // Business name (denormalized)
+
   // Creator
-  createdBy         String?           // User ID who created this service
-  user              User?             @relation("ServiceCreator", fields: [createdBy], references: [id], onDelete: SetNull)
-  
+  createdBy String? // User ID who created this service
+  user      User?   @relation("ServiceCreator", fields: [createdBy], references: [id], onDelete: SetNull)
+
   // Analytics
-  totalViews        Int               @default(0)
-  totalReviews      Int               @default(0)
-  positiveReviews   Int               @default(0)
-  neutralReviews    Int               @default(0)
-  negativeReviews   Int               @default(0)
-  
+  totalViews      Int @default(0)
+  totalReviews    Int @default(0)
+  positiveReviews Int @default(0)
+  neutralReviews  Int @default(0)
+  negativeReviews Int @default(0)
+
   // Quick Rating
-  quickRatingAvg    Float?
-  quickRatingTotal  Int               @default(0)
-  quickRating1      Int               @default(0)
-  quickRating2      Int               @default(0)
-  quickRating3      Int               @default(0)
-  quickRating4      Int               @default(0)
-  quickRating5      Int               @default(0)
-  
+  quickRatingAvg   Float?
+  quickRatingTotal Int    @default(0)
+  quickRating1     Int    @default(0)
+  quickRating2     Int    @default(0)
+  quickRating3     Int    @default(0)
+  quickRating4     Int    @default(0)
+  quickRating5     Int    @default(0)
+
   // Timestamps
-  createdAt         DateTime          @default(now())
-  updatedAt         DateTime          @updatedAt
-  lastUpdate        DateTime?
-  
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  lastUpdate DateTime?
+
   // Relations
-  categories        ServiceCategory[]
-  reviews           Review[]
-  comments          Comment[]
-  quickRatings      QuickRating[]
-  favorites         Favorite[]
+  categories   ServiceCategory[]
+  reviews      Review[]
+  comments     Comment[]
+  quickRatings QuickRating[]
+  favorites    Favorite[]
 
   @@index([serviceName])
   @@index([businessId])
@@ -351,10 +351,10 @@ model Service {
 }
 
 model ServiceCategory {
-  serviceId   String
-  categoryId  String
-  service     Service  @relation(fields: [serviceId], references: [id], onDelete: Cascade)
-  category    Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  serviceId  String
+  categoryId String
+  service    Service  @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
 
   @@id([serviceId, categoryId])
   @@index([serviceId])
@@ -366,29 +366,29 @@ model ServiceCategory {
 // ============================================================================
 
 model Review {
-  id              String        @id @default(uuid())
-  
+  id String @id @default(uuid())
+
   // User
-  userId          String
-  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   // Item (Product or Service)
-  productId       String?
-  serviceId       String?
-  product         Product?      @relation(fields: [productId], references: [id], onDelete: Cascade)
-  service         Service?      @relation(fields: [serviceId], references: [id], onDelete: Cascade)
-  
+  productId String?
+  serviceId String?
+  product   Product? @relation(fields: [productId], references: [id], onDelete: Cascade)
+  service   Service? @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+
   // Review Content
-  sentiment       ReviewSentiment
-  text            String?
-  reviewText      String?       // Alternative text field
-  
+  sentiment  ReviewSentiment
+  text       String?
+  reviewText String? // Alternative text field
+
   // History (JSON field for sentiment history)
   sentimentHistory Json?
-  
+
   // Timestamps
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([userId])
   @@index([productId])
@@ -409,46 +409,48 @@ enum ReviewSentiment {
 // ============================================================================
 
 model Comment {
-  id              String        @id @default(uuid())
-  
+  id String @id @default(uuid())
+
   // User
-  userId          String
-  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  userName        String
-  userAvatar      String?
-  
+  userId     String
+  user       User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userName   String
+  userAvatar String?
+
   // Item (Product or Service)
-  itemId          String        // Product or Service ID
-  itemType        ItemType
-  productId       String?
-  serviceId       String?
-  product         Product?      @relation(fields: [productId], references: [id], onDelete: Cascade)
-  service         Service?      @relation(fields: [serviceId], references: [id], onDelete: Cascade)
-  
+  itemId    String // Product or Service ID
+  itemType  ItemType
+  productId String?
+  serviceId String?
+  product   Product? @relation(fields: [productId], references: [id], onDelete: Cascade)
+  service   Service? @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+
   // Comment Content
-  text            String
-  
+  text String
+
   // Threading
-  parentId        String?       // For replies (null for root comments)
-  depth           Int           @default(0) // 0 = root, 1-2 = replies
-  
+  parentId String? // For replies (null for root comments)
+  depth    Int     @default(0) // 0 = root, 1-2 = replies
+
   // Reactions
-  agreeCount      Int           @default(0)
-  disagreeCount   Int           @default(0)
-  replyCount      Int           @default(0)
-  
+  agreeCount    Int @default(0)
+  disagreeCount Int @default(0)
+  replyCount    Int @default(0)
+
   // Status
-  isEdited        Boolean       @default(false)
-  isReported      Boolean       @default(false)
-  isDeleted       Boolean       @default(false)
-  
+  isEdited   Boolean @default(false)
+  isReported Boolean @default(false)
+  isDeleted  Boolean @default(false)
+
   // Timestamps
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
-  editedAt        DateTime?
-  
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  editedAt  DateTime?
+
   // Relations
-  reactions       CommentReaction[]
+  reactions CommentReaction[]
+  parent    Comment?          @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies   Comment[]         @relation("CommentReplies")
 
   @@index([userId])
   @@index([itemId])
@@ -470,21 +472,21 @@ enum ItemType {
 // ============================================================================
 
 model CommentReaction {
-  id            String        @id @default(uuid())
-  
+  id String @id @default(uuid())
+
   // User
-  userId        String
-  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   // Comment
-  commentId     String
-  comment       Comment       @relation(fields: [commentId], references: [id], onDelete: Cascade)
-  
+  commentId String
+  comment   Comment @relation(fields: [commentId], references: [id], onDelete: Cascade)
+
   // Reaction
-  reactionType  ReactionType
-  
+  reactionType ReactionType
+
   // Timestamp
-  createdAt     DateTime      @default(now())
+  createdAt DateTime @default(now())
 
   @@unique([userId, commentId]) // One reaction per user per comment
   @@index([userId])
@@ -502,29 +504,29 @@ enum ReactionType {
 // ============================================================================
 
 model QuickRating {
-  id              String    @id @default(uuid())
-  
+  id String @id @default(uuid())
+
   // User
-  userId          String
-  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   // Item (Product or Service)
-  itemId          String    // Product or Service ID
-  itemType        ItemType
-  productId       String?
-  serviceId       String?
-  product         Product?  @relation(fields: [productId], references: [id], onDelete: Cascade)
-  service         Service?  @relation(fields: [serviceId], references: [id], onDelete: Cascade)
-  
+  itemId    String // Product or Service ID
+  itemType  ItemType
+  productId String?
+  serviceId String?
+  product   Product? @relation(fields: [productId], references: [id], onDelete: Cascade)
+  service   Service? @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+
   // Rating (1-5 emoji scale)
-  rating          Int       // 1-5
-  
+  rating Int // 1-5
+
   // Daily limit tracking
-  lastUpdated     DateTime  @default(now())
-  
+  lastUpdated DateTime @default(now())
+
   // Timestamps
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([userId, itemId]) // One rating per user per item
   @@index([userId])
@@ -540,22 +542,22 @@ model QuickRating {
 // ============================================================================
 
 model Favorite {
-  id          String    @id @default(uuid())
-  
+  id String @id @default(uuid())
+
   // User
-  userId      String
-  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   // Item (Product or Service)
-  itemId      String    // Product or Service ID
-  itemType    ItemType
-  productId   String?
-  serviceId   String?
-  product     Product?  @relation(fields: [productId], references: [id], onDelete: Cascade)
-  service     Service?  @relation(fields: [serviceId], references: [id], onDelete: Cascade)
-  
+  itemId    String // Product or Service ID
+  itemType  ItemType
+  productId String?
+  serviceId String?
+  product   Product? @relation(fields: [productId], references: [id], onDelete: Cascade)
+  service   Service? @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+
   // Timestamp
-  createdAt   DateTime  @default(now())
+  createdAt DateTime @default(now())
 
   @@unique([userId, itemId]) // One favorite per user per item
   @@index([userId])
@@ -571,25 +573,25 @@ model Favorite {
 // ============================================================================
 
 model Survey {
-  id                String    @id @default(uuid())
-  
+  id String @id @default(uuid())
+
   // User & Item
-  userId            String
-  itemId            String    // Product or Service ID
-  itemType          ItemType
-  
+  userId   String
+  itemId   String // Product or Service ID
+  itemType ItemType
+
   // Survey Data
-  surveyVersion     String
-  responses         Json      // Question ID -> Answer mapping
-  overallRating     Int       // 1-5 scale
-  completionTime    Int       // Seconds
-  isComplete        Boolean   @default(false)
-  
+  surveyVersion  String
+  responses      Json // Question ID -> Answer mapping
+  overallRating  Int // 1-5 scale
+  completionTime Int // Seconds
+  isComplete     Boolean @default(false)
+
   // Source
-  source            String    // "product-survey" | "service-survey"
-  
+  source String // "product-survey" | "service-survey"
+
   // Timestamp
-  createdAt         DateTime  @default(now())
+  createdAt DateTime @default(now())
 
   @@index([userId])
   @@index([itemId])
@@ -598,17 +600,16 @@ model Survey {
 }
 
 model SurveyTemplate {
-  id          String    @id @default(uuid())
-  name        String
-  version     String
-  itemType    ItemType
-  questions   Json      // Array of question objects
-  
+  id        String   @id @default(uuid())
+  name      String
+  version   String
+  itemType  ItemType
+  questions Json // Array of question objects
+
   // Timestamps
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([name, version])
   @@index([itemType])
 }
-
