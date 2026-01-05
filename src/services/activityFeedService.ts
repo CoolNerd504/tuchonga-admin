@@ -1,7 +1,4 @@
 import { prisma } from './prismaService.js';
-import { reviewServicePrisma } from './reviewServicePrisma.js';
-import { quickRatingServicePrisma } from './quickRatingServicePrisma.js';
-import { commentServicePrisma } from './commentServicePrisma.js';
 
 export type ActivityType =
   | 'REVIEW_STREAK_POSITIVE'
@@ -192,9 +189,9 @@ export const activityFeedService = {
     itemGroups.forEach((itemReviews, itemId) => {
       // Count consecutive reviews of same sentiment
       let streak = 1;
-      for (let i = 1; i < itemReviews.length; i++) {
+      for (let i = 1; i < itemReviews.length; i += 1) {
         if (itemReviews[i].sentiment === itemReviews[i - 1].sentiment) {
-          streak++;
+          streak += 1;
         } else {
           break;
         }
@@ -299,37 +296,45 @@ export const activityFeedService = {
     });
 
     // Get item details for trending items
-    for (const [itemId, change] of itemSentimentChange.entries()) {
-      const item = await prisma.product.findUnique({
-        where: { id: itemId },
-        select: { id: true, productName: true, mainImage: true },
-      }) || await prisma.service.findUnique({
-        where: { id: itemId },
-        select: { id: true, serviceName: true, mainImage: true },
-      });
+    const trendingActivities = await Promise.all(
+      Array.from(itemSentimentChange.entries()).map(async ([itemId, change]) => {
+        const item = await prisma.product.findUnique({
+          where: { id: itemId },
+          select: { id: true, productName: true, mainImage: true },
+        }) || await prisma.service.findUnique({
+          where: { id: itemId },
+          select: { id: true, serviceName: true, mainImage: true },
+        });
 
-      if (!item) continue;
+        if (!item) return null;
 
-      activities.push({
-        id: `trending-${itemId}-${Date.now()}`,
-        type: direction === 'up' ? 'TRENDING_UP' : 'TRENDING_DOWN',
-        title: direction === 'up'
-          ? `📈 Sentiment Improving Rapidly!`
-          : `📉 Sentiment Declining`,
-          description: direction === 'up'
-          ? `${'productName' in item ? item.productName : item.serviceName} is gaining positive momentum!`
-          : `${'productName' in item ? item.productName : item.serviceName} sentiment is dropping`,
-        itemId,
-        itemType: (item as any).productName ? 'PRODUCT' : 'SERVICE',
-        itemName: (item as any).productName || (item as any).serviceName,
-        itemImage: item.mainImage || undefined,
-        timestamp: new Date(),
-        metadata: {
-          sentimentChange: Math.round(change),
-        },
-        priority: Math.abs(change) * 2 + 60,
-      });
-    }
+        return {
+          id: `trending-${itemId}-${Date.now()}`,
+          type: direction === 'up' ? 'TRENDING_UP' : 'TRENDING_DOWN' as ActivityType,
+          title: direction === 'up'
+            ? `📈 Sentiment Improving Rapidly!`
+            : `📉 Sentiment Declining`,
+            description: direction === 'up'
+            ? `${'productName' in item ? item.productName : item.serviceName} is gaining positive momentum!`
+            : `${'productName' in item ? item.productName : item.serviceName} sentiment is dropping`,
+          itemId,
+          itemType: (item as any).productName ? 'PRODUCT' : 'SERVICE' as 'PRODUCT' | 'SERVICE',
+          itemName: (item as any).productName || (item as any).serviceName,
+          itemImage: item.mainImage || undefined,
+          timestamp: new Date(),
+          metadata: {
+            sentimentChange: Math.round(change),
+          },
+          priority: Math.abs(change) * 2 + 60,
+        };
+      })
+    );
+
+    trendingActivities.forEach((activity) => {
+      if (activity) {
+        activities.push(activity);
+      }
+    });
 
     return activities;
   },
@@ -425,49 +430,61 @@ export const activityFeedService = {
       take: 10,
     });
 
-    for (const group of recentReviews) {
-      const itemId = (group.productId || group.serviceId) as string;
-      if (!itemId) continue;
+    const engagementActivities = await Promise.all(
+      recentReviews
+        .filter((group) => {
+          const itemId = (group.productId || group.serviceId) as string;
+          return !!itemId;
+        })
+        .map(async (group) => {
+          const itemId = (group.productId || group.serviceId) as string;
+          const item = await prisma.product.findUnique({
+            where: { id: itemId },
+            select: { id: true, productName: true, mainImage: true },
+          }) || await prisma.service.findUnique({
+            where: { id: itemId },
+            select: { id: true, serviceName: true, mainImage: true },
+          });
 
-      const item = await prisma.product.findUnique({
-        where: { id: itemId },
-        select: { id: true, productName: true, mainImage: true },
-      }) || await prisma.service.findUnique({
-        where: { id: itemId },
-        select: { id: true, serviceName: true, mainImage: true },
-      });
+          if (!item) return null;
 
-      if (!item) continue;
+          const commentCount = await prisma.comment.count({
+            where: {
+              [itemType === 'PRODUCT' ? 'productId' : 'serviceId']: itemId,
+              createdAt: { gte: sevenDaysAgo },
+            },
+          });
 
-      const commentCount = await prisma.comment.count({
-        where: {
-          [itemType === 'PRODUCT' ? 'productId' : 'serviceId']: itemId,
-          createdAt: { gte: sevenDaysAgo },
-        },
-      });
+          const engagementScore = group._count + commentCount * 0.5;
 
-      const engagementScore = group._count + commentCount * 0.5;
+          if (engagementScore >= 5) {
+            return {
+              id: `engagement-${itemId}-${Date.now()}`,
+              type: 'HIGH_ENGAGEMENT' as ActivityType,
+              title: '🔥 High Engagement!',
+              description: `${'productName' in item ? item.productName : item.serviceName} is getting lots of attention`,
+              itemId,
+              itemType: 'productName' in item ? 'PRODUCT' : 'SERVICE' as 'PRODUCT' | 'SERVICE',
+              itemName: 'productName' in item ? item.productName : item.serviceName,
+              itemImage: item.mainImage || undefined,
+              timestamp: new Date(),
+              metadata: {
+                engagementScore: Math.round(engagementScore),
+                reviewCount: group._count,
+                commentCount,
+              },
+              priority: Math.round(engagementScore * 5),
+            };
+          }
+          return null;
+        })
+    );
 
-      if (engagementScore >= 5) {
-        activities.push({
-          id: `engagement-${itemId}-${Date.now()}`,
-          type: 'HIGH_ENGAGEMENT',
-          title: '🔥 High Engagement!',
-          description: `${'productName' in item ? item.productName : item.serviceName} is getting lots of attention`,
-          itemId,
-          itemType: 'productName' in item ? 'PRODUCT' : 'SERVICE',
-          itemName: 'productName' in item ? item.productName : item.serviceName,
-          itemImage: item.mainImage || undefined,
-          timestamp: new Date(),
-          metadata: {
-            engagementScore: Math.round(engagementScore),
-            reviewCount: group._count,
-            commentCount,
-          },
-          priority: Math.round(engagementScore * 5),
-        });
+    engagementActivities.forEach((activity) => {
+      if (activity) {
+        activities.push(activity);
       }
-    }
+    });
 
     return activities;
   },
@@ -566,25 +583,26 @@ export const activityFeedService = {
         });
 
     items.forEach((item: any) => {
-      for (const milestone of milestones) {
-        if (item.quickRatingTotal >= milestone && item.quickRatingTotal < milestone + 10) {
-          activities.push({
-            id: `milestone-${item.id}-${milestone}`,
-            type: 'RATING_MILESTONE',
-            title: `🎯 ${milestone} Ratings Milestone!`,
-            description: `${item.productName || item.serviceName} reached ${milestone} ratings!`,
-            itemId: item.id,
-            itemType: item.productName ? 'PRODUCT' : 'SERVICE',
-            itemName: item.productName || item.serviceName,
-            itemImage: item.mainImage || undefined,
-            timestamp: new Date(),
-            metadata: {
-              ratingCount: milestone,
-            },
-            priority: milestone / 10,
-          });
-          break;
-        }
+      const matchingMilestone = milestones.find(
+        (milestone) => item.quickRatingTotal >= milestone && item.quickRatingTotal < milestone + 10
+      );
+
+      if (matchingMilestone) {
+        activities.push({
+          id: `milestone-${item.id}-${matchingMilestone}`,
+          type: 'RATING_MILESTONE' as ActivityType,
+          title: `🎯 ${matchingMilestone} Ratings Milestone!`,
+          description: `${item.productName || item.serviceName} reached ${matchingMilestone} ratings!`,
+          itemId: item.id,
+          itemType: item.productName ? 'PRODUCT' : 'SERVICE' as 'PRODUCT' | 'SERVICE',
+          itemName: item.productName || item.serviceName,
+          itemImage: item.mainImage || undefined,
+          timestamp: new Date(),
+          metadata: {
+            ratingCount: matchingMilestone,
+          },
+          priority: matchingMilestone / 10,
+        });
       }
     });
 
@@ -624,36 +642,47 @@ export const activityFeedService = {
       take: 10,
     });
 
-    for (const group of commentGroups) {
-      const itemId = (group.productId || group.serviceId) as string;
-      if (!itemId || group._count < 10) continue;
+    const discussedActivities = await Promise.all(
+      commentGroups
+        .filter((group) => {
+          const itemId = (group.productId || group.serviceId) as string;
+          return !!itemId && group._count >= 10;
+        })
+        .map(async (group) => {
+          const itemId = (group.productId || group.serviceId) as string;
+          const item = await prisma.product.findUnique({
+            where: { id: itemId },
+            select: { id: true, productName: true, mainImage: true },
+          }) || await prisma.service.findUnique({
+            where: { id: itemId },
+            select: { id: true, serviceName: true, mainImage: true },
+          });
 
-      const item = await prisma.product.findUnique({
-        where: { id: itemId },
-        select: { id: true, productName: true, mainImage: true },
-      }) || await prisma.service.findUnique({
-        where: { id: itemId },
-        select: { id: true, serviceName: true, mainImage: true },
-      });
+          if (!item) return null;
 
-      if (!item) continue;
+          return {
+            id: `discussed-${itemId}-${Date.now()}`,
+            type: 'MOST_DISCUSSED' as ActivityType,
+            title: '💬 Hot Discussion!',
+            description: `${'productName' in item ? item.productName : item.serviceName} is generating lots of discussion`,
+            itemId,
+            itemType: (item as any).productName ? 'PRODUCT' : 'SERVICE' as 'PRODUCT' | 'SERVICE',
+            itemName: (item as any).productName || (item as any).serviceName,
+            itemImage: item.mainImage || undefined,
+            timestamp: new Date(),
+            metadata: {
+              commentCount: group._count,
+            },
+            priority: group._count * 2,
+          };
+        })
+    );
 
-      activities.push({
-        id: `discussed-${itemId}-${Date.now()}`,
-        type: 'MOST_DISCUSSED',
-        title: '💬 Hot Discussion!',
-        description: `${'productName' in item ? item.productName : item.serviceName} is generating lots of discussion`,
-        itemId,
-        itemType: (item as any).productName ? 'PRODUCT' : 'SERVICE',
-        itemName: (item as any).productName || (item as any).serviceName,
-        itemImage: item.mainImage || undefined,
-        timestamp: new Date(),
-        metadata: {
-          commentCount: group._count,
-        },
-        priority: group._count * 2,
-      });
-    }
+    discussedActivities.forEach((activity) => {
+      if (activity) {
+        activities.push(activity);
+      }
+    });
 
     return activities;
   },
