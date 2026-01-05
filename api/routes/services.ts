@@ -84,11 +84,11 @@ router.get('/search/:query', async (req, res) => {
 });
 
 // ============================================================================
-// Protected Routes (Business/Admin)
+// Protected Routes (Authenticated Users)
 // ============================================================================
 
-// Create service
-router.post('/', verifyToken, verifyBusinessOrAdmin, async (req, res) => {
+// Create service (any authenticated user can create)
+router.post('/', verifyToken, async (req, res) => {
   try {
     const {
       serviceName,

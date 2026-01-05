@@ -757,5 +757,179 @@ If you're currently using Firebase Auth:
 
 ---
 
+---
+
+## 📦 Product & Service Management
+
+### Create Product
+
+**Endpoint:** `POST /api/products`
+
+**Description:** Create a new product (any authenticated user can create)
+
+**Authentication:** Required (JWT token)
+
+**Request Body:**
+```json
+{
+  "productName": "Product Name",
+  "description": "Product description",
+  "mainImage": "https://...",
+  "additionalImages": ["https://...", "https://..."],
+  "businessId": "optional-business-id",
+  "productOwner": "Optional business name",
+  "categoryIds": ["category-id-1", "category-id-2"]
+}
+```
+
+**Required Fields:**
+- `productName` (string)
+
+**Optional Fields:**
+- `description` (string)
+- `mainImage` (string) - Main product image URL
+- `additionalImages` (string[]) - Array of additional image URLs
+- `businessId` (string) - Optional business ID (if user owns a business)
+- `productOwner` (string) - Optional business name
+- `categoryIds` (string[]) - Array of category IDs
+
+**Success Response (201):**
+```json
+{
+  "success": true,
+  "message": "Product created successfully",
+  "data": {
+    "id": "uuid",
+    "productName": "Product Name",
+    "description": "Product description",
+    "mainImage": "https://...",
+    "additionalImages": ["https://..."],
+    "businessId": null,
+    "productOwner": null,
+    "isActive": true,
+    "categories": [...],
+    "createdAt": "2024-01-01T00:00:00.000Z"
+  }
+}
+```
+
+**Example Implementation:**
+```typescript
+const createProduct = async (productData: {
+  productName: string;
+  description?: string;
+  mainImage?: string;
+  additionalImages?: string[];
+  categoryIds?: string[];
+  businessId?: string;
+}) => {
+  const token = await SecureStore.getItemAsync('authToken');
+  
+  const response = await fetch(`${API_BASE_URL}/products`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`,
+    },
+    body: JSON.stringify(productData),
+  });
+
+  const data = await response.json();
+  
+  if (!response.ok) {
+    throw new Error(data.error || 'Failed to create product');
+  }
+  
+  return data.data;
+};
+```
+
+---
+
+### Create Service
+
+**Endpoint:** `POST /api/services`
+
+**Description:** Create a new service (any authenticated user can create)
+
+**Authentication:** Required (JWT token)
+
+**Request Body:**
+```json
+{
+  "serviceName": "Service Name",
+  "description": "Service description",
+  "mainImage": "https://...",
+  "additionalImages": ["https://...", "https://..."],
+  "businessId": "optional-business-id",
+  "serviceOwner": "Optional business name",
+  "categoryIds": ["category-id-1", "category-id-2"]
+}
+```
+
+**Required Fields:**
+- `serviceName` (string)
+
+**Optional Fields:**
+- `description` (string)
+- `mainImage` (string) - Main service image URL
+- `additionalImages` (string[]) - Array of additional image URLs
+- `businessId` (string) - Optional business ID (if user owns a business)
+- `serviceOwner` (string) - Optional business name
+- `categoryIds` (string[]) - Array of category IDs
+
+**Success Response (201):**
+```json
+{
+  "success": true,
+  "message": "Service created successfully",
+  "data": {
+    "id": "uuid",
+    "serviceName": "Service Name",
+    "description": "Service description",
+    "mainImage": "https://...",
+    "additionalImages": ["https://..."],
+    "businessId": null,
+    "serviceOwner": null,
+    "isActive": true,
+    "categories": [...],
+    "createdAt": "2024-01-01T00:00:00.000Z"
+  }
+}
+```
+
+**Example Implementation:**
+```typescript
+const createService = async (serviceData: {
+  serviceName: string;
+  description?: string;
+  mainImage?: string;
+  additionalImages?: string[];
+  categoryIds?: string[];
+  businessId?: string;
+}) => {
+  const token = await SecureStore.getItemAsync('authToken');
+  
+  const response = await fetch(`${API_BASE_URL}/services`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`,
+    },
+    body: JSON.stringify(serviceData),
+  });
+
+  const data = await response.json();
+  
+  if (!response.ok) {
+    throw new Error(data.error || 'Failed to create service');
+  }
+  
+  return data.data;
+};
+```
+
+---
+
 **Last Updated:** 2024-12-29
 
