@@ -52,28 +52,73 @@ router.post('/', verifyToken, async (req, res) => {
       });
     }
 
+    // Convert itemType string to enum (handle both lowercase and uppercase)
+    let normalizedItemType: 'PRODUCT' | 'SERVICE';
+    const itemTypeUpper = itemType.toUpperCase();
+    
+    if (itemTypeUpper === 'PRODUCT') {
+      normalizedItemType = 'PRODUCT';
+    } else if (itemTypeUpper === 'SERVICE') {
+      normalizedItemType = 'SERVICE';
+    } else {
+      return res.status(400).json({
+        success: false,
+        error: 'itemType must be either "product" or "service"',
+      });
+    }
+
     const result = await quickRatingServicePrisma.createOrUpdateRating({
       userId,
       itemId,
-      itemType,
+      itemType: normalizedItemType,
       rating,
     });
 
-    res.status(201).json({
+    res.status(result.isNewRating ? 201 : 200).json({
       success: true,
-      message: 'Rating submitted successfully',
-      data: result,
+      message: result.message || 'Rating submitted successfully',
+      data: {
+        id: result.id,
+        userId: result.userId,
+        itemId: result.itemId,
+        itemType: result.itemType,
+        rating: result.rating,
+        isNewRating: result.isNewRating,
+        isUpdate: result.isUpdate,
+        canUpdateIn: result.canUpdateIn,
+        nextUpdateTime: result.nextUpdateTime,
+        lastUpdated: result.lastUpdated,
+        createdAt: result.createdAt,
+        updatedAt: result.updatedAt,
+      },
     });
   } catch (error: any) {
     // Handle 24-hour limit error
-    if (error.message.includes('once every')) {
+    if (error.message.includes('once every') || error.message.includes('Time remaining')) {
       return res.status(429).json({
         success: false,
         error: error.message,
         code: 'RATE_LIMIT_EXCEEDED',
+        retryAfter: 24 * 60 * 60, // 24 hours in seconds
       });
     }
-    res.status(500).json({ success: false, error: error.message });
+    
+    // Handle Prisma validation errors
+    if (error.message.includes('Invalid value') || error.message.includes('Expected')) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid request data. Please check itemType (must be "product" or "service") and rating (must be 1-5)',
+        code: 'VALIDATION_ERROR',
+        details: error.message,
+      });
+    }
+    
+    console.error('Quick rating error:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message || 'Failed to submit rating',
+      code: 'INTERNAL_ERROR',
+    });
   }
 });
 

@@ -761,6 +761,180 @@ If you're currently using Firebase Auth:
 
 ## 📦 Product & Service Management
 
+### Get All Products
+
+**Endpoint:** `GET /api/products`
+
+**Description:** Get paginated list of products with optional filters. If user is authenticated, includes their rating for each product.
+
+**Authentication:** Optional (JWT token - if provided, includes user's ratings)
+
+**Query Parameters:**
+- `search` (string) - Search by product name, description, or owner
+- `categories` (string) - Comma-separated category names
+- `businessId` (string) - Filter by business ID
+- `isActive` (boolean) - Filter by active status (default: true)
+- `page` (number) - Page number (default: 1)
+- `limit` (number) - Items per page (default: 20)
+- `sortBy` (string) - Sort field (default: 'createdAt')
+- `sortOrder` (string) - Sort order: 'asc' or 'desc' (default: 'desc')
+
+**Headers (Optional):**
+```
+Authorization: Bearer <jwt_token>
+```
+
+**Success Response (200):**
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": "product-id",
+      "productName": "Product Name",
+      "description": "Product description",
+      "mainImage": "https://...",
+      "isActive": true,
+      "isVerified": true,
+      "quickRatingAvg": 4.2,
+      "quickRatingTotal": 150,
+      "userRating": {
+        "hasRated": true,
+        "rating": 4,
+        "canUpdate": false,
+        "hoursUntilUpdate": 12,
+        "lastUpdated": "2024-01-01T12:00:00.000Z"
+      },
+      // ... other product fields
+    }
+  ],
+  "meta": {
+    "total": 100,
+    "page": 1,
+    "limit": 20,
+    "totalPages": 5
+  }
+}
+```
+
+**User Rating Object:**
+- `hasRated` (boolean) - Whether user has rated this product
+- `rating` (number | null) - User's rating (1-5) or null if not rated
+- `canUpdate` (boolean) - Whether user can update their rating (24hr cooldown)
+- `hoursUntilUpdate` (number) - Hours remaining until user can update
+- `lastUpdated` (string | null) - ISO date of last rating update
+
+**Example Implementation:**
+```typescript
+const getProducts = async (filters?: {
+  search?: string;
+  categories?: string[];
+  page?: number;
+  limit?: number;
+}) => {
+  const token = await SecureStore.getItemAsync('authToken');
+  
+  const queryParams = new URLSearchParams();
+  if (filters?.search) queryParams.append('search', filters.search);
+  if (filters?.categories) queryParams.append('categories', filters.categories.join(','));
+  if (filters?.page) queryParams.append('page', filters.page.toString());
+  if (filters?.limit) queryParams.append('limit', filters.limit.toString());
+  
+  const headers: HeadersInit = {
+    'Content-Type': 'application/json',
+  };
+  
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+  
+  const response = await fetch(
+    `${API_BASE_URL}/products?${queryParams.toString()}`,
+    { headers }
+  );
+
+  const data = await response.json();
+  
+  if (!response.ok) {
+    throw new Error(data.error || 'Failed to fetch products');
+  }
+  
+  return data;
+};
+```
+
+---
+
+### Get Product by ID
+
+**Endpoint:** `GET /api/products/:id`
+
+**Description:** Get a single product by ID. If user is authenticated, includes their rating.
+
+**Authentication:** Optional (JWT token - if provided, includes user's rating)
+
+**Headers (Optional):**
+```
+Authorization: Bearer <jwt_token>
+```
+
+**Success Response (200):**
+```json
+{
+  "success": true,
+  "data": {
+    "id": "product-id",
+    "productName": "Product Name",
+    "description": "Product description",
+    "mainImage": "https://...",
+    "additionalImages": ["https://..."],
+    "isActive": true,
+    "isVerified": true,
+    "quickRatingAvg": 4.2,
+    "quickRatingTotal": 150,
+    "userRating": {
+      "hasRated": true,
+      "rating": 4,
+      "canUpdate": false,
+      "hoursUntilUpdate": 12,
+      "lastUpdated": "2024-01-01T12:00:00.000Z"
+    },
+    "categories": [...],
+    "business": {...},
+    "creator": {...},
+    // ... other product fields
+  }
+}
+```
+
+---
+
+### Get All Services
+
+**Endpoint:** `GET /api/services`
+
+**Description:** Get paginated list of services with optional filters. If user is authenticated, includes their rating for each service.
+
+**Authentication:** Optional (JWT token - if provided, includes user's ratings)
+
+**Query Parameters:** Same as Get All Products
+
+**Success Response (200):** Same structure as Get All Products, but with service fields
+
+---
+
+### Get Service by ID
+
+**Endpoint:** `GET /api/services/:id`
+
+**Description:** Get a single service by ID. If user is authenticated, includes their rating.
+
+**Authentication:** Optional (JWT token - if provided, includes user's rating)
+
+**Success Response (200):** Same structure as Get Product by ID, but with service fields
+
+---
+
 ### Create Product
 
 **Endpoint:** `POST /api/products`
@@ -1008,6 +1182,209 @@ const createService = async (serviceData: {
 - Products/services created by business/admin users are **verified automatically** (`isVerified: true`)
 - These items are immediately available publicly
 - Business/admin users can optionally set `isVerified: false` in the request body if needed
+
+---
+
+---
+
+## ⭐ User Rating in Product/Service Lists
+
+### Overview
+
+When listing products or services, the API automatically includes the authenticated user's rating information for each item. This allows the mobile app to:
+
+1. **Show which items the user has rated** - Display a visual indicator (e.g., filled star)
+2. **Display the user's rating** - Show the exact rating (1-5) the user gave
+3. **Indicate update availability** - Show if/when the user can update their rating
+4. **Handle unauthenticated users** - Gracefully handle cases where no token is provided
+
+### Response Structure
+
+Every product/service in the list includes a `userRating` object:
+
+```typescript
+interface UserRating {
+  hasRated: boolean;        // Whether user has rated this item
+  rating: number | null;     // User's rating (1-5) or null
+  canUpdate: boolean;       // Whether user can update (24hr cooldown passed)
+  hoursUntilUpdate: number; // Hours remaining until update allowed
+  lastUpdated: string | null; // ISO date of last update
+}
+```
+
+### Usage Examples
+
+#### Display Rated Items
+
+```typescript
+const ProductCard = ({ product }) => {
+  const { userRating } = product;
+  
+  return (
+    <View>
+      <Text>{product.productName}</Text>
+      
+      {/* Show user's rating if they've rated */}
+      {userRating.hasRated && (
+        <View>
+          <Text>Your Rating: {userRating.rating} ⭐</Text>
+          {!userRating.canUpdate && (
+            <Text>
+              Can update in {userRating.hoursUntilUpdate} hours
+            </Text>
+          )}
+        </View>
+      )}
+      
+      {/* Show community average */}
+      <Text>Average: {product.quickRatingAvg} ({product.quickRatingTotal} ratings)</Text>
+    </View>
+  );
+};
+```
+
+#### Handle Rating Updates
+
+```typescript
+const handleRatingPress = async (productId: string, newRating: number) => {
+  const product = products.find(p => p.id === productId);
+  
+  if (!product.userRating.hasRated) {
+    // First time rating - allow immediately
+    await submitRating(productId, 'product', newRating);
+  } else if (product.userRating.canUpdate) {
+    // Can update - allow
+    await submitRating(productId, 'product', newRating);
+  } else {
+    // Cannot update yet - show message
+    Alert.alert(
+      'Update Not Available',
+      `You can update your rating in ${product.userRating.hoursUntilUpdate} hours`
+    );
+  }
+};
+```
+
+### Important Notes
+
+1. **Authentication is Optional**: The endpoints work without authentication, but `userRating` will always show `hasRated: false` if no token is provided.
+
+2. **Batch Fetching**: When fetching a list, all user ratings are fetched in a single batch query for efficiency.
+
+3. **Performance**: The user rating lookup is optimized and doesn't significantly impact response time.
+
+4. **Always Include Token**: For the best user experience, always include the JWT token in the Authorization header when fetching products/services.
+
+---
+
+## ⭐ User Rating in Product/Service Lists
+
+### Overview
+
+When listing products or services, the API automatically includes the authenticated user's rating information for each item. This allows the mobile app to:
+
+1. **Show which items the user has rated** - Display a visual indicator (e.g., filled star)
+2. **Display the user's rating** - Show the exact rating (1-5) the user gave
+3. **Indicate update availability** - Show if/when the user can update their rating
+4. **Handle unauthenticated users** - Gracefully handle cases where no token is provided
+
+### Response Structure
+
+Every product/service in the list includes a `userRating` object:
+
+```typescript
+interface UserRating {
+  hasRated: boolean;        // Whether user has rated this item
+  rating: number | null;     // User's rating (1-5) or null
+  canUpdate: boolean;       // Whether user can update (24hr cooldown passed)
+  hoursUntilUpdate: number; // Hours remaining until update allowed
+  lastUpdated: string | null; // ISO date of last update
+}
+```
+
+### Usage Examples
+
+#### Display Rated Items
+
+```typescript
+const ProductCard = ({ product }) => {
+  const { userRating } = product;
+  
+  return (
+    <View>
+      <Text>{product.productName}</Text>
+      
+      {/* Show user's rating if they've rated */}
+      {userRating.hasRated && (
+        <View>
+          <Text>Your Rating: {userRating.rating} ⭐</Text>
+          {!userRating.canUpdate && (
+            <Text>
+              Can update in {userRating.hoursUntilUpdate} hours
+            </Text>
+          )}
+        </View>
+      )}
+      
+      {/* Show community average */}
+      <Text>Average: {product.quickRatingAvg} ({product.quickRatingTotal} ratings)</Text>
+    </View>
+  );
+};
+```
+
+#### Handle Rating Updates
+
+```typescript
+const handleRatingPress = async (productId: string, newRating: number) => {
+  const product = products.find(p => p.id === productId);
+  
+  if (!product.userRating.hasRated) {
+    // First time rating - allow immediately
+    await submitRating(productId, 'product', newRating);
+  } else if (product.userRating.canUpdate) {
+    // Can update - allow
+    await submitRating(productId, 'product', newRating);
+  } else {
+    // Cannot update yet - show message
+    Alert.alert(
+      'Update Not Available',
+      `You can update your rating in ${product.userRating.hoursUntilUpdate} hours`
+    );
+  }
+};
+```
+
+### Important Notes
+
+1. **Authentication is Optional**: The endpoints work without authentication, but `userRating` will always show `hasRated: false` if no token is provided.
+
+2. **Batch Fetching**: When fetching a list, all user ratings are fetched in a single batch query for efficiency.
+
+3. **Performance**: The user rating lookup is optimized and doesn't significantly impact response time.
+
+4. **Always Include Token**: For the best user experience, always include the JWT token in the Authorization header when fetching products/services.
+
+---
+
+## 💬 Comments System
+
+The comment system allows users to comment on products and services with full support for nested threading and reactions (thumbs up/down).
+
+**See:** [COMMENT_SYSTEM_GUIDE.md](./COMMENT_SYSTEM_GUIDE.md) for complete documentation.
+
+### Quick Reference
+
+- **Get Comments:** `GET /api/comments/product/:productId` or `GET /api/comments/service/:serviceId`
+- **Create Comment:** `POST /api/comments`
+- **React to Comment:** `POST /api/comments/:id/react` (AGREE or DISAGREE)
+- **Get Replies:** `GET /api/comments/:id/replies`
+
+**Key Features:**
+- ✅ Nested threading (replies to replies, max depth 2)
+- ✅ Thumbs up/down reactions
+- ✅ User reaction status included when authenticated
+- ✅ Automatic reply and reaction counts
 
 ---
 

@@ -1,6 +1,7 @@
 import express from 'express';
 import { serviceServicePrisma } from '../../src/services/serviceServicePrisma.js';
-import { verifyToken, verifyAdmin, verifyBusinessOrAdmin } from '../middleware/auth';
+import { verifyToken, verifyAdmin, verifyBusinessOrAdmin, optionalAuth } from '../middleware/auth';
+import { quickRatingServicePrisma } from '../../src/services/quickRatingServicePrisma.js';
 
 const router = express.Router();
 
@@ -9,8 +10,9 @@ const router = express.Router();
 // ============================================================================
 
 // Get all services (with filters)
-router.get('/', async (req, res) => {
+router.get('/', optionalAuth, async (req, res) => {
   try {
+    const user = (req as any).user;
     const {
       search,
       categories,
@@ -33,27 +35,112 @@ router.get('/', async (req, res) => {
       sortOrder: sortOrder as any,
     });
 
+    // If user is authenticated, fetch their ratings for all services
+    let servicesWithRatings: any[] = result.services;
+    if (user && user.userId) {
+      const serviceIds = result.services.map((s: any) => s.id);
+      const userRatings = await quickRatingServicePrisma.getUserRatingsForItems(
+        user.userId,
+        serviceIds,
+        'SERVICE'
+      );
+
+      // Create a map of itemId -> rating for quick lookup
+      const ratingMap = new Map(
+        userRatings.map((rating: any) => [rating.itemId, rating])
+      );
+
+      // Add user rating info to each service
+      servicesWithRatings = result.services.map((service: any) => {
+        const userRating = ratingMap.get(service.id);
+        return {
+          ...service,
+          userRating: userRating ? {
+            hasRated: true,
+            rating: userRating.rating,
+            canUpdate: userRating.canUpdate,
+            hoursUntilUpdate: userRating.hoursUntilUpdate,
+            lastUpdated: userRating.lastUpdated,
+          } : {
+            hasRated: false,
+            rating: null,
+            canUpdate: true,
+            hoursUntilUpdate: 0,
+          },
+        };
+      });
+    } else {
+      // No user, add default userRating object
+      servicesWithRatings = result.services.map((service: any) => ({
+        ...service,
+        userRating: {
+          hasRated: false,
+          rating: null,
+          canUpdate: true,
+          hoursUntilUpdate: 0,
+        },
+      }));
+    }
+
     res.json({
       success: true,
-      data: result.services,
+      data: servicesWithRatings,
       meta: result.meta,
     });
   } catch (error: any) {
+    console.error('Get services error:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
 
 // Get service by ID
-router.get('/:id', async (req, res) => {
+router.get('/:id', optionalAuth, async (req, res) => {
   try {
+    const user = (req as any).user;
     const service = await serviceServicePrisma.getServiceById(req.params.id);
 
     if (!service) {
       return res.status(404).json({ success: false, error: 'Service not found' });
     }
 
-    res.json({ success: true, data: service });
+    // If user is authenticated, fetch their rating for this service
+    let serviceWithRating = service;
+    if (user && user.userId) {
+      const userRating = await quickRatingServicePrisma.getUserRatingForItem(
+        user.userId,
+        service.id
+      );
+
+      serviceWithRating = {
+        ...service,
+        userRating: userRating ? {
+          hasRated: true,
+          rating: userRating.rating,
+          canUpdate: userRating.canUpdate,
+          hoursUntilUpdate: userRating.hoursUntilUpdate,
+          lastUpdated: userRating.lastUpdated,
+        } : {
+          hasRated: false,
+          rating: null,
+          canUpdate: true,
+          hoursUntilUpdate: 0,
+        },
+      } as any;
+    } else {
+      serviceWithRating = {
+        ...service,
+        userRating: {
+          hasRated: false,
+          rating: null,
+          canUpdate: true,
+          hoursUntilUpdate: 0,
+        },
+      } as any;
+    }
+
+    res.json({ success: true, data: serviceWithRating });
   } catch (error: any) {
+    console.error('Get service error:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });

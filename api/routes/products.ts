@@ -1,6 +1,7 @@
 import express from 'express';
 import { productServicePrisma } from '../../src/services/productServicePrisma.js';
-import { verifyToken, verifyAdmin, verifyBusinessOrAdmin } from '../middleware/auth';
+import { verifyToken, verifyAdmin, verifyBusinessOrAdmin, optionalAuth } from '../middleware/auth';
+import { quickRatingServicePrisma } from '../../src/services/quickRatingServicePrisma.js';
 
 const router = express.Router();
 
@@ -9,8 +10,9 @@ const router = express.Router();
 // ============================================================================
 
 // Get all products (with filters)
-router.get('/', async (req, res) => {
+router.get('/', optionalAuth, async (req, res) => {
   try {
+    const user = (req as any).user;
     const {
       search,
       categories,
@@ -33,27 +35,112 @@ router.get('/', async (req, res) => {
       sortOrder: sortOrder as any,
     });
 
+    // If user is authenticated, fetch their ratings for all products
+    let productsWithRatings: any[] = result.products;
+    if (user && user.userId) {
+      const productIds = result.products.map((p: any) => p.id);
+      const userRatings = await quickRatingServicePrisma.getUserRatingsForItems(
+        user.userId,
+        productIds,
+        'PRODUCT'
+      );
+
+      // Create a map of itemId -> rating for quick lookup
+      const ratingMap = new Map(
+        userRatings.map((rating: any) => [rating.itemId, rating])
+      );
+
+      // Add user rating info to each product
+      productsWithRatings = result.products.map((product: any) => {
+        const userRating = ratingMap.get(product.id);
+        return {
+          ...product,
+          userRating: userRating ? {
+            hasRated: true,
+            rating: userRating.rating,
+            canUpdate: userRating.canUpdate,
+            hoursUntilUpdate: userRating.hoursUntilUpdate,
+            lastUpdated: userRating.lastUpdated,
+          } : {
+            hasRated: false,
+            rating: null,
+            canUpdate: true,
+            hoursUntilUpdate: 0,
+          },
+        };
+      });
+    } else {
+      // No user, add default userRating object
+      productsWithRatings = result.products.map((product: any) => ({
+        ...product,
+        userRating: {
+          hasRated: false,
+          rating: null,
+          canUpdate: true,
+          hoursUntilUpdate: 0,
+        },
+      }));
+    }
+
     res.json({
       success: true,
-      data: result.products,
+      data: productsWithRatings,
       meta: result.meta,
     });
   } catch (error: any) {
+    console.error('Get products error:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
 
 // Get product by ID
-router.get('/:id', async (req, res) => {
+router.get('/:id', optionalAuth, async (req, res) => {
   try {
+    const user = (req as any).user;
     const product = await productServicePrisma.getProductById(req.params.id);
 
     if (!product) {
       return res.status(404).json({ success: false, error: 'Product not found' });
     }
 
-    res.json({ success: true, data: product });
+    // If user is authenticated, fetch their rating for this product
+    let productWithRating = product;
+    if (user && user.userId) {
+      const userRating = await quickRatingServicePrisma.getUserRatingForItem(
+        user.userId,
+        product.id
+      );
+
+      productWithRating = {
+        ...product,
+        userRating: userRating ? {
+          hasRated: true,
+          rating: userRating.rating,
+          canUpdate: userRating.canUpdate,
+          hoursUntilUpdate: userRating.hoursUntilUpdate,
+          lastUpdated: userRating.lastUpdated,
+        } : {
+          hasRated: false,
+          rating: null,
+          canUpdate: true,
+          hoursUntilUpdate: 0,
+        },
+      } as any;
+    } else {
+      productWithRating = {
+        ...product,
+        userRating: {
+          hasRated: false,
+          rating: null,
+          canUpdate: true,
+          hoursUntilUpdate: 0,
+        },
+      } as any;
+    }
+
+    res.json({ success: true, data: productWithRating });
   } catch (error: any) {
+    console.error('Get product error:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });

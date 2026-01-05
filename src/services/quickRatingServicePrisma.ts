@@ -47,20 +47,27 @@ export const quickRatingServicePrisma = {
         (Date.now() - existing.lastUpdated.getTime()) / (1000 * 60 * 60);
 
       if (hoursSinceUpdate < DAILY_UPDATE_LIMIT_HOURS) {
+        const hoursRemaining = Math.ceil(DAILY_UPDATE_LIMIT_HOURS - hoursSinceUpdate);
+        const minutesRemaining = Math.ceil((DAILY_UPDATE_LIMIT_HOURS - hoursSinceUpdate) * 60);
+        
         throw new Error(
           `You can only update your rating once every ${DAILY_UPDATE_LIMIT_HOURS} hours. ` +
-            `Time remaining: ${Math.ceil(DAILY_UPDATE_LIMIT_HOURS - hoursSinceUpdate)} hours`
+            `Time remaining: ${hoursRemaining} hour${hoursRemaining !== 1 ? 's' : ''} (${minutesRemaining} minutes)`
         );
       }
 
+      // Update existing rating (after 24 hours)
+      // This counts as a new vote in community tallies
       result = await prisma.quickRating.update({
         where: { id: existing.id },
         data: {
           rating,
           lastUpdated: new Date(),
+          updatedAt: new Date(), // Track when it was updated
         },
       });
     } else {
+      // Create new rating (first time rating)
       result = await prisma.quickRating.create({
         data: {
           userId,
@@ -73,16 +80,26 @@ export const quickRatingServicePrisma = {
       });
     }
 
-    // Update product/service rating stats
+    // Update product/service rating stats (recalculates community tallies)
     if (productId) {
       await productServicePrisma.updateRatingStats(productId);
     } else if (serviceId) {
       await serviceServicePrisma.updateRatingStats(serviceId);
     }
 
+    // Calculate when user can update again
+    const nextUpdateTime = new Date(result.lastUpdated.getTime() + DAILY_UPDATE_LIMIT_HOURS * 60 * 60 * 1000);
+    const hoursUntilNextUpdate = DAILY_UPDATE_LIMIT_HOURS;
+
     return {
       ...result,
-      canUpdateIn: DAILY_UPDATE_LIMIT_HOURS,
+      isNewRating: !existing,
+      isUpdate: !!existing,
+      canUpdateIn: hoursUntilNextUpdate,
+      nextUpdateTime: nextUpdateTime.toISOString(),
+      message: existing 
+        ? 'Rating updated successfully. Your new vote has been counted in community tallies.'
+        : 'Rating submitted successfully.',
     };
   },
 
@@ -127,6 +144,49 @@ export const quickRatingServicePrisma = {
       canUpdate,
       hoursUntilUpdate,
     };
+  },
+
+  /**
+   * Get user ratings for multiple items at once (for list views)
+   * Returns a map of itemId -> rating for efficient lookup
+   */
+  async getUserRatingsForItems(
+    userId: string,
+    itemIds: string[],
+    itemType?: ItemType
+  ): Promise<any[]> {
+    if (!itemIds || itemIds.length === 0) {
+      return [];
+    }
+
+    const where: Prisma.QuickRatingWhereInput = {
+      userId,
+      itemId: { in: itemIds },
+    };
+
+    if (itemType) {
+      where.itemType = itemType;
+    }
+
+    const ratings = await prisma.quickRating.findMany({
+      where,
+    });
+
+    // Calculate update status for each rating
+    return ratings.map((rating) => {
+      const hoursSinceUpdate =
+        (Date.now() - rating.lastUpdated.getTime()) / (1000 * 60 * 60);
+      const canUpdate = hoursSinceUpdate >= DAILY_UPDATE_LIMIT_HOURS;
+      const hoursUntilUpdate = canUpdate
+        ? 0
+        : Math.ceil(DAILY_UPDATE_LIMIT_HOURS - hoursSinceUpdate);
+
+      return {
+        ...rating,
+        canUpdate,
+        hoursUntilUpdate,
+      };
+    });
   },
 
   async deleteRating(id: string, userId: string, isAdmin = false) {

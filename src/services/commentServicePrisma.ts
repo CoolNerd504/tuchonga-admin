@@ -14,6 +14,7 @@ export interface CommentFilters {
   sortOrder?: 'asc' | 'desc';
   hasReplies?: boolean;
   search?: string;
+  includeReplies?: boolean; // Include nested replies in response
 }
 
 export interface CreateCommentData {
@@ -125,6 +126,7 @@ export const commentServicePrisma = {
       sortOrder = 'desc',
       hasReplies,
       search,
+      includeReplies = false,
     } = filters;
 
     const where: Prisma.CommentWhereInput = {
@@ -157,6 +159,40 @@ export const commentServicePrisma = {
             },
           },
           reactions: true,
+          // Include nested replies if requested (max depth 2)
+          ...(includeReplies && {
+            replies: {
+              where: { isDeleted: false },
+              include: {
+                user: {
+                  select: {
+                    id: true,
+                    fullName: true,
+                    displayName: true,
+                    profileImage: true,
+                  },
+                },
+                reactions: true,
+                // Include replies to replies (depth 2)
+                replies: {
+                  where: { isDeleted: false },
+                  include: {
+                    user: {
+                      select: {
+                        id: true,
+                        fullName: true,
+                        displayName: true,
+                        profileImage: true,
+                      },
+                    },
+                    reactions: true,
+                  },
+                  orderBy: { createdAt: 'asc' },
+                },
+              },
+              orderBy: { createdAt: 'asc' },
+            },
+          }),
         },
         orderBy: { [sortBy]: sortOrder },
         skip: (page - 1) * limit,
@@ -371,6 +407,23 @@ export const commentServicePrisma = {
           userId,
           commentId,
         },
+      },
+    });
+  },
+
+  /**
+   * Get user reactions for multiple comments at once (for list views)
+   * Returns reactions for the given user and comment IDs
+   */
+  async getUserReactionsForComments(userId: string, commentIds: string[]) {
+    if (!commentIds || commentIds.length === 0) {
+      return [];
+    }
+
+    return prisma.commentReaction.findMany({
+      where: {
+        userId,
+        commentId: { in: commentIds },
       },
     });
   },

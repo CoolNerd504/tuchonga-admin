@@ -1,6 +1,6 @@
 import express from 'express';
 import { commentServicePrisma } from '../../src/services/commentServicePrisma.js';
-import { verifyToken, verifyAdmin } from '../middleware/auth';
+import { verifyToken, verifyAdmin, optionalAuth } from '../middleware/auth';
 
 const router = express.Router();
 
@@ -9,9 +9,10 @@ const router = express.Router();
 // ============================================================================
 
 // Get comments for a product
-router.get('/product/:productId', async (req, res) => {
+router.get('/product/:productId', optionalAuth, async (req, res) => {
   try {
-    const { page, limit, sortBy, sortOrder, hasReplies, search } = req.query;
+    const user = (req as any).user;
+    const { page, limit, sortBy, sortOrder, hasReplies, search, includeReplies } = req.query;
 
     const result = await commentServicePrisma.getProductComments(req.params.productId, {
       page: page ? parseInt(page as string) : 1,
@@ -20,22 +21,65 @@ router.get('/product/:productId', async (req, res) => {
       sortOrder: sortOrder as any,
       hasReplies: hasReplies === 'true',
       search: search as string,
+      includeReplies: includeReplies === 'true',
     });
+
+    // Add user reactions if authenticated
+    let commentsWithReactions = result.comments;
+    if (user && user.userId) {
+      const commentIds = result.comments.map((c: any) => c.id);
+      const userReactions = await commentServicePrisma.getUserReactionsForComments(
+        user.userId,
+        commentIds
+      );
+
+      const reactionMap = new Map(
+        userReactions.map((r: any) => [r.commentId, r])
+      );
+
+      commentsWithReactions = result.comments.map((comment: any) => {
+        const userReaction = reactionMap.get(comment.id);
+        const commentWithReaction: any = {
+          ...comment,
+          userReaction: userReaction ? {
+            hasReacted: true,
+            reactionType: userReaction.reactionType,
+          } : {
+            hasReacted: false,
+            reactionType: null,
+          },
+          // Include nested replies if requested
+          replies: comment.replies || [],
+        };
+        return commentWithReaction;
+      });
+    } else {
+      commentsWithReactions = result.comments.map((comment: any) => ({
+        ...comment,
+        userReaction: {
+          hasReacted: false,
+          reactionType: null,
+        },
+        replies: comment.replies || [],
+      }));
+    }
 
     res.json({
       success: true,
-      data: result.comments,
+      data: commentsWithReactions,
       meta: result.meta,
     });
   } catch (error: any) {
+    console.error('Get product comments error:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
 
 // Get comments for a service
-router.get('/service/:serviceId', async (req, res) => {
+router.get('/service/:serviceId', optionalAuth, async (req, res) => {
   try {
-    const { page, limit, sortBy, sortOrder, hasReplies, search } = req.query;
+    const user = (req as any).user;
+    const { page, limit, sortBy, sortOrder, hasReplies, search, includeReplies } = req.query;
 
     const result = await commentServicePrisma.getServiceComments(req.params.serviceId, {
       page: page ? parseInt(page as string) : 1,
@@ -44,36 +88,104 @@ router.get('/service/:serviceId', async (req, res) => {
       sortOrder: sortOrder as any,
       hasReplies: hasReplies === 'true',
       search: search as string,
+      includeReplies: includeReplies === 'true',
     });
+
+    // Add user reactions if authenticated
+    let commentsWithReactions = result.comments;
+    if (user && user.userId) {
+      const commentIds = result.comments.map((c: any) => c.id);
+      const userReactions = await commentServicePrisma.getUserReactionsForComments(
+        user.userId,
+        commentIds
+      );
+
+      const reactionMap = new Map(
+        userReactions.map((r: any) => [r.commentId, r])
+      );
+
+      commentsWithReactions = result.comments.map((comment: any) => {
+        const userReaction = reactionMap.get(comment.id);
+        const commentWithReaction: any = {
+          ...comment,
+          userReaction: userReaction ? {
+            hasReacted: true,
+            reactionType: userReaction.reactionType,
+          } : {
+            hasReacted: false,
+            reactionType: null,
+          },
+          replies: comment.replies || [],
+        };
+        return commentWithReaction;
+      });
+    } else {
+      commentsWithReactions = result.comments.map((comment: any) => ({
+        ...comment,
+        userReaction: {
+          hasReacted: false,
+          reactionType: null,
+        },
+        replies: comment.replies || [],
+      }));
+    }
 
     res.json({
       success: true,
-      data: result.comments,
+      data: commentsWithReactions,
       meta: result.meta,
     });
   } catch (error: any) {
+    console.error('Get service comments error:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
 
 // Get comment by ID
-router.get('/:id', async (req, res) => {
+router.get('/:id', optionalAuth, async (req, res) => {
   try {
+    const user = (req as any).user;
     const comment = await commentServicePrisma.getCommentById(req.params.id);
 
     if (!comment) {
       return res.status(404).json({ success: false, error: 'Comment not found' });
     }
 
-    res.json({ success: true, data: comment });
+    // Add user reaction if authenticated
+    let commentWithReaction: any = comment;
+    if (user && user.userId) {
+      const userReaction = await commentServicePrisma.getUserReaction(req.params.id, user.userId);
+      commentWithReaction = {
+        ...comment,
+        userReaction: userReaction ? {
+          hasReacted: true,
+          reactionType: userReaction.reactionType,
+        } : {
+          hasReacted: false,
+          reactionType: null,
+        },
+      };
+    } else {
+      commentWithReaction = {
+        ...comment,
+        userReaction: {
+          hasReacted: false,
+          reactionType: null,
+        },
+      };
+    }
+
+    res.json({ success: true, data: commentWithReaction });
   } catch (error: any) {
+    console.error('Get comment error:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
 
-// Get replies for a comment
-router.get('/:id/replies', async (req, res) => {
+// Get replies for a comment (nested thread)
+router.get('/:id/replies', optionalAuth, async (req, res) => {
   try {
+    const user = (req as any).user;
     const { page, limit, sortBy, sortOrder } = req.query;
 
     const result = await commentServicePrisma.getCommentReplies(req.params.id, {
@@ -83,12 +195,53 @@ router.get('/:id/replies', async (req, res) => {
       sortOrder: sortOrder as any,
     });
 
+    // Add user reactions if authenticated
+    let repliesWithReactions = result.comments;
+    if (user && user.userId) {
+      const replyIds = result.comments.map((c: any) => c.id);
+      const userReactions = await commentServicePrisma.getUserReactionsForComments(
+        user.userId,
+        replyIds
+      );
+
+      const reactionMap = new Map(
+        userReactions.map((r: any) => [r.commentId, r])
+      );
+
+      repliesWithReactions = result.comments.map((reply: any) => {
+        const userReaction = reactionMap.get(reply.id);
+        const replyWithReaction: any = {
+          ...reply,
+          userReaction: userReaction ? {
+            hasReacted: true,
+            reactionType: userReaction.reactionType,
+          } : {
+            hasReacted: false,
+            reactionType: null,
+          },
+          // Include nested replies (replies to replies)
+          replies: reply.replies || [],
+        };
+        return replyWithReaction;
+      });
+    } else {
+      repliesWithReactions = result.comments.map((reply: any) => ({
+        ...reply,
+        userReaction: {
+          hasReacted: false,
+          reactionType: null,
+        },
+        replies: reply.replies || [],
+      }));
+    }
+
     res.json({
       success: true,
-      data: result.comments,
+      data: repliesWithReactions,
       meta: result.meta,
     });
   } catch (error: any) {
+    console.error('Get comment replies error:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
