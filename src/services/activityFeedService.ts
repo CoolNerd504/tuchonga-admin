@@ -166,10 +166,10 @@ export const activityFeedService = {
       orderBy: { createdAt: 'desc' },
       include: {
         product: {
-          select: { id: true, productName: true, mainImage: true },
+          select: { id: true, productName: true, mainImage: true, isActive: true },
         },
         service: {
-          select: { id: true, serviceName: true, mainImage: true },
+          select: { id: true, serviceName: true, mainImage: true, isActive: true },
         },
       },
     });
@@ -200,7 +200,7 @@ export const activityFeedService = {
       if (streak >= 3) {
         const review = itemReviews[0];
         const item = review.product || review.service;
-        if (!item) return;
+        if (!item || !item.isActive) return;
 
         activities.push({
           id: `streak-${itemId}-${Date.now()}`,
@@ -404,7 +404,7 @@ export const activityFeedService = {
     const activities: Activity[] = [];
 
     // Get items with high combined engagement (reviews + comments)
-    const where: any = { isActive: true };
+    const where: any = {};
     if (itemType === 'PRODUCT') {
       where.productId = { not: null };
     } else if (itemType === 'SERVICE') {
@@ -440,13 +440,13 @@ export const activityFeedService = {
           const itemId = (group.productId || group.serviceId) as string;
           const item = await prisma.product.findUnique({
             where: { id: itemId },
-            select: { id: true, productName: true, mainImage: true },
+            select: { id: true, productName: true, mainImage: true, isActive: true },
           }) || await prisma.service.findUnique({
             where: { id: itemId },
-            select: { id: true, serviceName: true, mainImage: true },
+            select: { id: true, serviceName: true, mainImage: true, isActive: true },
           });
 
-          if (!item) return null;
+          if (!item || !item.isActive) return null;
 
           const commentCount = await prisma.comment.count({
             where: {
