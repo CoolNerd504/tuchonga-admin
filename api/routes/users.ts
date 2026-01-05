@@ -84,7 +84,7 @@ router.post('/me/complete-profile', verifyToken, async (req, res) => {
       data: user,
     });
   } catch (error: any) {
-    console.error('❌ Error in GET /api/users/me:');
+    console.error('❌ Error in POST /api/users/me/complete-profile:');
     console.error('   Error message:', error.message);
     console.error('   Error stack:', error.stack);
     res.status(500).json({ success: false, error: error.message });
