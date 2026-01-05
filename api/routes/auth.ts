@@ -205,5 +205,42 @@ router.post('/firebase-token', async (req, res) => {
   }
 });
 
+// Firebase status endpoint (for diagnostics)
+router.get('/firebase-status', async (req, res) => {
+  try {
+    const { getFirebaseAdminInitialized, firebaseAdmin } = await import('../../src/services/firebaseAdminService.js');
+    
+    // Access the initialization status
+    const serviceAccountKey = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
+    const hasServiceAccountKey = !!serviceAccountKey;
+    const isInitialized = getFirebaseAdminInitialized();
+    const hasApps = firebaseAdmin.apps.length > 0;
+    
+    res.json({
+      firebaseAdminInitialized: isInitialized && hasApps,
+      hasServiceAccountKey,
+      serviceAccountKeyLength: serviceAccountKey?.length || 0,
+      message: (isInitialized && hasApps)
+        ? '✅ Firebase Admin SDK is initialized and ready'
+        : '❌ Firebase Admin SDK is NOT initialized',
+      troubleshooting: !(isInitialized && hasApps) ? {
+        commonIssues: [
+          'FIREBASE_SERVICE_ACCOUNT_KEY not set in .env file',
+          'JSON parsing error (check for single \\n instead of \\\\n in private_key)',
+          'Invalid JSON format in FIREBASE_SERVICE_ACCOUNT_KEY',
+          'Missing required fields in service account JSON'
+        ],
+        fixGuide: 'See FIX_NEWLINE_FORMAT.md for help with newline format issues'
+      } : undefined
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      firebaseAdminInitialized: false,
+      error: error.message,
+      message: '❌ Error checking Firebase status'
+    });
+  }
+});
+
 export default router;
 

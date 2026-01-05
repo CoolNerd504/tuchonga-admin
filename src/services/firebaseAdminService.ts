@@ -20,15 +20,47 @@ function initializeFirebaseAdmin() {
     const serviceAccountKey = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
     
     if (serviceAccountKey) {
+      console.log('🔍 Found FIREBASE_SERVICE_ACCOUNT_KEY, attempting to parse...');
+      console.log(`   Key length: ${serviceAccountKey.length} characters`);
+      
       try {
         const serviceAccount = JSON.parse(serviceAccountKey);
+        console.log('✅ JSON parsed successfully');
+        console.log(`   Project ID: ${serviceAccount.project_id || 'MISSING'}`);
+        console.log(`   Client Email: ${serviceAccount.client_email || 'MISSING'}`);
+        console.log(`   Private Key: ${serviceAccount.private_key ? 'Present (' + serviceAccount.private_key.length + ' chars)' : 'MISSING'}`);
+        
+        // Check for single backslash issue
+        if (serviceAccount.private_key) {
+          const rawKey = serviceAccountKey;
+          const privateKeyMatch = rawKey.match(/"private_key"\s*:\s*"([^"]*)"/);
+          if (privateKeyMatch) {
+            const privateKeyInEnv = privateKeyMatch[1];
+            if (privateKeyInEnv.includes('\\n') && !privateKeyInEnv.includes('\\\\n')) {
+              console.error('❌ ERROR: Private key has single backslash \\n instead of double backslash \\\\n');
+              console.error('   This will cause JSON parsing to fail!');
+              console.error('   Fix: Replace all \\n with \\\\n in the private_key field in .env');
+              throw new Error('Invalid private key format: single backslash detected. Use \\\\n (double backslash) in .env file.');
+            }
+          }
+        }
+        
         admin.initializeApp({
           credential: admin.credential.cert(serviceAccount),
         });
         firebaseAdminInitialized = true;
         console.log('✅ Firebase Admin SDK initialized successfully');
-      } catch (parseError) {
-        console.error('❌ Failed to parse FIREBASE_SERVICE_ACCOUNT_KEY:', parseError);
+      } catch (parseError: any) {
+        console.error('❌ Failed to parse FIREBASE_SERVICE_ACCOUNT_KEY:');
+        console.error('   Error:', parseError.message);
+        if (parseError.message?.includes('Unexpected token') || parseError.message?.includes('JSON')) {
+          console.error('   This is likely a JSON parsing error.');
+          console.error('   Common causes:');
+          console.error('   1. Single backslash \\n instead of double backslash \\\\n in private_key');
+          console.error('   2. Missing quotes around the JSON string');
+          console.error('   3. Invalid JSON format');
+          console.error('   See FIX_NEWLINE_FORMAT.md for help');
+        }
       }
     } else {
       // Try individual environment variables
@@ -60,6 +92,11 @@ function initializeFirebaseAdmin() {
 initializeFirebaseAdmin();
 
 export { admin as firebaseAdmin };
+
+// Export initialization status getter
+export function getFirebaseAdminInitialized(): boolean {
+  return firebaseAdminInitialized;
+}
 
 /**
  * Verify Firebase ID token and extract user info
