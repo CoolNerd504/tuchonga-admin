@@ -126,6 +126,16 @@ export const verifyToken = async (
           });
         }
 
+        // Check if Firebase Admin SDK is not initialized
+        if (firebaseError.message?.includes('Firebase Admin SDK not initialized')) {
+          return res.status(500).json({
+            success: false,
+            error: 'Firebase authentication is not configured on the server. Please contact support.',
+            code: 'FIREBASE_NOT_CONFIGURED',
+            details: 'The server administrator needs to configure FIREBASE_SERVICE_ACCOUNT_KEY',
+          });
+        }
+
         return res.status(401).json({
           success: false,
           error: firebaseError.message || 'Invalid token',
