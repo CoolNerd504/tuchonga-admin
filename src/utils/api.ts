@@ -48,6 +48,18 @@ export const apiRequest = async <T = any>(
     });
 
     console.log(`[API] Response status: ${response.status} ${response.statusText} for ${endpoint}`);
+    console.log(`[API] Response Content-Type: ${response.headers.get('content-type')}`);
+    
+    // Check if response is JSON before parsing
+    const contentType = response.headers.get('content-type') || '';
+    if (!contentType.includes('application/json')) {
+      const text = await response.text();
+      console.error(`[API] Non-JSON response received for ${endpoint}:`, text.substring(0, 200));
+      return {
+        success: false,
+        error: `Server returned ${contentType} instead of JSON. Status: ${response.status} ${response.statusText}`,
+      };
+    }
     
     const data = await response.json();
 
@@ -68,6 +80,15 @@ export const apiRequest = async <T = any>(
     };
   } catch (error: any) {
     console.error(`[API] Network error for ${endpoint}:`, error);
+    
+    // Check if it's a JSON parsing error (likely HTML response)
+    if (error instanceof SyntaxError && error.message.includes('JSON')) {
+      return {
+        success: false,
+        error: `Server returned invalid JSON (possibly HTML). The API endpoint may not exist or the server may not be running.`,
+      };
+    }
+    
     return {
       success: false,
       error: error.message || 'Network error or API is unreachable',

@@ -425,6 +425,16 @@ export function ServicesView() {
       const response = await apiGet('/api/services', { limit: 10000 }); // Request all services for accurate count
       let fetchedData: Service[] = [];
       
+      if (!response.success) {
+        console.error('Failed to fetch services:', response.error);
+        setSnackbarMessage(response.error || 'Failed to fetch services. Please check if the API server is running.');
+        setSnackbarSeverity('error');
+        setSnackbarOpen(true);
+        setServiceList([]);
+        setTotalServicesCount(0);
+        return;
+      }
+      
       if (response.success && response.data) {
         // Store total count from API meta if available
         if (response.meta?.total !== undefined) {
@@ -480,9 +490,13 @@ export function ServicesView() {
       
       console.log(`Fetched ${fetchedData.length} services`);
       setServiceList(fetchedData);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error fetching services:', err);
       setServiceList([]);
+      setTotalServicesCount(0);
+      setSnackbarMessage(err?.message || 'Failed to fetch services. Please check if the API server is running.');
+      setSnackbarSeverity('error');
+      setSnackbarOpen(true);
     }
   }, []);
 
