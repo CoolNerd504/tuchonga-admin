@@ -26,8 +26,8 @@ model User {
   // Profile Information
   fullName     String?
   displayName  String?
-  firstname    String? // Legacy field
-  lastname     String? // Legacy field
+  firstname    String? // User's first name
+  lastname     String? // User's last name
   profileImage String?
   location     String?
   mobile       String? // Alternative to phoneNumber
@@ -61,6 +61,8 @@ model User {
   @@index([phoneNumber])
   @@index([role])
   @@index([createdAt])
+  @@index([firstname])
+  @@index([lastname])
 }
 
 // ============================================================================

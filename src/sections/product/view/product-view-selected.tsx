@@ -696,8 +696,8 @@ function QuickRatingsList({ ratings }: { ratings: any[] }) {
   const getUserDisplayName = (user: any) => {
     if (user?.fullName) return user.fullName;
     if (user?.displayName) return user.displayName;
-    if (user?.firstName && user?.lastName) return `${user.firstName} ${user.lastName}`;
-    if (user?.firstName) return user.firstName;
+    if (user?.firstname && user?.lastname) return `${user.firstname} ${user.lastname}`;
+    if (user?.firstname) return user.firstname;
     if (user?.email) return user.email;
     return 'Unknown User';
   };
