@@ -536,17 +536,32 @@ export function ProductsView() {
     // Fetch all product reviews
     const fetchAllProductReviews = async () => {
       try {
-        const response = await apiGet('/api/reviews', { itemType: 'PRODUCT' });
+        // Fetch all reviews (no filter) - the API will return all reviews
+        const response = await apiGet('/api/reviews', { limit: 10000 });
         if (response.success && response.data) {
-          const reviews = response.data.map((review: any) => ({
-            id: review.id,
-            product_id: review.productId || null,
-            service_id: review.serviceId || null,
-            sentiment: review.sentiment || null,
-            timestamp: review.createdAt ? new Date(review.createdAt) : new Date(),
-            ...review,
-          }));
-          console.log(`Fetched ${reviews.length} reviews from API`);
+          // Map API sentiment enum to display format
+          const sentimentMap: Record<string, string> = {
+            'WOULD_RECOMMEND': 'Would recommend',
+            'ITS_GOOD': 'Its Good',
+            'DONT_MIND_IT': 'Dont mind it',
+            'ITS_BAD': "It's bad",
+          };
+          
+          const reviews = response.data
+            .filter((review: any) => review.productId) // Only product reviews
+            .map((review: any) => ({
+              id: review.id,
+              product_id: review.productId || null,
+              service_id: review.serviceId || null,
+              userId: review.userId || '',
+              sentiment: sentimentMap[review.sentiment] || review.sentiment || null,
+              text: review.text || review.reviewText || '',
+              reviewText: review.reviewText || review.text || '',
+              timestamp: review.createdAt ? new Date(review.createdAt) : new Date(),
+              user: review.user || null, // Include user info from API
+              ...review,
+            }));
+          console.log(`Fetched ${reviews.length} product reviews from API`);
           setProductReviews(reviews);
           return reviews;
         }
@@ -1163,13 +1178,16 @@ export function ProductsView() {
                     {/* <TableCell>{product.total_reviews}</TableCell>
                     <TableCell>{product.total_reviews}</TableCell> */}
                     <TableCell>
-                      {productReviews
-                        .filter((review) => review.product_id === product.id)
-                        .filter(
-                          (review) =>
-                            review.sentiment === "Its Good" || review.sentiment === "Would recommend"
-                        )
-                        .length}
+                      {/* Use product.total_reviews from API (calculated from Review records) */}
+                      {product.positive_reviews !== undefined 
+                        ? product.positive_reviews 
+                        : productReviews
+                            .filter((review) => review.product_id === product.id)
+                            .filter(
+                              (review) =>
+                                review.sentiment === "Its Good" || review.sentiment === "Would recommend"
+                            )
+                            .length}
                     </TableCell>
                     <TableCell>
                       <Box>

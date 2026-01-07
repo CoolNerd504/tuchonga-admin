@@ -39,6 +39,8 @@
     "db:test": "tsx scripts/test-db-connection.ts",
     "db:fresh": "tsx scripts/reset-and-migrate.ts",
     "db:clear": "tsx scripts/clear-data-except-admins.ts",
+    "db:reset-product-reviews": "tsx scripts/reset-product-reviews-comments.ts",
+    "db:reset-service-reviews": "tsx scripts/reset-service-reviews-comments.ts",
     "firebase:deploy:storage": "firebase deploy --only storage"
   },
   "engines": {

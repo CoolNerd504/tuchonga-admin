@@ -67,15 +67,21 @@ const uploadImage = async (file: File | string) => {
 
 type Sentiment = "It's bad" | "Dont mind it" | "Its Good" | "Would recommend";
 interface Review {
-  id: string; // Firestore document ID
+  id: string; // Review ID
   product_id?: string; // ID of the product being reviewed
   service_id?: string; // ID of the service being reviewed
   userId: string; // ID of the user who wrote the review
-  sentiment: Sentiment; // e.g., "Its Good", etc.
+  sentiment: Sentiment; // e.g., "Its Good", "Would recommend", etc.
   text?: string; // Optional short comment
   reviewText?: string; // Optional longer review text
-  timestamp: any; // Firestore Timestamp or ServerTimestampFieldValue
+  timestamp: any; // Date or timestamp
   sentimentHistory?: ReviewSentimentHistoryEntry[];
+  user?: { // User info from API
+    id: string;
+    fullName?: string;
+    displayName?: string;
+    profileImage?: string;
+  };
   // Add any other fields present in your 'reviews' documents
 }
 
@@ -697,45 +703,53 @@ function ReviewsList({ reviews, usersMap }: { reviews: Review[]; usersMap: Recor
   return (
     <List sx={{ mt: 2 }}>
       {reviews.length > 0 ? (
-        reviews.map((review) => (
-          <React.Fragment key={review.id}>
-            <ListItem alignItems="flex-start">
-              <ListItemAvatar>
-                <Avatar>{getUserInitial(review.userId)}</Avatar>
-              </ListItemAvatar>
-              <ListItemText
-                primary={
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
-                    <Typography variant="subtitle1" fontWeight={600}>{getUserDisplayName(review.userId)}</Typography>
-                    <Chip 
-                      size="small" 
-                      label={review.sentiment} 
-                      color={getSentimentColor(review.sentiment) as 'success' | 'error' | 'warning' | 'default'} 
-                    />
-                  </Box>
-                }
-                secondary={
-                  <>
-                    <Typography variant="caption" display="block" gutterBottom>
-                      {review.timestamp instanceof Date 
-                        ? review.timestamp.toLocaleDateString() 
-                        : review.timestamp?.toDate 
-                          ? review.timestamp.toDate().toLocaleDateString()
-                          : new Date().toLocaleDateString()}
-                    </Typography>
-                    {review.reviewText && (
-                      <Typography variant="body2" sx={{ mb: 1 }}>{review.reviewText}</Typography>
-                    )}
-                    {review.text && (
-                      <Typography variant="body2" color="text.secondary">{review.text}</Typography>
-                    )}
-                  </>
-                }
-              />
-            </ListItem>
-            <Divider variant="inset" component="li" />
-          </React.Fragment>
-        ))
+        reviews.map((review) => {
+          // Get user info from review.user (from API) or fallback to usersMap
+          const reviewUser = (review as any).user;
+          const displayName = reviewUser?.fullName || reviewUser?.displayName || getUserDisplayName(review.userId);
+          const userInitial = reviewUser?.fullName?.charAt(0) || reviewUser?.displayName?.charAt(0) || getUserInitial(review.userId);
+          const userAvatar = reviewUser?.profileImage;
+          
+          return (
+            <React.Fragment key={review.id}>
+              <ListItem alignItems="flex-start">
+                <ListItemAvatar>
+                  <Avatar src={userAvatar}>{userInitial}</Avatar>
+                </ListItemAvatar>
+                <ListItemText
+                  primary={
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+                      <Typography variant="subtitle1" fontWeight={600}>{displayName}</Typography>
+                      <Chip 
+                        size="small" 
+                        label={review.sentiment || 'Unknown'} 
+                        color={getSentimentColor(review.sentiment || '') as 'success' | 'error' | 'warning' | 'default'} 
+                      />
+                    </Box>
+                  }
+                  secondary={
+                    <>
+                      <Typography variant="caption" display="block" gutterBottom>
+                        {review.timestamp instanceof Date 
+                          ? review.timestamp.toLocaleDateString() 
+                          : review.timestamp?.toDate 
+                            ? review.timestamp.toDate().toLocaleDateString()
+                            : new Date().toLocaleDateString()}
+                      </Typography>
+                      {review.reviewText && (
+                        <Typography variant="body2" sx={{ mb: 1 }}>{review.reviewText}</Typography>
+                      )}
+                      {review.text && (
+                        <Typography variant="body2" color="text.secondary">{review.text}</Typography>
+                      )}
+                    </>
+                  }
+                />
+              </ListItem>
+              <Divider variant="inset" component="li" />
+            </React.Fragment>
+          );
+        })
       ) : (
         <ListItem>
           <ListItemText primary={<Typography variant="body1" color="text.secondary" align="center">No reviews yet</Typography>} />
@@ -877,16 +891,40 @@ export function ProductDetail() {
       })(),
       (async () => {
         try {
-          const response = await apiGet('/api/reviews', { productId: initialProduct.id });
+          const response = await apiGet('/api/reviews', { productId: initialProduct.id, limit: 1000 });
           if (response.success && response.data) {
-            return response.data.map((review: any) => ({
-              id: review.id,
-              product_id: review.productId || null,
-              service_id: review.serviceId || null,
-              sentiment: review.sentiment || null,
-              timestamp: review.createdAt ? new Date(review.createdAt) : new Date(),
-              ...review,
-            })) as Review[];
+            // Map API sentiment enum to display format
+            const sentimentMap: Record<string, string> = {
+              'WOULD_RECOMMEND': 'Would recommend',
+              'ITS_GOOD': 'Its Good',
+              'DONT_MIND_IT': 'Dont mind it',
+              'ITS_BAD': "It's bad",
+            };
+            
+            return response.data.map((review: any) => {
+              // Get user info from review.user (included by API) or fallback
+              const reviewUser = review.user || {};
+              
+              return {
+                id: review.id,
+                product_id: review.productId || null,
+                service_id: review.serviceId || null,
+                userId: review.userId || '',
+                sentiment: sentimentMap[review.sentiment] || review.sentiment || null,
+                text: review.text || review.reviewText || '',
+                reviewText: review.reviewText || review.text || '',
+                timestamp: review.createdAt ? new Date(review.createdAt) : new Date(),
+                sentimentHistory: review.sentimentHistory || [],
+                // Include user info for display
+                user: {
+                  id: reviewUser.id || review.userId,
+                  fullName: reviewUser.fullName || reviewUser.displayName,
+                  displayName: reviewUser.displayName || reviewUser.fullName,
+                  profileImage: reviewUser.profileImage,
+                },
+                ...review,
+              };
+            }) as Review[];
           }
           return [] as Review[];
         } catch (err) {
