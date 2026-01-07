@@ -149,36 +149,41 @@ function CommentsList({ comments }: { comments: ProductOrServiceComment[] | null
   // State to track which comments have replies expanded (must be called before any early returns)
   const [expandedReplies, setExpandedReplies] = useState<Record<string, boolean>>({});
   
-  // Safely handle undefined/null comments
-  if (!comments || !Array.isArray(comments)) {
-    console.log('CommentsList received invalid comments:', comments);
-    return null;
-  }
-  
-  console.log('CommentsList received comments:', comments, 'Count:', comments.length);
-  // Filter out deleted comments
-  const activeComments = comments.filter(comment => !comment.isDeleted);
-  console.log('Active comments after filtering:', activeComments.length);
-  
-  // Separate root comments and replies
-  const rootComments = activeComments.filter(comment => comment.depth === 0 || !comment.parentId);
-  const replies = activeComments.filter(comment => comment.depth > 0 && comment.parentId);
-  
-  // Group replies by parentId
-  const repliesByParent = replies.reduce((acc, reply) => {
-    const parentId = reply.parentId || '';
-    if (!acc[parentId]) {
-      acc[parentId] = [];
+  // Compute comments data using useMemo (safe even if comments is null/undefined)
+  const commentsData = useMemo(() => {
+    if (!comments || !Array.isArray(comments)) {
+      return { rootComments: [], repliesByParent: {}, activeComments: [] };
     }
-    acc[parentId].push(reply);
-    return acc;
-  }, {} as Record<string, ProductOrServiceComment[]>);
+    
+    console.log('CommentsList received comments:', comments, 'Count:', comments.length);
+    // Filter out deleted comments
+    const activeComments = comments.filter(comment => !comment.isDeleted);
+    console.log('Active comments after filtering:', activeComments.length);
+    
+    // Separate root comments and replies
+    const rootComments = activeComments.filter(comment => comment.depth === 0 || !comment.parentId);
+    const replies = activeComments.filter(comment => comment.depth > 0 && comment.parentId);
+    
+    // Group replies by parentId
+    const repliesByParent = replies.reduce((acc, reply) => {
+      const parentId = reply.parentId || '';
+      if (!acc[parentId]) {
+        acc[parentId] = [];
+      }
+      acc[parentId].push(reply);
+      return acc;
+    }, {} as Record<string, ProductOrServiceComment[]>);
+    
+    return { rootComments, repliesByParent, activeComments };
+  }, [comments]);
   
-  // Initialize expanded state for comments with replies (using useEffect to avoid conditional hook call)
-  React.useEffect(() => {
+  // Initialize expanded state for comments with replies
+  useEffect(() => {
+    if (commentsData.rootComments.length === 0) return;
+    
     const initial: Record<string, boolean> = {};
-    rootComments.forEach(comment => {
-      if (repliesByParent[comment.id] && repliesByParent[comment.id].length > 0) {
+    commentsData.rootComments.forEach(comment => {
+      if (commentsData.repliesByParent[comment.id] && commentsData.repliesByParent[comment.id].length > 0) {
         initial[comment.id] = true;
       }
     });
@@ -195,7 +200,8 @@ function CommentsList({ comments }: { comments: ProductOrServiceComment[] | null
         return merged;
       });
     }
-  }, [rootComments.length, JSON.stringify(rootComments.map(c => c.id))]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [comments]);
   
   // Toggle reply expansion
   const toggleReplies = (commentId: string) => {
@@ -204,6 +210,17 @@ function CommentsList({ comments }: { comments: ProductOrServiceComment[] | null
       [commentId]: !prev[commentId]
     }));
   };
+  
+  // Safely handle undefined/null comments (after all hooks)
+  if (!comments || !Array.isArray(comments)) {
+    console.log('CommentsList received invalid comments:', comments);
+    return null;
+  }
+  
+  const { rootComments, repliesByParent, activeComments } = commentsData;
+  
+  // Calculate total replies count
+  const totalRepliesCount = Object.values(repliesByParent).reduce((sum, replies) => sum + replies.length, 0);
   
   // Sort root comments by createdAt (newest first)
   const sortedRootComments = [...rootComments].sort((a, b) => {
@@ -232,7 +249,7 @@ function CommentsList({ comments }: { comments: ProductOrServiceComment[] | null
 
           <Typography variant="body2" color="text.secondary">
             {sortedRootComments.length} comment{sortedRootComments.length !== 1 ? 's' : ''}
-            {replies.length > 0 && ` • ${replies.length} repl${replies.length === 1 ? 'y' : 'ies'}`}
+            {totalRepliesCount > 0 && ` • ${totalRepliesCount} repl${totalRepliesCount === 1 ? 'y' : 'ies'}`}
           </Typography>
         </Box>
       </Box>
