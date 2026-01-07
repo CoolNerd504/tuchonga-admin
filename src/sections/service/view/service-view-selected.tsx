@@ -146,6 +146,9 @@ const defaultService: Service = {
 };
 
 function CommentsList({ comments }: { comments: ProductOrServiceComment[] | null | undefined }) {
+  // State to track which comments have replies expanded (must be called before any early returns)
+  const [expandedReplies, setExpandedReplies] = useState<Record<string, boolean>>({});
+  
   // Safely handle undefined/null comments
   if (!comments || !Array.isArray(comments)) {
     console.log('CommentsList received invalid comments:', comments);
@@ -171,17 +174,28 @@ function CommentsList({ comments }: { comments: ProductOrServiceComment[] | null
     return acc;
   }, {} as Record<string, ProductOrServiceComment[]>);
   
-  // State to track which comments have replies expanded (default to all expanded)
-  const [expandedReplies, setExpandedReplies] = useState<Record<string, boolean>>(() => {
-    // Initialize all comments with replies as expanded by default
+  // Initialize expanded state for comments with replies (using useEffect to avoid conditional hook call)
+  React.useEffect(() => {
     const initial: Record<string, boolean> = {};
     rootComments.forEach(comment => {
       if (repliesByParent[comment.id] && repliesByParent[comment.id].length > 0) {
         initial[comment.id] = true;
       }
     });
-    return initial;
-  });
+    // Only update if there are new comments to expand
+    if (Object.keys(initial).length > 0) {
+      setExpandedReplies(prev => {
+        // Merge with existing state, only adding new ones
+        const merged = { ...prev };
+        Object.keys(initial).forEach(key => {
+          if (!(key in merged)) {
+            merged[key] = initial[key];
+          }
+        });
+        return merged;
+      });
+    }
+  }, [rootComments.length, JSON.stringify(rootComments.map(c => c.id))]);
   
   // Toggle reply expansion
   const toggleReplies = (commentId: string) => {
