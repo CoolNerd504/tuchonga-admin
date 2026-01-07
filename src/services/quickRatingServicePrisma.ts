@@ -264,6 +264,58 @@ export const quickRatingServicePrisma = {
     return this.getItemRatingStats(serviceId, 'SERVICE');
   },
 
+  /**
+   * Get all quick ratings for a product with user information
+   * Used for admin dashboard to show who rated and when
+   */
+  async getProductQuickRatingsWithUsers(
+    productId: string,
+    options: {
+      page?: number;
+      limit?: number;
+    } = {}
+  ) {
+    const { page = 1, limit = 100 } = options;
+
+    const where: Prisma.QuickRatingWhereInput = {
+      itemId: productId,
+      itemType: 'PRODUCT',
+    };
+
+    const [ratings, total] = await Promise.all([
+      prisma.quickRating.findMany({
+        where,
+        include: {
+          user: {
+            select: {
+              id: true,
+              fullName: true,
+              displayName: true,
+              profileImage: true,
+              email: true,
+              firstName: true,
+              lastName: true,
+            },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+      prisma.quickRating.count({ where }),
+    ]);
+
+    return {
+      ratings,
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
+  },
+
   // ============================================================================
   // User Ratings
   // ============================================================================

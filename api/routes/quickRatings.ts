@@ -28,6 +28,28 @@ router.get('/service/:serviceId', async (req, res) => {
   }
 });
 
+// Get all quick ratings for a product with user info (for admin dashboard)
+router.get('/product/:productId/users', async (req, res) => {
+  try {
+    const { page, limit } = req.query;
+    const result = await quickRatingServicePrisma.getProductQuickRatingsWithUsers(
+      req.params.productId,
+      {
+        page: page ? parseInt(page as string) : 1,
+        limit: limit ? parseInt(limit as string) : 100,
+      }
+    );
+
+    res.json({
+      success: true,
+      data: result.ratings,
+      meta: result.meta,
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // ============================================================================
 // Protected Routes
 // ============================================================================

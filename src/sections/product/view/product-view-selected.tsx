@@ -660,6 +660,125 @@ function CommentsList({ comments }: { comments: ProductOrServiceComment[] }) {
   );
 }
 
+function QuickRatingsList({ ratings }: { ratings: any[] }) {
+  const getRatingEmoji = (rating: number) => {
+    switch (rating) {
+      case 1: return '😞';
+      case 2: return '😐';
+      case 3: return '🙂';
+      case 4: return '😊';
+      case 5: return '😍';
+      default: return '⭐';
+    }
+  };
+
+  const getRatingColor = (rating: number) => {
+    switch (rating) {
+      case 1:
+      case 2:
+        return 'error';
+      case 3:
+        return 'warning';
+      case 4:
+      case 5:
+        return 'success';
+      default:
+        return 'default';
+    }
+  };
+
+  const formatDate = (date: Date | string) => {
+    if (!date) return 'Date unknown';
+    const d = date instanceof Date ? date : new Date(date);
+    return d.toLocaleString();
+  };
+
+  const getUserDisplayName = (user: any) => {
+    if (user?.fullName) return user.fullName;
+    if (user?.displayName) return user.displayName;
+    if (user?.firstName && user?.lastName) return `${user.firstName} ${user.lastName}`;
+    if (user?.firstName) return user.firstName;
+    if (user?.email) return user.email;
+    return 'Unknown User';
+  };
+
+  return (
+    <Box>
+      <Typography variant="subtitle1" sx={{ mb: 2, fontWeight: 600 }}>
+        Quick Ratings ({ratings.length})
+      </Typography>
+      {ratings.length > 0 ? (
+        <List>
+          {ratings.map((rating) => {
+            const user = rating.user || {};
+            const displayName = getUserDisplayName(user);
+            const userInitial = displayName.charAt(0).toUpperCase();
+            
+            return (
+              <React.Fragment key={rating.id}>
+                <ListItem alignItems="flex-start">
+                  <ListItemAvatar>
+                    <Avatar src={user.profileImage}>{userInitial}</Avatar>
+                  </ListItemAvatar>
+                  <ListItemText
+                    primary={
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+                        <Typography variant="subtitle1" fontWeight={600}>
+                          {displayName}
+                        </Typography>
+                        <Chip
+                          size="small"
+                          icon={<span style={{ fontSize: '16px' }}>{getRatingEmoji(rating.rating)}</span>}
+                          label={`${rating.rating}/5`}
+                          color={getRatingColor(rating.rating) as 'success' | 'error' | 'warning' | 'default'}
+                          sx={{ height: 24 }}
+                        />
+                      </Box>
+                    }
+                    secondary={
+                      <>
+                        <Typography variant="caption" display="block" gutterBottom>
+                          Rated on: {formatDate(rating.createdAt)}
+                        </Typography>
+                        {rating.updatedAt && rating.updatedAt !== rating.createdAt && (
+                          <Typography variant="caption" display="block" color="text.secondary">
+                            Last updated: {formatDate(rating.updatedAt)}
+                          </Typography>
+                        )}
+                      </>
+                    }
+                  />
+                </ListItem>
+                <Divider variant="inset" component="li" />
+              </React.Fragment>
+            );
+          })}
+        </List>
+      ) : (
+        <Card
+          elevation={0}
+          sx={{
+            p: 4,
+            textAlign: 'center',
+            borderRadius: 2,
+            border: '1px dashed',
+            borderColor: 'divider',
+            bgcolor: 'background.neutral',
+          }}
+        >
+          <Iconify icon="solar:star-bold" width={48} sx={{ color: 'text.disabled', mb: 1 }} />
+          <Typography variant="body1" color="text.secondary" sx={{ mb: 0.5 }}>
+            No quick ratings yet
+          </Typography>
+          <Typography variant="body2" color="text.disabled">
+            Quick ratings from users will appear here
+          </Typography>
+        </Card>
+      )}
+    </Box>
+  );
+}
+
 function ReviewsList({ reviews, usersMap }: { reviews: Review[]; usersMap: Record<string, { email?: string; firstname?: string; lastname?: string }> }) {
   const getSentimentColor = (sentiment: string) => {
     switch (sentiment) {
@@ -783,7 +902,17 @@ export function ProductDetail() {
     };
     
     // Log product detail object
-    console.log('Product Detail Object:', product);
+    console.log('=== PRODUCT DETAIL OBJECT ===');
+    console.log('Product:', product);
+    console.log('Product ID:', product.id);
+    console.log('Product Name:', product.product_name);
+    console.log('Product Categories:', product.category);
+    console.log('Product Owner:', product.productOwner);
+    console.log('Product Active:', product.isActive);
+    console.log('Product Reviews Count:', product.total_reviews || 0);
+    console.log('Product Positive Reviews:', product.positive_reviews || 0);
+    console.log('Product Total Views:', product.total_views || 0);
+    console.log('============================');
     
     return product;
   }, [location.state?.product]);
@@ -797,6 +926,7 @@ export function ProductDetail() {
   const [businessOwners, setBusinessOwners] = useState<BusinessOwner[]>([]);
   const [productComments, setProductComments] = useState<ProductOrServiceComment[]>([]);
   const [productReviews, setProductReviews] = useState<Review[]>([]);
+  const [quickRatings, setQuickRatings] = useState<any[]>([]);
   const [usersMap, setUsersMap] = useState<Record<string, { email?: string; firstname?: string; lastname?: string }>>({});
   // Reviews are now fetched from Firestore and stored in productReviews
   const [showAdditionalImages, setShowAdditionalImages] = useState(false);
@@ -858,8 +988,18 @@ export function ProductDetail() {
           console.log('=== FETCHING COMMENTS FOR PRODUCT ===');
           console.log('Product ID:', initialProduct.id);
           console.log('Product Name:', initialProduct.product_name);
+          console.log('Comments Endpoint:', `/api/comments/product/${initialProduct.id}`);
+          console.log('Comments Query Params:', { limit: 1000 });
           
           const response = await apiGet(`/api/comments/product/${initialProduct.id}`, { limit: 1000 });
+          
+          console.log('Comments API Response:', {
+            success: response.success,
+            dataCount: response.data?.length || 0,
+            meta: response.meta,
+            fullResponse: response
+          });
+          
           if (response.success && response.data) {
             // Map API response to ProductOrServiceComment format
             return response.data.map((comment: any) => ({
@@ -891,7 +1031,46 @@ export function ProductDetail() {
       })(),
       (async () => {
         try {
+          console.log('=== FETCHING REVIEWS FOR PRODUCT ===');
+          console.log('Product ID:', initialProduct.id);
+          console.log('Product Name:', initialProduct.product_name);
+          console.log('Reviews Endpoint:', '/api/reviews');
+          console.log('Reviews Query Params:', { productId: initialProduct.id, limit: 1000 });
+          
           const response = await apiGet('/api/reviews', { productId: initialProduct.id, limit: 1000 });
+          
+          console.log('Reviews API Response:', {
+            success: response.success,
+            dataCount: response.data?.length || 0,
+            meta: response.meta,
+            fullResponse: response
+          });
+          
+          // Also try the alternative endpoint for product reviews
+          try {
+            const altResponse = await apiGet(`/api/reviews/product/${initialProduct.id}`, { limit: 1000 });
+            console.log('Alternative Reviews Endpoint Response:', {
+              endpoint: `/api/reviews/product/${initialProduct.id}`,
+              success: altResponse.success,
+              dataCount: altResponse.data?.length || 0,
+              meta: altResponse.meta
+            });
+          } catch (altErr) {
+            console.log('Alternative reviews endpoint error:', altErr);
+          }
+          
+          // Try review stats endpoint
+          try {
+            const statsResponse = await apiGet(`/api/reviews/stats/product/${initialProduct.id}`);
+            console.log('Review Stats Endpoint Response:', {
+              endpoint: `/api/reviews/stats/product/${initialProduct.id}`,
+              success: statsResponse.success,
+              stats: statsResponse.data
+            });
+          } catch (statsErr) {
+            console.log('Review stats endpoint error:', statsErr);
+          }
+          
           if (response.success && response.data) {
             // Map API sentiment enum to display format
             const sentimentMap: Record<string, string> = {
@@ -952,20 +1131,60 @@ export function ProductDetail() {
           return {} as Record<string, { email?: string; firstname?: string; lastname?: string }>;
         }
       })(),
+      (async () => {
+        try {
+          console.log('=== FETCHING QUICK RATINGS FOR PRODUCT ===');
+          console.log('Product ID:', initialProduct.id);
+          console.log('Quick Ratings Endpoint:', `/api/quick-ratings/product/${initialProduct.id}/users`);
+          
+          const response = await apiGet(`/api/quick-ratings/product/${initialProduct.id}/users`, { limit: 1000 });
+          
+          console.log('Quick Ratings API Response:', {
+            success: response.success,
+            dataCount: response.data?.length || 0,
+            meta: response.meta,
+            fullResponse: response
+          });
+          
+          if (response.success && response.data) {
+            return response.data;
+          }
+          return [];
+        } catch (err) {
+          console.error('Error fetching quick ratings:', err);
+          return [];
+        }
+      })(),
     ])
-      .then(([categories, owners, comments, reviews, users]) => {
+      .then(([categories, owners, comments, reviews, users, quickRatingsData]) => {
         setAvailableCategories(categories as string[]);
         setBusinessOwners(owners as BusinessOwner[]);
         setProductComments(comments as ProductOrServiceComment[]);
         setProductReviews(reviews as Review[]);
         setUsersMap(users as Record<string, { email?: string; firstname?: string; lastname?: string }>);
-        console.log('Successfully loaded:', {
-          categories: (categories as string[]).length,
-          owners: (owners as BusinessOwner[]).length,
-          comments: (comments as ProductOrServiceComment[]).length,
-          reviews: (reviews as Review[]).length,
-          users: Object.keys(users as Record<string, any>).length
-        });
+        setQuickRatings(quickRatingsData as any[]);
+        
+        console.log('=== PRODUCT DATA LOADED SUCCESSFULLY ===');
+        console.log('Product:', initialProduct);
+        console.log('Categories Count:', (categories as string[]).length);
+        console.log('Business Owners Count:', (owners as BusinessOwner[]).length);
+        console.log('Comments Count:', (comments as ProductOrServiceComment[]).length);
+        console.log('Comments Data:', comments);
+        console.log('Reviews Count:', (reviews as Review[]).length);
+        console.log('Reviews Data:', reviews);
+        console.log('Quick Ratings Count:', (quickRatingsData as any[]).length);
+        console.log('Quick Ratings Data:', quickRatingsData);
+        console.log('Users Count:', Object.keys(users as Record<string, any>).length);
+        console.log('=== ALL REVIEW/COMMENT ENDPOINTS FOR THIS PRODUCT ===');
+        console.log('1. Comments Endpoint: GET /api/comments/product/' + initialProduct.id);
+        console.log('   Response:', { count: (comments as ProductOrServiceComment[]).length, data: comments });
+        console.log('2. Reviews Endpoint: GET /api/reviews?productId=' + initialProduct.id);
+        console.log('   Response:', { count: (reviews as Review[]).length, data: reviews });
+        console.log('3. Reviews by Product Endpoint: GET /api/reviews/product/' + initialProduct.id);
+        console.log('4. Review Stats Endpoint: GET /api/reviews/stats/product/' + initialProduct.id);
+        console.log('5. Quick Ratings Endpoint: GET /api/quick-ratings/product/' + initialProduct.id + '/users');
+        console.log('   Response:', { count: (quickRatingsData as any[]).length, data: quickRatingsData });
+        console.log('===================================================');
        
         setLoading(false);
       })
@@ -1513,8 +1732,22 @@ export function ProductDetail() {
 
       {activeTab === 2 && (
         <Box sx={{ pt: 3 }}>
-          <Typography variant="h6" sx={{ mb: 2 }}>Reviews</Typography>
-          <ReviewsList reviews={productReviews} usersMap={usersMap} />
+          <Typography variant="h6" sx={{ mb: 3 }}>Reviews</Typography>
+          
+          {/* Quick Ratings Section */}
+          <Box sx={{ mb: 4 }}>
+            <QuickRatingsList ratings={quickRatings} />
+          </Box>
+          
+          <Divider sx={{ my: 3 }} />
+          
+          {/* Sentiment Reviews Section */}
+          <Box>
+            <Typography variant="subtitle1" sx={{ mb: 2, fontWeight: 600 }}>
+              Sentiment Reviews ({productReviews.length})
+            </Typography>
+            <ReviewsList reviews={productReviews} usersMap={usersMap} />
+          </Box>
         </Box>
       )}
 
