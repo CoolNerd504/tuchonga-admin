@@ -949,6 +949,10 @@ export function ProductDetail() {
     // Comments and reviews are publicly readable, so we can fetch them even without auth
     // Categories and businesses require auth, but we'll handle that gracefully
     
+    // Extract product ID and name for use in dependencies and API calls
+    const productId = initialProduct.id;
+    const productName = initialProduct.product_name;
+    
     setLoading(true);
     setError(null);
     Promise.all([
@@ -986,12 +990,12 @@ export function ProductDetail() {
       (async () => {
         try {
           console.log('=== FETCHING COMMENTS FOR PRODUCT ===');
-          console.log('Product ID:', initialProduct.id);
-          console.log('Product Name:', initialProduct.product_name);
-          console.log('Comments Endpoint:', `/api/comments/product/${initialProduct.id}`);
+          console.log('Product ID:', productId);
+          console.log('Product Name:', productName);
+          console.log(`Comments Endpoint: /api/comments/product/${productId}`);
           console.log('Comments Query Params:', { limit: 1000 });
           
-          const response = await apiGet(`/api/comments/product/${initialProduct.id}`, { limit: 1000 });
+          const response = await apiGet(`/api/comments/product/${productId}`, { limit: 1000 });
           
           console.log('Comments API Response:', {
             success: response.success,
@@ -1032,12 +1036,12 @@ export function ProductDetail() {
       (async () => {
         try {
           console.log('=== FETCHING REVIEWS FOR PRODUCT ===');
-          console.log('Product ID:', initialProduct.id);
-          console.log('Product Name:', initialProduct.product_name);
+          console.log('Product ID:', productId);
+          console.log('Product Name:', productName);
           console.log('Reviews Endpoint:', '/api/reviews');
-          console.log('Reviews Query Params:', { productId: initialProduct.id, limit: 1000 });
+          console.log('Reviews Query Params:', { productId, limit: 1000 });
           
-          const response = await apiGet('/api/reviews', { productId: initialProduct.id, limit: 1000 });
+          const response = await apiGet('/api/reviews', { productId, limit: 1000 });
           
           console.log('Reviews API Response:', {
             success: response.success,
@@ -1048,9 +1052,9 @@ export function ProductDetail() {
           
           // Also try the alternative endpoint for product reviews
           try {
-            const altResponse = await apiGet(`/api/reviews/product/${initialProduct.id}`, { limit: 1000 });
+            const altResponse = await apiGet(`/api/reviews/product/${productId}`, { limit: 1000 });
             console.log('Alternative Reviews Endpoint Response:', {
-              endpoint: `/api/reviews/product/${initialProduct.id}`,
+              endpoint: `/api/reviews/product/${productId}`,
               success: altResponse.success,
               dataCount: altResponse.data?.length || 0,
               meta: altResponse.meta
@@ -1061,9 +1065,9 @@ export function ProductDetail() {
           
           // Try review stats endpoint
           try {
-            const statsResponse = await apiGet(`/api/reviews/stats/product/${initialProduct.id}`);
+            const statsResponse = await apiGet(`/api/reviews/stats/product/${productId}`);
             console.log('Review Stats Endpoint Response:', {
-              endpoint: `/api/reviews/stats/product/${initialProduct.id}`,
+              endpoint: `/api/reviews/stats/product/${productId}`,
               success: statsResponse.success,
               stats: statsResponse.data
             });
@@ -1134,10 +1138,10 @@ export function ProductDetail() {
       (async () => {
         try {
           console.log('=== FETCHING QUICK RATINGS FOR PRODUCT ===');
-          console.log('Product ID:', initialProduct.id);
-          console.log('Quick Ratings Endpoint:', `/api/quick-ratings/product/${initialProduct.id}/users`);
+          console.log('Product ID:', productId);
+          console.log(`Quick Ratings Endpoint: /api/quick-ratings/product/${productId}/users`);
           
-          const response = await apiGet(`/api/quick-ratings/product/${initialProduct.id}/users`, { limit: 1000 });
+          const response = await apiGet(`/api/quick-ratings/product/${productId}/users`, { limit: 1000 });
           
           console.log('Quick Ratings API Response:', {
             success: response.success,
@@ -1176,13 +1180,13 @@ export function ProductDetail() {
         console.log('Quick Ratings Data:', quickRatingsData);
         console.log('Users Count:', Object.keys(users as Record<string, any>).length);
         console.log('=== ALL REVIEW/COMMENT ENDPOINTS FOR THIS PRODUCT ===');
-        console.log('1. Comments Endpoint: GET /api/comments/product/' + initialProduct.id);
+        console.log(`1. Comments Endpoint: GET /api/comments/product/${productId}`);
         console.log('   Response:', { count: (comments as ProductOrServiceComment[]).length, data: comments });
-        console.log('2. Reviews Endpoint: GET /api/reviews?productId=' + initialProduct.id);
+        console.log(`2. Reviews Endpoint: GET /api/reviews?productId=${productId}`);
         console.log('   Response:', { count: (reviews as Review[]).length, data: reviews });
-        console.log('3. Reviews by Product Endpoint: GET /api/reviews/product/' + initialProduct.id);
-        console.log('4. Review Stats Endpoint: GET /api/reviews/stats/product/' + initialProduct.id);
-        console.log('5. Quick Ratings Endpoint: GET /api/quick-ratings/product/' + initialProduct.id + '/users');
+        console.log(`3. Reviews by Product Endpoint: GET /api/reviews/product/${productId}`);
+        console.log(`4. Review Stats Endpoint: GET /api/reviews/stats/product/${productId}`);
+        console.log(`5. Quick Ratings Endpoint: GET /api/quick-ratings/product/${productId}/users`);
         console.log('   Response:', { count: (quickRatingsData as any[]).length, data: quickRatingsData });
         console.log('===================================================');
        
@@ -1193,7 +1197,7 @@ export function ProductDetail() {
         setError('Failed to load data. Please refresh the page.');
         setLoading(false);
       });
-  }, [initialProduct.id, initialProduct.product_name]);
+  }, [initialProduct]);
 
   // Set default business owner if not already set
   useEffect(() => {
