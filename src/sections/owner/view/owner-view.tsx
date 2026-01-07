@@ -49,6 +49,8 @@ interface Business {
   poc_lastname: string;
   poc_phone: string;
   status: boolean;
+  productCount?: number;
+  serviceCount?: number;
 }
 type TableNoDataProps = {
   // If the prop is required, remove the '?'
@@ -298,6 +300,9 @@ export function OwnerView() {
           poc_lastname: biz.pocLastName || biz.poc_lastname || '',
           poc_phone: biz.pocPhone || biz.poc_phone || '',
           status: biz.status !== false,
+          // Extract counts from _count field (Prisma includes this)
+          productCount: biz._count?.products || 0,
+          serviceCount: biz._count?.services || 0,
         }));
       }
       
@@ -635,6 +640,8 @@ export function OwnerView() {
                     <TableCell sx={{ minWidth: 200 }}>Email</TableCell>
                     <TableCell sx={{ minWidth: 100 }}>Verified</TableCell>
                     <TableCell sx={{ minWidth: 150 }}>Location</TableCell>
+                    <TableCell sx={{ minWidth: 100 }}>Products</TableCell>
+                    <TableCell sx={{ minWidth: 100 }}>Services</TableCell>
                     <TableCell sx={{ minWidth: 100 }}>Status</TableCell>
                     <TableCell sx={{ minWidth: 80 }} />
                   </TableRow>
@@ -663,6 +670,22 @@ export function OwnerView() {
                       </TableCell>
                       <TableCell>{business.location || 'N/A'}</TableCell>
                       <TableCell>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                          <Iconify icon="solar:box-bold" width={18} sx={{ color: 'primary.main' }} />
+                          <Typography variant="body2" fontWeight={600}>
+                            {business.productCount ?? 0}
+                          </Typography>
+                        </Box>
+                      </TableCell>
+                      <TableCell>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                          <Iconify icon="solar:settings-bold" width={18} sx={{ color: 'info.main' }} />
+                          <Typography variant="body2" fontWeight={600}>
+                            {business.serviceCount ?? 0}
+                          </Typography>
+                        </Box>
+                      </TableCell>
+                      <TableCell>
                         {business.status ? (
                           <Typography variant="body2" sx={{ color: 'success.main' }}>
                             Active
@@ -689,7 +712,7 @@ export function OwnerView() {
                   ))}
                   {paginatedBusinesses.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={6} align="center">
+                      <TableCell colSpan={8} align="center">
                         <Typography variant="body2">
                           {filteredBusinesses.length === 0 ? 'No business owners found' : 'No business owners on this page'}
                         </Typography>
