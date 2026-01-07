@@ -12,6 +12,7 @@ interface Service {
 
 interface ServiceStatsProps {
     services?: Service[];
+    totalCount?: number; // Total count from API meta
 }
 
 // Helper function to safely get comment count from service
@@ -31,12 +32,13 @@ const getCommentCount = (service: Service): number => {
     return 0;
 };
 
-const ServiceStats: React.FC<ServiceStatsProps> = ({ services }) => {
+const ServiceStats: React.FC<ServiceStatsProps> = ({ services, totalCount }) => {
     // Aggregate stats
     const totalViews = services?.reduce((acc, service) => acc + (service.total_views || 0), 0) ?? 0;
     const totalComments = services?.reduce((acc, service) => acc + getCommentCount(service), 0) ?? 0;
     const totalReviews = services?.reduce((acc, service) => acc + (service.total_reviews || 0), 0) ?? 0;
-    const totalServices = services?.length ?? 0;
+    // Use totalCount from API meta if provided, otherwise fall back to services array length
+    const totalServices = totalCount !== undefined ? totalCount : (services?.length ?? 0);
 
 
     const chartData = [

@@ -165,6 +165,7 @@ export function ServicesView() {
   const [availableCategories, setAvailableCategories] = useState<Array<{ id: string; name: string }>>([]);
   const [serviceComments, setServiceComments] = useState<ProductOrServiceComment[]>([]);
   const [serviceList, setServiceList] = useState<Service[]>([]);
+  const [totalServicesCount, setTotalServicesCount] = useState<number>(0);
   const [availableServiceOwners, setAvailableServiceOwners] = useState<string[]>([]);
   const [serviceThumbnailFile, setServiceThumbnailFile] = useState<File | null>(null);
   const [isAddingService, setIsAddingService] = useState(false);
@@ -421,10 +422,17 @@ export function ServicesView() {
   // Update getServices with stable dependency
   const getServices = useCallback(async () => {
     try {
-      const response = await apiGet('/api/services');
+      const response = await apiGet('/api/services', { limit: 10000 }); // Request all services for accurate count
       let fetchedData: Service[] = [];
       
       if (response.success && response.data) {
+        // Store total count from API meta if available
+        if (response.meta?.total !== undefined) {
+          setTotalServicesCount(response.meta.total);
+        } else {
+          // Fallback to array length if meta.total is not available
+          setTotalServicesCount(Array.isArray(response.data) ? response.data.length : 0);
+        }
         fetchedData = response.data.map((service: any) => {
           // Safely handle comments field - could be array, object, or undefined
           let commentsField: string[] | { items?: any[]; total?: number } | undefined;
@@ -1224,7 +1232,7 @@ export function ServicesView() {
         {/* Right Section (Donut Chart & Stats) */}
         <Grid item xs={12} md={3} sx={{ order: { xs: -1, md: 0 } }}>
           <Paper sx={{ p: 2, borderRadius: 2, height: '100%' }} elevation={1}>
-            <ServiceStats services={serviceList} />
+            <ServiceStats services={serviceList} totalCount={totalServicesCount} />
           </Paper>
         </Grid>
       </Grid>

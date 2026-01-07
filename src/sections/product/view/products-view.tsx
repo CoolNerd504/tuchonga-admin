@@ -491,7 +491,7 @@ export function ProductsView() {
           id: product.id,
           product_name: product.productName || product.name || '',
           description: product.description || '',
-          category: product.categoryIds || [],
+          category: product.categoryIds || product.categories?.map((c: any) => c.id || c.name) || [],
           mainImage: product.mainImage || '',
           additionalImages: product.additionalImages || [],
           productOwner: product.businessId || product.productOwner || '',
