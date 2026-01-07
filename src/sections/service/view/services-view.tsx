@@ -427,7 +427,7 @@ export function ServicesView() {
       if (response.success && response.data) {
         fetchedData = response.data.map((service: any) => {
           // Safely handle comments field - could be array, object, or undefined
-          let commentsField: string[] | { items?: any[]; total?: number } | undefined = undefined;
+          let commentsField: string[] | { items?: any[]; total?: number } | undefined;
           if (service.comments) {
             if (Array.isArray(service.comments)) {
               commentsField = service.comments;
