@@ -321,8 +321,31 @@ function AdditionalImagesUpload({
 }
 
 function CommentsList({ comments }: { comments: ProductOrServiceComment[] }) {
-  // State to track which comments have replies expanded
-  const [expandedReplies, setExpandedReplies] = useState<Record<string, boolean>>({});
+  // State to track which comments have replies expanded (default to all expanded)
+  const [expandedReplies, setExpandedReplies] = useState<Record<string, boolean>>(() => {
+    // Initialize all comments with replies as expanded by default
+    const initial: Record<string, boolean> = {};
+    const activeComments = comments.filter(comment => !comment.isDeleted);
+    const rootComments = activeComments.filter(comment => comment.depth === 0 || !comment.parentId);
+    const replies = activeComments.filter(comment => comment.depth > 0 && comment.parentId);
+    const repliesByParent = replies.reduce((acc, reply) => {
+      const parentId = reply.parentId || '';
+      if (!acc[parentId]) {
+        acc[parentId] = [];
+      }
+      acc[parentId].push(reply);
+      return acc;
+    }, {} as Record<string, ProductOrServiceComment[]>);
+    
+    // Set all comments with replies to expanded by default
+    rootComments.forEach(comment => {
+      if (repliesByParent[comment.id] && repliesByParent[comment.id].length > 0) {
+        initial[comment.id] = true;
+      }
+    });
+    
+    return initial;
+  });
   
   // Filter out deleted comments
   const activeComments = comments.filter(comment => !comment.isDeleted);

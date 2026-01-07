@@ -171,6 +171,26 @@ function CommentsList({ comments }: { comments: ProductOrServiceComment[] | null
     return acc;
   }, {} as Record<string, ProductOrServiceComment[]>);
   
+  // State to track which comments have replies expanded (default to all expanded)
+  const [expandedReplies, setExpandedReplies] = useState<Record<string, boolean>>(() => {
+    // Initialize all comments with replies as expanded by default
+    const initial: Record<string, boolean> = {};
+    rootComments.forEach(comment => {
+      if (repliesByParent[comment.id] && repliesByParent[comment.id].length > 0) {
+        initial[comment.id] = true;
+      }
+    });
+    return initial;
+  });
+  
+  // Toggle reply expansion
+  const toggleReplies = (commentId: string) => {
+    setExpandedReplies(prev => ({
+      ...prev,
+      [commentId]: !prev[commentId]
+    }));
+  };
+  
   // Sort root comments by createdAt (newest first)
   const sortedRootComments = [...rootComments].sort((a, b) => {
     const dateA = a.createdAt instanceof Date ? a.createdAt.getTime() : 
@@ -208,6 +228,8 @@ function CommentsList({ comments }: { comments: ProductOrServiceComment[] | null
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
           {sortedRootComments.map((comment) => {
             const commentReplies = sortReplies(repliesByParent[comment.id] || []);
+            const isExpanded = expandedReplies[comment.id] || false;
+            const hasReplies = commentReplies.length > 0;
             return (
               <Card
                 key={comment.id}
@@ -320,38 +342,51 @@ function CommentsList({ comments }: { comments: ProductOrServiceComment[] | null
                         }}
                       />
                     )}
-                    {comment.replyCount > 0 && (
-                      <Chip 
-                        size="small" 
-                        icon={<Iconify icon="solar:chat-round-dots-bold" width={16} />}
-                        label={`${comment.replyCount} ${comment.replyCount === 1 ? 'reply' : 'replies'}`} 
-                        color="default"
-                        variant="outlined"
+                    {hasReplies && (
+                      <Button
+                        size="small"
+                        variant="text"
+                        onClick={() => toggleReplies(comment.id)}
+                        startIcon={
+                          <Iconify 
+                            icon={isExpanded ? "eva:arrow-ios-upward-fill" : "eva:arrow-ios-downward-fill"} 
+                            width={16} 
+                          />
+                        }
                         sx={{ 
                           height: 24,
-                          bgcolor: 'action.hover',
+                          minWidth: 'auto',
+                          px: 1,
+                          fontSize: '0.75rem',
+                          color: 'text.secondary',
+                          '&:hover': {
+                            bgcolor: 'action.hover',
+                          },
                         }}
-                      />
+                      >
+                        {comment.replyCount} {comment.replyCount === 1 ? 'reply' : 'replies'}
+                      </Button>
                     )}
                   </Box>
                 </Box>
 
-                {/* Replies Section */}
-                {commentReplies.length > 0 && (
-                  <Box
-                    sx={{
-                      borderTop: '1px solid',
-                      borderColor: 'divider',
-                      bgcolor: 'background.neutral',
-                      pt: 2,
-                      pb: 1,
-                    }}
-                  >
-                    <Box sx={{ px: 2.5, mb: 1.5 }}>
-                      <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, fontSize: '0.75rem' }}>
-                        {commentReplies.length} {commentReplies.length === 1 ? 'Reply' : 'Replies'}
-                      </Typography>
-                    </Box>
+                {/* Replies Section - Collapsible */}
+                {hasReplies && (
+                  <Collapse in={isExpanded}>
+                    <Box
+                      sx={{
+                        borderTop: '1px solid',
+                        borderColor: 'divider',
+                        bgcolor: 'background.neutral',
+                        pt: 2,
+                        pb: 1,
+                      }}
+                    >
+                      <Box sx={{ px: 2.5, mb: 1.5 }}>
+                        <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, fontSize: '0.75rem' }}>
+                          {commentReplies.length} {commentReplies.length === 1 ? 'Reply' : 'Replies'}
+                        </Typography>
+                      </Box>
                     
                     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, px: 2.5 }}>
                       {commentReplies.map((reply) => (
@@ -463,6 +498,7 @@ function CommentsList({ comments }: { comments: ProductOrServiceComment[] | null
                       ))}
                     </Box>
                   </Box>
+                  </Collapse>
                 )}
               </Card>
             );
@@ -486,6 +522,125 @@ function CommentsList({ comments }: { comments: ProductOrServiceComment[] | null
           </Typography>
           <Typography variant="body2" color="text.disabled">
             Comments from the mobile app will appear here
+          </Typography>
+        </Card>
+      )}
+    </Box>
+  );
+}
+
+function QuickRatingsList({ ratings }: { ratings: any[] }) {
+  const getRatingEmoji = (rating: number) => {
+    switch (rating) {
+      case 1: return '😞';
+      case 2: return '😐';
+      case 3: return '🙂';
+      case 4: return '😊';
+      case 5: return '😍';
+      default: return '⭐';
+    }
+  };
+
+  const getRatingColor = (rating: number) => {
+    switch (rating) {
+      case 1:
+      case 2:
+        return 'error';
+      case 3:
+        return 'warning';
+      case 4:
+      case 5:
+        return 'success';
+      default:
+        return 'default';
+    }
+  };
+
+  const formatDate = (date: Date | string) => {
+    if (!date) return 'Date unknown';
+    const d = date instanceof Date ? date : new Date(date);
+    return d.toLocaleString();
+  };
+
+  const getUserDisplayName = (user: any) => {
+    if (user?.fullName) return user.fullName;
+    if (user?.displayName) return user.displayName;
+    if (user?.firstname && user?.lastname) return `${user.firstname} ${user.lastname}`;
+    if (user?.firstname) return user.firstname;
+    if (user?.email) return user.email;
+    return 'Unknown User';
+  };
+
+  return (
+    <Box>
+      <Typography variant="subtitle1" sx={{ mb: 2, fontWeight: 600 }}>
+        Quick Ratings ({ratings.length})
+      </Typography>
+      {ratings.length > 0 ? (
+        <List>
+          {ratings.map((rating) => {
+            const user = rating.user || {};
+            const displayName = getUserDisplayName(user);
+            const userInitial = displayName.charAt(0).toUpperCase();
+            
+            return (
+              <React.Fragment key={rating.id}>
+                <ListItem alignItems="flex-start">
+                  <ListItemAvatar>
+                    <Avatar src={user.profileImage}>{userInitial}</Avatar>
+                  </ListItemAvatar>
+                  <ListItemText
+                    primary={
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+                        <Typography variant="subtitle1" fontWeight={600}>
+                          {displayName}
+                        </Typography>
+                        <Chip
+                          size="small"
+                          icon={<span style={{ fontSize: '16px' }}>{getRatingEmoji(rating.rating)}</span>}
+                          label={`${rating.rating}/5`}
+                          color={getRatingColor(rating.rating) as 'success' | 'error' | 'warning' | 'default'}
+                          sx={{ height: 24 }}
+                        />
+                      </Box>
+                    }
+                    secondary={
+                      <>
+                        <Typography variant="caption" display="block" gutterBottom>
+                          Rated on: {formatDate(rating.createdAt)}
+                        </Typography>
+                        {rating.updatedAt && rating.updatedAt !== rating.createdAt && (
+                          <Typography variant="caption" display="block" color="text.secondary">
+                            Last updated: {formatDate(rating.updatedAt)}
+                          </Typography>
+                        )}
+                      </>
+                    }
+                  />
+                </ListItem>
+                <Divider variant="inset" component="li" />
+              </React.Fragment>
+            );
+          })}
+        </List>
+      ) : (
+        <Card
+          elevation={0}
+          sx={{
+            p: 4,
+            textAlign: 'center',
+            borderRadius: 2,
+            border: '1px dashed',
+            borderColor: 'divider',
+            bgcolor: 'background.neutral',
+          }}
+        >
+          <Iconify icon="solar:star-bold" width={48} sx={{ color: 'text.disabled', mb: 1 }} />
+          <Typography variant="body1" color="text.secondary" sx={{ mb: 0.5 }}>
+            No quick ratings yet
+          </Typography>
+          <Typography variant="body2" color="text.disabled">
+            Quick ratings from users will appear here
           </Typography>
         </Card>
       )}
@@ -605,6 +760,19 @@ export function ServiceDetail() {
       comments: location.state?.service?.comments ?? [],
     };
     
+    // Log service detail object
+    console.log('=== SERVICE DETAIL OBJECT ===');
+    console.log('Service:', service);
+    console.log('Service ID:', service.id);
+    console.log('Service Name:', service.service_name);
+    console.log('Service Categories:', service.category);
+    console.log('Service Owner:', service.service_owner);
+    console.log('Service Active:', service.isActive);
+    console.log('Service Reviews Count:', service.total_reviews || 0);
+    console.log('Service Positive Reviews:', service.positive_reviews || 0);
+    console.log('Service Total Views:', service.total_views || 0);
+    console.log('============================');
+    
     return service;
   }, [location.state?.service]);
 
@@ -617,6 +785,7 @@ export function ServiceDetail() {
   const [businessOwners, setBusinessOwners] = useState<BusinessOwner[]>([]);
   const [serviceComments, setServiceComments] = useState<ProductOrServiceComment[]>([]);
   const [serviceReviews, setServiceReviews] = useState<Review[]>([]);
+  const [quickRatings, setQuickRatings] = useState<any[]>([]);
   const [usersMap, setUsersMap] = useState<Record<string, { email?: string; firstname?: string; lastname?: string }>>({});
   const [showAdditionalImages, setShowAdditionalImages] = useState(false);
   const currentBusiness: BusinessOwner | undefined = location.state?.business;
@@ -628,19 +797,9 @@ export function ServiceDetail() {
 
   // Fetch all Firestore data in parallel
   useEffect(() => {
-    // TODO: Use Prisma auth hook instead of Firebase Auth
-    // const { user } = useAuth();
-    // console.log('Auth state check:', {
-    //   currentUser: user?.email || 'Not authenticated',
-    //   uid: user?.id || 'No UID'
-    // });
-    
-    // if (!user) {
-    //   console.error('⚠️ User not authenticated. Some queries may fail.');
-    //   setError('Please sign in to view service details.');
-    //   setLoading(false);
-    //   return;
-    // }
+    // Extract service ID and name for use in dependencies and API calls
+    const serviceId = initialService.id;
+    const serviceName = initialService.service_name;
     
     setLoading(true);
     setError(null);
@@ -679,10 +838,19 @@ export function ServiceDetail() {
       (async () => {
         try {
           console.log('=== FETCHING COMMENTS FOR SERVICE ===');
-          console.log('Service ID:', initialService.id);
-          console.log('Service Name:', initialService.service_name);
+          console.log('Service ID:', serviceId);
+          console.log('Service Name:', serviceName);
+          console.log(`Comments Endpoint: /api/comments/service/${serviceId}`);
+          console.log('Comments Query Params:', { limit: 1000 });
           
-          const response = await apiGet(`/api/comments/service/${initialService.id}`, { limit: 1000 });
+          const response = await apiGet(`/api/comments/service/${serviceId}`, { limit: 1000 });
+          
+          console.log('Comments API Response:', {
+            success: response.success,
+            dataCount: response.data?.length || 0,
+            meta: response.meta,
+            fullResponse: response
+          });
           if (response.success && response.data) {
             return response.data.map((comment: any) => ({
               id: comment.id,
@@ -713,16 +881,79 @@ export function ServiceDetail() {
       })(),
       (async () => {
         try {
-          const response = await apiGet('/api/reviews', { serviceId: initialService.id });
+          console.log('=== FETCHING REVIEWS FOR SERVICE ===');
+          console.log('Service ID:', serviceId);
+          console.log('Service Name:', serviceName);
+          console.log('Reviews Endpoint:', '/api/reviews');
+          console.log('Reviews Query Params:', { serviceId, limit: 1000 });
+          
+          const response = await apiGet('/api/reviews', { serviceId, limit: 1000 });
+          
+          console.log('Reviews API Response:', {
+            success: response.success,
+            dataCount: response.data?.length || 0,
+            meta: response.meta,
+            fullResponse: response
+          });
+          
+          // Also try the alternative endpoint for service reviews
+          try {
+            const altResponse = await apiGet(`/api/reviews/service/${serviceId}`, { limit: 1000 });
+            console.log('Alternative Reviews Endpoint Response:', {
+              endpoint: `/api/reviews/service/${serviceId}`,
+              success: altResponse.success,
+              dataCount: altResponse.data?.length || 0,
+              meta: altResponse.meta
+            });
+          } catch (altErr) {
+            console.log('Alternative reviews endpoint error:', altErr);
+          }
+          
+          // Try review stats endpoint
+          try {
+            const statsResponse = await apiGet(`/api/reviews/stats/service/${serviceId}`);
+            console.log('Review Stats Endpoint Response:', {
+              endpoint: `/api/reviews/stats/service/${serviceId}`,
+              success: statsResponse.success,
+              stats: statsResponse.data
+            });
+          } catch (statsErr) {
+            console.log('Review stats endpoint error:', statsErr);
+          }
+          
           if (response.success && response.data) {
-            return response.data.map((review: any) => ({
-              id: review.id,
-              product_id: review.productId || null,
-              service_id: review.serviceId || null,
-              sentiment: review.sentiment || null,
-              timestamp: review.createdAt ? new Date(review.createdAt) : new Date(),
-              ...review,
-            })) as Review[];
+            // Map API sentiment enum to display format
+            const sentimentMap: Record<string, string> = {
+              'WOULD_RECOMMEND': 'Would recommend',
+              'ITS_GOOD': 'Its Good',
+              'DONT_MIND_IT': 'Dont mind it',
+              'ITS_BAD': "It's bad",
+            };
+            
+            return response.data.map((review: any) => {
+              // Get user info from review.user (included by API) or fallback
+              const reviewUser = review.user || {};
+              
+              return {
+                id: review.id,
+                product_id: review.productId || null,
+                service_id: review.serviceId || null,
+                userId: review.userId || '',
+                sentiment: sentimentMap[review.sentiment] || review.sentiment || null,
+                text: review.text || review.reviewText || '',
+                reviewText: review.reviewText || review.text || '',
+                timestamp: review.createdAt ? new Date(review.createdAt) : new Date(),
+                sentimentHistory: review.sentimentHistory || [],
+                // Include user info for display
+                user: {
+                  id: reviewUser.id || review.userId,
+                  fullName: reviewUser.fullName || reviewUser.displayName,
+                  displayName: reviewUser.displayName || reviewUser.fullName,
+                  profileImage: reviewUser.profileImage,
+                },
+                ...review,
+              };
+            }) as Review[];
           }
           return [] as Review[];
         } catch (err) {
@@ -731,65 +962,79 @@ export function ServiceDetail() {
         }
       })(),
       (async () => {
-        // TODO: Migrate to API - GET /api/users (for review user names)
-        // const { user } = useAuth();
-        // if (!user) {
-        //   console.log('⚠️ Not authenticated, skipping user fetch');
-        //   return {};
-        // }
-        // const response = await fetch('/api/users');
-        // const data = await response.json();
-        // const users: Record<string, { email?: string; firstname?: string; lastname?: string }> = {};
-        // data.users.forEach((u: any) => {
-        //   users[u.id] = {
-        //     email: u.email,
-        //     firstname: u.firstName,
-        //     lastname: u.lastName,
-        //   };
-        // });
-        // return users;
-        console.warn('Users fetch not implemented - needs API migration');
-        return {} as Record<string, { email?: string; firstname?: string; lastname?: string }>;
+        try {
+          const response = await apiGet('/api/users', { limit: 1000 });
+          if (response.success && response.data) {
+            const users: Record<string, { email?: string; firstname?: string; lastname?: string }> = {};
+            response.data.forEach((u: any) => {
+              users[u.id] = {
+                email: u.email,
+                firstname: u.firstName || u.firstname,
+                lastname: u.lastName || u.lastname,
+              };
+            });
+            return users;
+          }
+          return {} as Record<string, { email?: string; firstname?: string; lastname?: string }>;
+        } catch (err) {
+          console.error('Error fetching users:', err);
+          return {} as Record<string, { email?: string; firstname?: string; lastname?: string }>;
+        }
+      })(),
+      (async () => {
+        try {
+          console.log('=== FETCHING QUICK RATINGS FOR SERVICE ===');
+          console.log('Service ID:', serviceId);
+          console.log(`Quick Ratings Endpoint: /api/quick-ratings/service/${serviceId}/users`);
+          
+          const response = await apiGet(`/api/quick-ratings/service/${serviceId}/users`, { limit: 1000 });
+          
+          console.log('Quick Ratings API Response:', {
+            success: response.success,
+            dataCount: response.data?.length || 0,
+            meta: response.meta,
+            fullResponse: response
+          });
+          
+          if (response.success && response.data) {
+            return response.data;
+          }
+          return [];
+        } catch (err) {
+          console.error('Error fetching quick ratings:', err);
+          return [];
+        }
       })(),
     ])
-      .then(([categories, owners, comments, reviews, users]) => {
+      .then(([categories, owners, comments, reviews, users, quickRatingsData]) => {
         setAvailableCategories(categories as string[]);
         setBusinessOwners(owners as BusinessOwner[]);
         setServiceComments(comments as ProductOrServiceComment[]);
         setServiceReviews(reviews as Review[]);
         setUsersMap(users as Record<string, { email?: string; firstname?: string; lastname?: string }>);
-        console.log('Successfully loaded:', {
-          categories: (categories as string[]).length,
-          owners: (owners as BusinessOwner[]).length,
-          comments: (comments as ProductOrServiceComment[]).length,
-          reviews: (reviews as Review[]).length,
-          users: Object.keys(users as Record<string, any>).length
-        });
-        // Log all comments for the service
-        console.log('=== ALL COMMENTS FOR SERVICE ===');
-        console.log('Service ID:', initialService.id);
-        console.log('Service Name:', initialService.service_name);
-        console.log('Total Comments:', (comments as ProductOrServiceComment[]).length);
-        console.table((comments as ProductOrServiceComment[]).map(comment => ({
-          id: comment.id,
-          itemId: comment.itemId,
-          itemType: comment.itemType,
-          userId: comment.userId,
-          userName: comment.userName,
-          text: comment.text ? (comment.text.length > 50 ? `${comment.text.substring(0, 50)}...` : comment.text) : '',
-          depth: comment.depth,
-          parentId: comment.parentId || 'root',
-          agreeCount: comment.agreeCount,
-          disagreeCount: comment.disagreeCount,
-          replyCount: comment.replyCount,
-          isEdited: comment.isEdited,
-          isReported: comment.isReported,
-          isDeleted: comment.isDeleted,
-          createdAt: comment.createdAt instanceof Date 
-            ? comment.createdAt.toISOString() 
-            : comment.createdAt,
-        })));
-        console.log('=== END COMMENTS ===');
+        setQuickRatings(quickRatingsData as any[]);
+        
+        console.log('=== SERVICE DATA LOADED SUCCESSFULLY ===');
+        console.log('Service:', initialService);
+        console.log('Categories Count:', (categories as string[]).length);
+        console.log('Business Owners Count:', (owners as BusinessOwner[]).length);
+        console.log('Comments Count:', (comments as ProductOrServiceComment[]).length);
+        console.log('Comments Data:', comments);
+        console.log('Reviews Count:', (reviews as Review[]).length);
+        console.log('Reviews Data:', reviews);
+        console.log('Quick Ratings Count:', (quickRatingsData as any[]).length);
+        console.log('Quick Ratings Data:', quickRatingsData);
+        console.log('Users Count:', Object.keys(users as Record<string, any>).length);
+        console.log('=== ALL REVIEW/COMMENT ENDPOINTS FOR THIS SERVICE ===');
+        console.log(`1. Comments Endpoint: GET /api/comments/service/${serviceId}`);
+        console.log('   Response:', { count: (comments as ProductOrServiceComment[]).length, data: comments });
+        console.log(`2. Reviews Endpoint: GET /api/reviews?serviceId=${serviceId}`);
+        console.log('   Response:', { count: (reviews as Review[]).length, data: reviews });
+        console.log(`3. Reviews by Service Endpoint: GET /api/reviews/service/${serviceId}`);
+        console.log(`4. Review Stats Endpoint: GET /api/reviews/stats/service/${serviceId}`);
+        console.log(`5. Quick Ratings Endpoint: GET /api/quick-ratings/service/${serviceId}/users`);
+        console.log('   Response:', { count: (quickRatingsData as any[]).length, data: quickRatingsData });
+        console.log('===================================================');
         setLoading(false);
       })
       .catch((err) => {
@@ -797,7 +1042,7 @@ export function ServiceDetail() {
         setError('Failed to load data. Please refresh the page.');
         setLoading(false);
       });
-  }, [initialService.id, initialService.service_name]);
+  }, [initialService]);
 
   // Set default business owner if not already set
   useEffect(() => {
@@ -1327,8 +1572,22 @@ export function ServiceDetail() {
 
       {activeTab === 2 && (
         <Box sx={{ pt: 3 }}>
-          <Typography variant="h6" sx={{ mb: 2 }}>Reviews</Typography>
-          <ReviewsList reviews={serviceReviews} usersMap={usersMap} />
+          <Typography variant="h6" sx={{ mb: 3 }}>Reviews</Typography>
+          
+          {/* Quick Ratings Section */}
+          <Box sx={{ mb: 4 }}>
+            <QuickRatingsList ratings={quickRatings} />
+          </Box>
+          
+          <Divider sx={{ my: 3 }} />
+          
+          {/* Sentiment Reviews Section */}
+          <Box>
+            <Typography variant="subtitle1" sx={{ mb: 2, fontWeight: 600 }}>
+              Sentiment Reviews ({serviceReviews.length})
+            </Typography>
+            <ReviewsList reviews={serviceReviews} usersMap={usersMap} />
+          </Box>
         </Box>
       )}
 
