@@ -10,8 +10,14 @@ interface Product {
     category?: string[];
 }
 
+interface Category {
+    id: string;
+    name: string;
+}
+
 interface ProductStatsProps {
     products?: Product[];
+    categories?: Category[]; // Categories to map IDs to names
 }
 
 // Helper function to safely get comment count from product
@@ -31,19 +37,26 @@ const getCommentCount = (product: Product): number => {
     return 0;
 };
 
-const ProductStats: React.FC<ProductStatsProps> = ({ products }) => {
+const ProductStats: React.FC<ProductStatsProps> = ({ products, categories = [] }) => {
     // Aggregate stats
     const totalViews = products?.reduce((acc, product) => acc + (product.total_views || 0), 0) ?? 0;
     const totalComments = products?.reduce((acc, product) => acc + getCommentCount(product), 0) ?? 0;
     const totalReviews = products?.reduce((acc, product) => acc + (product.total_reviews || 0), 0) ?? 0;
     const totalProducts = products?.length ?? 0;
 
+    // Helper function to get category name from ID
+    const getCategoryName = (categoryId: string): string => {
+        const category = categories.find(cat => cat.id === categoryId);
+        return category?.name || categoryId; // Fallback to ID if name not found
+    };
+
     // Generate chart data based on categories
     const categoryCounts: Record<string, number> = {};
     products?.forEach(product => {
         if (product.category) {  // Ensure category is defined
-            product.category.forEach(cat => {
-                categoryCounts[cat] = (categoryCounts[cat] || 0) + 1;
+            product.category.forEach(catId => {
+                const categoryName = getCategoryName(catId);
+                categoryCounts[categoryName] = (categoryCounts[categoryName] || 0) + 1;
             });
         }
     });

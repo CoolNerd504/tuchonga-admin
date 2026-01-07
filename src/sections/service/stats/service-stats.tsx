@@ -10,9 +10,15 @@ interface Service {
     category?: string[];
 }
 
+interface Category {
+    id: string;
+    name: string;
+}
+
 interface ServiceStatsProps {
     services?: Service[];
     totalCount?: number; // Total count from API meta
+    categories?: Category[]; // Categories to map IDs to names
 }
 
 // Helper function to safely get comment count from service
@@ -32,7 +38,7 @@ const getCommentCount = (service: Service): number => {
     return 0;
 };
 
-const ServiceStats: React.FC<ServiceStatsProps> = ({ services, totalCount }) => {
+const ServiceStats: React.FC<ServiceStatsProps> = ({ services, totalCount, categories = [] }) => {
     // Aggregate stats
     const totalViews = services?.reduce((acc, service) => acc + (service.total_views || 0), 0) ?? 0;
     const totalComments = services?.reduce((acc, service) => acc + getCommentCount(service), 0) ?? 0;
@@ -40,33 +46,46 @@ const ServiceStats: React.FC<ServiceStatsProps> = ({ services, totalCount }) => 
     // Use totalCount from API meta if provided, otherwise fall back to services array length
     const totalServices = totalCount !== undefined ? totalCount : (services?.length ?? 0);
 
+    // Helper function to get category name from ID
+    const getCategoryName = (categoryId: string): string => {
+        const category = categories.find(cat => cat.id === categoryId);
+        return category?.name || categoryId; // Fallback to ID if name not found
+    };
 
-    const chartData = [
+    // Generate chart data based on categories
+    const categoryCounts: Record<string, number> = {};
+    services?.forEach(service => {
+        if (service.category) {
+            service.category.forEach(catId => {
+                const categoryName = getCategoryName(catId);
+                categoryCounts[categoryName] = (categoryCounts[categoryName] || 0) + 1;
+            });
+        }
+    });
+
+    // Convert category counts to chart data
+    const categoryChartData = Object.entries(categoryCounts).map(([category, count], index) => {
+        // Generate different colors for each category
+        const colors = ['#FF9B33', '#83D475', '#FFE381', '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7', '#DDA0DD', '#98D8C8'];
+        return {
+            name: category,
+            value: count,
+            color: colors[index % colors.length]
+        };
+    });
+
+    // Sort by count (descending) and limit to top 8 categories for better visualization
+    const sortedCategoryData = categoryChartData
+        .sort((a, b) => b.value - a.value)
+        .slice(0, 8);
+
+    // Use category breakdown if categories exist, otherwise use summary stats
+    const useCategoryBreakdown = sortedCategoryData.length > 0;
+    const chartData = useCategoryBreakdown ? sortedCategoryData : [
         { name: 'Total Views', value: totalViews, color: '#FF9B33' },
         { name: 'Total Comments', value: totalComments, color: '#83D475' },
         { name: 'Total Reviews', value: totalReviews, color: '#FFE381' },
     ];
-
-    // Generate chart data based on categories
-    // const categoryCounts: Record<string, number> = {};
-    // services?.forEach(service => {
-    //     service?.category.forEach(cat => {
-    //         if (service.category) {
-    //             service.category.forEach(cat => {
-    //                 categoryCounts[cat] = (categoryCounts[cat] || 0) + 1;
-    //             });
-    //         } // Ensure category is defined
-
-    //     });
-    // });
-
-
-
-    // const chartData = Object.keys(categoryCounts).map(cat => ({
-    //     name: cat,
-    //     value: categoryCounts[cat],
-    //     color: `#${Math.floor(Math.random() * 16777215).toString(16)}` // Random colors
-    // }));
 
     return (
         <Box>
@@ -94,23 +113,60 @@ const ServiceStats: React.FC<ServiceStatsProps> = ({ services, totalCount }) => 
                             <Cell key={entry.name} fill={entry.color} />
                         ))}
                     </Pie>
-                    <Tooltip />
+                    <Tooltip 
+                        formatter={useCategoryBreakdown ? (value, name) => [`${value} services`, name] : undefined}
+                        labelStyle={{ color: '#333' }}
+                    />
                 </PieChart>
             </Box>
 
-            <Box sx={{ display: "flex", flexDirection: "column", gap: 1, mb: 4 }}>
-                <Typography variant="body2">
-                    <Box component="span" sx={{ color: "#FF9B33", fontWeight: "bold", mr: 1 }}>●</Box>
-                    Total Views <Box component="span" sx={{ float: "right" }}>{totalViews}</Box>
+            {useCategoryBreakdown ? (
+                <Box sx={{ display: "flex", flexDirection: "column", gap: 1, mb: 4 }}>
+                    {sortedCategoryData.map((category) => (
+                        <Typography key={category.name} variant="body2">
+                            <Box component="span" sx={{ color: category.color, fontWeight: "bold", mr: 1 }}>●</Box>
+                            {category.name} <Box component="span" sx={{ float: "right" }}>{category.value}</Box>
+                        </Typography>
+                    ))}
+                    {categoryChartData.length > 8 && (
+                        <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic', mt: 1 }}>
+                            +{categoryChartData.length - 8} more categories
+                        </Typography>
+                    )}
+                </Box>
+            ) : (
+                <Box sx={{ display: "flex", flexDirection: "column", gap: 1, mb: 4 }}>
+                    <Typography variant="body2">
+                        <Box component="span" sx={{ color: "#FF9B33", fontWeight: "bold", mr: 1 }}>●</Box>
+                        Total Views <Box component="span" sx={{ float: "right" }}>{totalViews}</Box>
+                    </Typography>
+                    <Typography variant="body2">
+                        <Box component="span" sx={{ color: "#83D475", fontWeight: "bold", mr: 1 }}>●</Box>
+                        Total Comments <Box component="span" sx={{ float: "right" }}>{totalComments}</Box>
+                    </Typography>
+                    <Typography variant="body2">
+                        <Box component="span" sx={{ color: "#FFE381", fontWeight: "bold", mr: 1 }}>●</Box>
+                        Total Reviews <Box component="span" sx={{ float: "right" }}>{totalReviews}</Box>
+                    </Typography>
+                </Box>
+            )}
+
+            {/* Summary stats below the chart */}
+            <Box sx={{ borderTop: 1, borderColor: 'divider', pt: 2 }}>
+                <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>
+                    Summary
                 </Typography>
-                <Typography variant="body2">
-                    <Box component="span" sx={{ color: "#83D475", fontWeight: "bold", mr: 1 }}>●</Box>
-                    Total Comments <Box component="span" sx={{ float: "right" }}>{totalComments}</Box>
-                </Typography>
-                <Typography variant="body2">
-                    <Box component="span" sx={{ color: "#FFE381", fontWeight: "bold", mr: 1 }}>●</Box>
-                    Total Reviews <Box component="span" sx={{ float: "right" }}>{totalReviews}</Box>
-                </Typography>
+                <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
+                    <Typography variant="body2" color="text.secondary">
+                        Total Views <Box component="span" sx={{ float: "right" }}>{totalViews}</Box>
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                        Total Comments <Box component="span" sx={{ float: "right" }}>{totalComments}</Box>
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                        Total Reviews <Box component="span" sx={{ float: "right" }}>{totalReviews}</Box>
+                    </Typography>
+                </Box>
             </Box>
         </Box>
     );

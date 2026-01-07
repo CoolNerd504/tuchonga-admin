@@ -1251,7 +1251,7 @@ export function ProductsView() {
         {/* Right Section (Donut Chart & Stats) */}
         <Grid item xs={12} md={3} sx={{ order: { xs: -1, md: 0 } }}>
           <Paper sx={{ p: 2, borderRadius: 2 }} elevation={1}>
-            <ProductStats products={productList} />
+            <ProductStats products={productList} categories={availableCategories} />
           </Paper>
         </Grid>
       </Grid>

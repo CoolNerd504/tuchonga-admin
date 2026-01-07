@@ -1232,7 +1232,7 @@ export function ServicesView() {
         {/* Right Section (Donut Chart & Stats) */}
         <Grid item xs={12} md={3} sx={{ order: { xs: -1, md: 0 } }}>
           <Paper sx={{ p: 2, borderRadius: 2, height: '100%' }} elevation={1}>
-            <ServiceStats services={serviceList} totalCount={totalServicesCount} />
+            <ServiceStats services={serviceList} totalCount={totalServicesCount} categories={availableCategories} />
           </Paper>
         </Grid>
       </Grid>
