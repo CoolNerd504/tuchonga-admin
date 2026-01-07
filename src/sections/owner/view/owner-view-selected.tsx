@@ -253,22 +253,36 @@ const [loadingServices, setLoadingServices] = useState(false);
       try {
         const response = await apiGet(`/api/businesses/${business.id}/products`, { limit: 1000 });
         if (response.success && response.data) {
-          const products = response.data.map((prod: any) => ({
-            id: prod.id,
-            product_name: prod.productName || prod.name || '',
-            description: prod.description || '',
-            category: prod.categoryIds || prod.categories?.map((c: any) => c.id || c.name) || [],
-            mainImage: prod.mainImage || '',
-            additionalImages: prod.additionalImages || [],
-            productOwner: prod.businessId || prod.productOwner || business.id,
-            isActive: prod.isActive !== false,
-            reviews: prod.totalReviews || 0,
-            positive_reviews: prod.positiveReviews || 0,
-            total_reviews: prod.totalReviews || 0,
-            total_views: prod.totalViews || 0,
-            comments: prod.comments || [],
-            coverUrl: prod.mainImage || '',
-          }));
+          const products = response.data.map((prod: any) => {
+            // Extract category names from nested structure: categories[].category.name
+            // The API returns: { categories: [{ category: { id, name } }] }
+            let categoryNames: string[] = [];
+            if (prod.categories && Array.isArray(prod.categories)) {
+              categoryNames = prod.categories
+                .map((c: any) => c.category?.name || c.category?.id || c.name || c.id)
+                .filter((name: string) => name); // Remove any undefined/null values
+            } else if (prod.categoryIds && Array.isArray(prod.categoryIds)) {
+              // Fallback to categoryIds if categories structure not available
+              categoryNames = prod.categoryIds;
+            }
+            
+            return {
+              id: prod.id,
+              product_name: prod.productName || prod.name || '',
+              description: prod.description || '',
+              category: categoryNames,
+              mainImage: prod.mainImage || '',
+              additionalImages: prod.additionalImages || [],
+              productOwner: prod.businessId || prod.productOwner || business.id,
+              isActive: prod.isActive !== false,
+              reviews: prod.totalReviews || 0,
+              positive_reviews: prod.positiveReviews || 0,
+              total_reviews: prod.totalReviews || 0,
+              total_views: prod.totalViews || 0,
+              comments: prod.comments || [],
+              coverUrl: prod.mainImage || '',
+            };
+          });
           setLocalProductList(products);
         }
       } catch (err) {
@@ -284,21 +298,35 @@ const [loadingServices, setLoadingServices] = useState(false);
       try {
         const response = await apiGet(`/api/businesses/${business.id}/services`, { limit: 1000 });
         if (response.success && response.data) {
-          const services = response.data.map((serv: any) => ({
-            id: serv.id,
-            service_name: serv.serviceName || serv.name || '',
-            description: serv.description || '',
-            category: serv.categoryIds || serv.categories?.map((c: any) => c.id || c.name) || [],
-            mainImage: serv.mainImage || '',
-            additionalImages: serv.additionalImages || [],
-            service_owner: serv.businessId || serv.serviceOwner || business.id,
-            isActive: serv.isActive !== false,
-            reviews: serv.totalReviews || 0,
-            positive_reviews: serv.positiveReviews || 0,
-            total_reviews: serv.totalReviews || 0,
-            total_views: serv.totalViews || 0,
-            comments: serv.comments || [],
-          }));
+          const services = response.data.map((serv: any) => {
+            // Extract category names from nested structure: categories[].category.name
+            // The API returns: { categories: [{ category: { id, name } }] }
+            let categoryNames: string[] = [];
+            if (serv.categories && Array.isArray(serv.categories)) {
+              categoryNames = serv.categories
+                .map((c: any) => c.category?.name || c.category?.id || c.name || c.id)
+                .filter((name: string) => name); // Remove any undefined/null values
+            } else if (serv.categoryIds && Array.isArray(serv.categoryIds)) {
+              // Fallback to categoryIds if categories structure not available
+              categoryNames = serv.categoryIds;
+            }
+            
+            return {
+              id: serv.id,
+              service_name: serv.serviceName || serv.name || '',
+              description: serv.description || '',
+              category: categoryNames,
+              mainImage: serv.mainImage || '',
+              additionalImages: serv.additionalImages || [],
+              service_owner: serv.businessId || serv.serviceOwner || business.id,
+              isActive: serv.isActive !== false,
+              reviews: serv.totalReviews || 0,
+              positive_reviews: serv.positiveReviews || 0,
+              total_reviews: serv.totalReviews || 0,
+              total_views: serv.totalViews || 0,
+              comments: serv.comments || [],
+            };
+          });
           setLocalServiceList(services);
         }
       } catch (err) {
