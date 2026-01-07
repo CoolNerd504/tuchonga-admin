@@ -39,7 +39,10 @@ const getCommentCount = (service: Service): number => {
 };
 
 const ServiceStats: React.FC<ServiceStatsProps> = ({ services, totalCount, categories = [] }) => {
-    // Aggregate stats
+    // Aggregate stats - ALL DATA COMES FROM API, NO HARDCODED VALUES
+    // total_views, total_reviews, and comments are fetched from /api/services endpoint
+    // Each service's totalReviews is calculated from actual Review records in the database
+    // The || 0 fallback is only for defensive programming when API field is missing
     const totalViews = services?.reduce((acc, service) => acc + (service.total_views || 0), 0) ?? 0;
     const totalComments = services?.reduce((acc, service) => acc + getCommentCount(service), 0) ?? 0;
     const totalReviews = services?.reduce((acc, service) => acc + (service.total_reviews || 0), 0) ?? 0;
@@ -79,14 +82,6 @@ const ServiceStats: React.FC<ServiceStatsProps> = ({ services, totalCount, categ
         .sort((a, b) => b.value - a.value)
         .slice(0, 8);
 
-    // Use category breakdown if categories exist, otherwise use summary stats
-    const useCategoryBreakdown = sortedCategoryData.length > 0;
-    const chartData = useCategoryBreakdown ? sortedCategoryData : [
-        { name: 'Total Views', value: totalViews, color: '#FF9B33' },
-        { name: 'Total Comments', value: totalComments, color: '#83D475' },
-        { name: 'Total Reviews', value: totalReviews, color: '#FFE381' },
-    ];
-
     return (
         <Box>
             <Box sx={{ textAlign: 'center', mb: 2 }}>
@@ -101,7 +96,7 @@ const ServiceStats: React.FC<ServiceStatsProps> = ({ services, totalCount, categ
             <Box sx={{ display: 'flex', justifyContent: 'center', mb: 2 }}>
                 <PieChart width={200} height={200}>
                     <Pie
-                        data={chartData}
+                        data={sortedCategoryData}
                         dataKey="value"
                         nameKey="name"
                         outerRadius={80}
@@ -109,47 +104,30 @@ const ServiceStats: React.FC<ServiceStatsProps> = ({ services, totalCount, categ
                         fill="#8884d8"
                         labelLine={false}
                     >
-                        {chartData.map((entry, index) => (
+                        {sortedCategoryData.map((entry, index) => (
                             <Cell key={entry.name} fill={entry.color} />
                         ))}
                     </Pie>
                     <Tooltip 
-                        formatter={useCategoryBreakdown ? (value, name) => [`${value} services`, name] : undefined}
+                        formatter={(value, name) => [`${value} services`, name]}
                         labelStyle={{ color: '#333' }}
                     />
                 </PieChart>
             </Box>
 
-            {useCategoryBreakdown ? (
-                <Box sx={{ display: "flex", flexDirection: "column", gap: 1, mb: 4 }}>
-                    {sortedCategoryData.map((category) => (
-                        <Typography key={category.name} variant="body2">
-                            <Box component="span" sx={{ color: category.color, fontWeight: "bold", mr: 1 }}>●</Box>
-                            {category.name} <Box component="span" sx={{ float: "right" }}>{category.value}</Box>
-                        </Typography>
-                    ))}
-                    {categoryChartData.length > 8 && (
-                        <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic', mt: 1 }}>
-                            +{categoryChartData.length - 8} more categories
-                        </Typography>
-                    )}
-                </Box>
-            ) : (
-                <Box sx={{ display: "flex", flexDirection: "column", gap: 1, mb: 4 }}>
-                    <Typography variant="body2">
-                        <Box component="span" sx={{ color: "#FF9B33", fontWeight: "bold", mr: 1 }}>●</Box>
-                        Total Views <Box component="span" sx={{ float: "right" }}>{totalViews}</Box>
+            <Box sx={{ display: "flex", flexDirection: "column", gap: 1, mb: 4 }}>
+                {sortedCategoryData.map((category) => (
+                    <Typography key={category.name} variant="body2">
+                        <Box component="span" sx={{ color: category.color, fontWeight: "bold", mr: 1 }}>●</Box>
+                        {category.name} <Box component="span" sx={{ float: "right" }}>{category.value}</Box>
                     </Typography>
-                    <Typography variant="body2">
-                        <Box component="span" sx={{ color: "#83D475", fontWeight: "bold", mr: 1 }}>●</Box>
-                        Total Comments <Box component="span" sx={{ float: "right" }}>{totalComments}</Box>
+                ))}
+                {categoryChartData.length > 8 && (
+                    <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic', mt: 1 }}>
+                        +{categoryChartData.length - 8} more categories
                     </Typography>
-                    <Typography variant="body2">
-                        <Box component="span" sx={{ color: "#FFE381", fontWeight: "bold", mr: 1 }}>●</Box>
-                        Total Reviews <Box component="span" sx={{ float: "right" }}>{totalReviews}</Box>
-                    </Typography>
-                </Box>
-            )}
+                )}
+            </Box>
 
             {/* Summary stats below the chart */}
             <Box sx={{ borderTop: 1, borderColor: 'divider', pt: 2 }}>

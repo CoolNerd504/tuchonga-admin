@@ -38,7 +38,10 @@ const getCommentCount = (product: Product): number => {
 };
 
 const ProductStats: React.FC<ProductStatsProps> = ({ products, categories = [] }) => {
-    // Aggregate stats
+    // Aggregate stats - ALL DATA COMES FROM API, NO HARDCODED VALUES
+    // total_views, total_reviews, and comments are fetched from /api/products endpoint
+    // Each product's totalReviews is calculated from actual Review records in the database
+    // The || 0 fallback is only for defensive programming when API field is missing
     const totalViews = products?.reduce((acc, product) => acc + (product.total_views || 0), 0) ?? 0;
     const totalComments = products?.reduce((acc, product) => acc + getCommentCount(product), 0) ?? 0;
     const totalReviews = products?.reduce((acc, product) => acc + (product.total_reviews || 0), 0) ?? 0;

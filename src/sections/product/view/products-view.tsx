@@ -498,9 +498,10 @@ export function ProductsView() {
           isActive: product.isActive !== undefined ? product.isActive : true,
           createdAt: product.createdAt,
           updatedAt: product.updatedAt,
+          // All stats come from API - totalReviews is calculated from actual Review records in database
           total_views: product.totalViews || 0,
           positive_reviews: product.positiveReviews || 0,
-          total_reviews: product.totalReviews || 0,
+          total_reviews: product.totalReviews || 0, // From API: calculated from Review table
           comments: product.comments || [],
         }));
         
