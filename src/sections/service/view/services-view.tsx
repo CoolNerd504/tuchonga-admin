@@ -57,7 +57,7 @@ interface Service {
   total_views: number;
   mainImage: string;
   additionalImages: string[];
-  comments: string[];
+  comments?: string[] | { items?: any[]; total?: number }; // Support both old array format and new object format
   isActive: boolean;
   service_owner: string;
   createdAt?: any; // Firestore Timestamp or Date
@@ -425,22 +425,37 @@ export function ServicesView() {
       let fetchedData: Service[] = [];
       
       if (response.success && response.data) {
-        fetchedData = response.data.map((service: any) => ({
-          id: service.id,
-          service_name: service.serviceName || service.name || '',
-          description: service.description || '',
-          category: service.categoryIds || service.categories?.map((c: any) => c.id || c.name) || [],
-          mainImage: service.mainImage || '',
-          additionalImages: service.additionalImages || [],
-          serviceOwner: service.businessId || service.serviceOwner || '',
-          isActive: service.isActive !== false,
-          createdAt: service.createdAt ? new Date(service.createdAt) : new Date(),
-          updatedAt: service.updatedAt ? new Date(service.updatedAt) : undefined,
-          views: service.views || 0,
-          positive_reviews: service.positiveReviews || 0,
-          neutral_reviews: service.neutralReviews || 0,
-          total_reviews: service.totalReviews || 0,
-        }));
+        fetchedData = response.data.map((service: any) => {
+          // Safely handle comments field - could be array, object, or undefined
+          let commentsField: string[] | { items?: any[]; total?: number } | undefined = undefined;
+          if (service.comments) {
+            if (Array.isArray(service.comments)) {
+              commentsField = service.comments;
+            } else if (typeof service.comments === 'object' && service.comments.items) {
+              commentsField = service.comments;
+            }
+          }
+          
+          return {
+            id: service.id,
+            service_name: service.serviceName || service.name || '',
+            description: service.description || '',
+            category: service.categoryIds || service.categories?.map((c: any) => c.id || c.name) || [],
+            mainImage: service.mainImage || '',
+            additionalImages: service.additionalImages || [],
+            serviceOwner: service.businessId || service.serviceOwner || '',
+            isActive: service.isActive !== false,
+            createdAt: service.createdAt ? new Date(service.createdAt) : new Date(),
+            updatedAt: service.updatedAt ? new Date(service.updatedAt) : undefined,
+            views: service.views || service.totalViews || 0,
+            total_views: service.totalViews || service.views || 0,
+            positive_reviews: service.positiveReviews || 0,
+            neutral_reviews: service.neutralReviews || 0,
+            total_reviews: service.totalReviews || 0,
+            reviews: service.totalReviews || 0,
+            comments: commentsField || [], // Default to empty array if not present
+          };
+        });
       }
       
       // Sort by updatedAt descending (latest updated first) with fallback to createdAt
@@ -1107,14 +1122,26 @@ export function ServicesView() {
                       </Box>
                     </TableCell>
                     <TableCell>
-                      {serviceComments
-                        .filter(comment => comment.parentId === service.id)
-                        .length}
+                      {(() => {
+                        // Handle comments from service object (new API format)
+                        if (service.comments) {
+                          if (typeof service.comments === 'object' && !Array.isArray(service.comments)) {
+                            // New format: object with total or items
+                            return service.comments.total ?? service.comments.items?.length ?? 0;
+                          }
+                          if (Array.isArray(service.comments)) {
+                            // Old format: array
+                            return service.comments.length;
+                          }
+                        }
+                        // Fallback to serviceComments state (legacy)
+                        return serviceComments?.filter(comment => comment.parentId === service.id).length ?? 0;
+                      })()}
                     </TableCell>
                     <TableCell>
                       {serviceComments
-                        .filter(comment => comment.parentId === service.id)
-                        .filter(comment => comment.userSentiment === "Agree").length}
+                        ?.filter(comment => comment.parentId === service.id)
+                        ?.filter(comment => comment.userSentiment === "Agree").length ?? 0}
                     </TableCell>
                     <TableCell>
                       <Box>

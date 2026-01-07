@@ -5,7 +5,7 @@ import { Box, Typography } from "@mui/material";
 
 interface Service {
     total_views: number;
-    comments: string[];
+    comments?: string[] | { items?: any[]; total?: number }; // Support both old array format and new object format
     total_reviews: number;
     category?: string[];
 }
@@ -14,12 +14,29 @@ interface ServiceStatsProps {
     services?: Service[];
 }
 
+// Helper function to safely get comment count from service
+const getCommentCount = (service: Service): number => {
+    if (!service.comments) return 0;
+    
+    // New format: object with items array or total
+    if (typeof service.comments === 'object' && !Array.isArray(service.comments)) {
+        return service.comments.total ?? service.comments.items?.length ?? 0;
+    }
+    
+    // Old format: array
+    if (Array.isArray(service.comments)) {
+        return service.comments.length;
+    }
+    
+    return 0;
+};
+
 const ServiceStats: React.FC<ServiceStatsProps> = ({ services }) => {
     // Aggregate stats
-    const totalViews = services?.reduce((acc, service) => acc + service.total_views, 0);
-    const totalComments = services?.reduce((acc, service) => acc + service.comments.length, 0);
-    const totalReviews = services?.reduce((acc, service) => acc + service.total_reviews, 0);
-    const totalServices = services?.length;
+    const totalViews = services?.reduce((acc, service) => acc + (service.total_views || 0), 0) ?? 0;
+    const totalComments = services?.reduce((acc, service) => acc + getCommentCount(service), 0) ?? 0;
+    const totalReviews = services?.reduce((acc, service) => acc + (service.total_reviews || 0), 0) ?? 0;
+    const totalServices = services?.length ?? 0;
 
 
     const chartData = [

@@ -145,7 +145,13 @@ const defaultService: Service = {
   comments: [],
 };
 
-function CommentsList({ comments }: { comments: ProductOrServiceComment[] }) {
+function CommentsList({ comments }: { comments: ProductOrServiceComment[] | null | undefined }) {
+  // Safely handle undefined/null comments
+  if (!comments || !Array.isArray(comments)) {
+    console.log('CommentsList received invalid comments:', comments);
+    return null;
+  }
+  
   console.log('CommentsList received comments:', comments, 'Count:', comments.length);
   // Filter out deleted comments
   const activeComments = comments.filter(comment => !comment.isDeleted);

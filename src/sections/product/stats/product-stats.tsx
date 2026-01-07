@@ -5,7 +5,7 @@ import { Box, Typography } from "@mui/material";
 
 interface Product {
     total_views: number;
-    comments: string[];
+    comments?: string[] | { items?: any[]; total?: number }; // Support both old array format and new object format
     total_reviews: number;
     category?: string[];
 }
@@ -14,12 +14,29 @@ interface ProductStatsProps {
     products?: Product[];
 }
 
+// Helper function to safely get comment count from product
+const getCommentCount = (product: Product): number => {
+    if (!product.comments) return 0;
+    
+    // New format: object with items array or total
+    if (typeof product.comments === 'object' && !Array.isArray(product.comments)) {
+        return product.comments.total ?? product.comments.items?.length ?? 0;
+    }
+    
+    // Old format: array
+    if (Array.isArray(product.comments)) {
+        return product.comments.length;
+    }
+    
+    return 0;
+};
+
 const ProductStats: React.FC<ProductStatsProps> = ({ products }) => {
     // Aggregate stats
-    const totalViews = products?.reduce((acc, product) => acc + product.total_views, 0);
-    const totalComments = products?.reduce((acc, product) => acc + product.comments.length, 0);
-    const totalReviews = products?.reduce((acc, product) => acc + product.total_reviews, 0);
-    const totalProducts = products?.length;
+    const totalViews = products?.reduce((acc, product) => acc + (product.total_views || 0), 0) ?? 0;
+    const totalComments = products?.reduce((acc, product) => acc + getCommentCount(product), 0) ?? 0;
+    const totalReviews = products?.reduce((acc, product) => acc + (product.total_reviews || 0), 0) ?? 0;
+    const totalProducts = products?.length ?? 0;
 
     // Generate chart data based on categories
     const categoryCounts: Record<string, number> = {};
