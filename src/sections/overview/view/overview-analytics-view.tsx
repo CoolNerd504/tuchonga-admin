@@ -199,6 +199,7 @@ export function OverviewAnalyticsView() {
         }
         
         // Fetch detailed data for trends and counts
+        // Request high limit to get all items for accurate counts and trends
         console.log('[Overview] Fetching detailed data for trends...');
         const [
           usersResponse,
@@ -208,10 +209,10 @@ export function OverviewAnalyticsView() {
           productTrendsResponse,
           serviceTrendsResponse,
         ] = await Promise.allSettled([
-          apiGet('/api/users'),
-          apiGet('/api/businesses'),
-          apiGet('/api/products'),
-          apiGet('/api/services'),
+          apiGet('/api/users', { limit: 10000 }), // High limit to get all users
+          apiGet('/api/businesses', { limit: 10000 }), // High limit to get all businesses
+          apiGet('/api/products', { limit: 10000 }), // High limit to get all products
+          apiGet('/api/services', { limit: 10000 }), // High limit to get all services
           apiGet('/api/analytics/products/trends'),
           apiGet('/api/analytics/services/trends'),
         ]);
@@ -219,53 +220,53 @@ export function OverviewAnalyticsView() {
         // Process users response
         if (usersResponse.status === 'fulfilled' && usersResponse.value.success) {
           usersData = Array.isArray(usersResponse.value.data) ? usersResponse.value.data : [];
-          // If overview didn't provide count, use array length
-          if (userCount === 0) {
-            userCount = usersData.length;
-          }
-          console.log('[Overview] Users data loaded:', usersData.length, 'items');
+          // Always prioritize meta.total from API response (most accurate)
+          // Fallback to overview count, then array length
+          userCount = usersResponse.value.meta?.total ?? userCount ?? usersData.length;
+          console.log('[Overview] Users data loaded:', usersData.length, 'items, total:', userCount);
         } else {
           console.log('[Overview] Users endpoint failed or returned no data, using 0');
           usersData = [];
+          if (userCount === 0) userCount = 0;
         }
         
         // Process businesses response
         if (businessesResponse.status === 'fulfilled' && businessesResponse.value.success) {
           businessesData = Array.isArray(businessesResponse.value.data) ? businessesResponse.value.data : [];
-          // If overview didn't provide count, use array length
-          if (businessCount === 0) {
-            businessCount = businessesData.length;
-          }
-          console.log('[Overview] Businesses data loaded:', businessesData.length, 'items');
+          // Always prioritize meta.total from API response (most accurate)
+          // Fallback to overview count, then array length
+          businessCount = businessesResponse.value.meta?.total ?? businessCount ?? businessesData.length;
+          console.log('[Overview] Businesses data loaded:', businessesData.length, 'items, total:', businessCount);
         } else {
           console.log('[Overview] Businesses endpoint failed or returned no data, using 0');
           businessesData = [];
+          if (businessCount === 0) businessCount = 0;
         }
         
         // Process products response
         if (productsResponse.status === 'fulfilled' && productsResponse.value.success) {
           productsData = Array.isArray(productsResponse.value.data) ? productsResponse.value.data : [];
-          // If overview didn't provide count, use array length
-          if (productCount === 0) {
-            productCount = productsData.length;
-          }
-          console.log('[Overview] Products data loaded:', productsData.length, 'items');
+          // Always prioritize meta.total from API response (most accurate)
+          // Fallback to overview count, then array length
+          productCount = productsResponse.value.meta?.total ?? productCount ?? productsData.length;
+          console.log('[Overview] Products data loaded:', productsData.length, 'items, total:', productCount);
         } else {
           console.log('[Overview] Products endpoint failed or returned no data, using 0');
           productsData = [];
+          if (productCount === 0) productCount = 0;
         }
         
         // Process services response
         if (servicesResponse.status === 'fulfilled' && servicesResponse.value.success) {
           servicesData = Array.isArray(servicesResponse.value.data) ? servicesResponse.value.data : [];
-          // If overview didn't provide count, use array length
-          if (serviceCount === 0) {
-            serviceCount = servicesData.length;
-          }
-          console.log('[Overview] Services data loaded:', servicesData.length, 'items');
+          // Always prioritize meta.total from API response (most accurate)
+          // Fallback to overview count, then array length
+          serviceCount = servicesResponse.value.meta?.total ?? serviceCount ?? servicesData.length;
+          console.log('[Overview] Services data loaded:', servicesData.length, 'items, total:', serviceCount);
         } else {
           console.log('[Overview] Services endpoint failed or returned no data, using 0');
           servicesData = [];
+          if (serviceCount === 0) serviceCount = 0;
         }
 
         // Process product trends

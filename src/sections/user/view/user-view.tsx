@@ -1,5 +1,5 @@
 import { useMemo, useState, useEffect, useCallback } from 'react';
-import { apiGet, apiPost, getAuthToken } from 'src/utils/api';
+import { apiGet, apiPost, apiDelete, getAuthToken } from 'src/utils/api';
 
 import {
   Box,
@@ -25,6 +25,9 @@ import {
   Select,
   FormControl,
   InputLabel,
+  IconButton,
+  Menu,
+  Chip,
 } from '@mui/material';
 
 import { DashboardContent } from 'src/layouts/dashboard';
@@ -49,6 +52,7 @@ interface Users {
   profileImage?: string | null;
   gender?: string | null; // "male" | "female" | "other" | null
   hasCompletedProfile?: boolean;
+  role?: string; // User role
   createdAt?: any;
   updatedAt?: any;
   // Analytics fields (if present)
@@ -64,6 +68,11 @@ export function UserView() {
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
   const [snackbarSeverity, setSnackbarSeverity] = useState<'success' | 'error'>('success');
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deactivateDialogOpen, setDeactivateDialogOpen] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<Users | null>(null);
+  const [menuAnchor, setMenuAnchor] = useState<{ element: HTMLElement; user: Users } | null>(null);
+  const [currentUserRole, setCurrentUserRole] = useState<string>('user');
   const [userData, setUserData] = useState<Partial<Users>>({
     email: '',
     isActive: true,
@@ -136,6 +145,7 @@ export function UserView() {
           isActive: user.isActive !== undefined ? user.isActive : true,
           profileImage: user.profileImage || null,
           hasCompletedProfile: user.hasCompletedProfile || false,
+          role: user.role || 'user',
           createdAt: user.createdAt ? new Date(user.createdAt) : null,
           updatedAt: user.updatedAt ? new Date(user.updatedAt) : null,
           analytics: user.analytics || null,
@@ -153,9 +163,130 @@ export function UserView() {
     }
   }, []); // Removed usersCollection dependency - will use API
 
+  // Get current user's role for permission checks
+  useEffect(() => {
+    const fetchCurrentUser = async () => {
+      try {
+        const response = await apiGet('/api/users/me');
+        if (response.success && response.data) {
+          setCurrentUserRole(response.data.role || 'user');
+        }
+      } catch (err) {
+        console.error('Error fetching current user:', err);
+      }
+    };
+    fetchCurrentUser();
+  }, []);
+
   useEffect(() => {
     getUsers();
   }, [getUsers]);
+
+  // Check if current user can manage the target user
+  const canManageUser = (targetUser: Users): boolean => {
+    if (currentUserRole !== 'super_admin' && currentUserRole !== 'admin') {
+      return false;
+    }
+    // Super admin can manage anyone
+    if (currentUserRole === 'super_admin') {
+      return true;
+    }
+    // Regular admin can only manage non-admin users
+    const targetRole = targetUser.role || 'user';
+    return !['admin', 'super_admin'].includes(targetRole);
+  };
+
+  const handleMenuOpen = (event: React.MouseEvent<HTMLElement>, user: Users) => {
+    setMenuAnchor({ element: event.currentTarget, user });
+  };
+
+  const handleMenuClose = () => {
+    setMenuAnchor(null);
+  };
+
+  const handleDeactivateClick = (user: Users) => {
+    setSelectedUser(user);
+    setDeactivateDialogOpen(true);
+    handleMenuClose();
+  };
+
+  const handleReactivateClick = async (user: Users) => {
+    try {
+      const response = await apiPost(`/api/users/${user.id}/reactivate`);
+      if (response.success) {
+        setSnackbarMessage('User reactivated successfully');
+        setSnackbarSeverity('success');
+        setSnackbarOpen(true);
+        getUsers();
+      } else {
+        setSnackbarMessage(response.error || 'Failed to reactivate user');
+        setSnackbarSeverity('error');
+        setSnackbarOpen(true);
+      }
+    } catch (error: any) {
+      console.error('Error reactivating user:', error);
+      setSnackbarMessage('Failed to reactivate user');
+      setSnackbarSeverity('error');
+      setSnackbarOpen(true);
+    }
+    handleMenuClose();
+  };
+
+  const handleDeleteClick = (user: Users) => {
+    setSelectedUser(user);
+    setDeleteDialogOpen(true);
+    handleMenuClose();
+  };
+
+  const confirmDeactivate = async () => {
+    if (!selectedUser) return;
+    
+    try {
+      const response = await apiPost(`/api/users/${selectedUser.id}/deactivate`);
+      if (response.success) {
+        setSnackbarMessage('User deactivated successfully');
+        setSnackbarSeverity('success');
+        setSnackbarOpen(true);
+        getUsers();
+      } else {
+        setSnackbarMessage(response.error || 'Failed to deactivate user');
+        setSnackbarSeverity('error');
+        setSnackbarOpen(true);
+      }
+    } catch (error: any) {
+      console.error('Error deactivating user:', error);
+      setSnackbarMessage('Failed to deactivate user');
+      setSnackbarSeverity('error');
+      setSnackbarOpen(true);
+    }
+    setDeactivateDialogOpen(false);
+    setSelectedUser(null);
+  };
+
+  const confirmDelete = async () => {
+    if (!selectedUser) return;
+    
+    try {
+      const response = await apiDelete(`/api/users/${selectedUser.id}`);
+      if (response.success) {
+        setSnackbarMessage('User deleted successfully');
+        setSnackbarSeverity('success');
+        setSnackbarOpen(true);
+        getUsers();
+      } else {
+        setSnackbarMessage(response.error || 'Failed to delete user');
+        setSnackbarSeverity('error');
+        setSnackbarOpen(true);
+      }
+    } catch (error: any) {
+      console.error('Error deleting user:', error);
+      setSnackbarMessage('Failed to delete user');
+      setSnackbarSeverity('error');
+      setSnackbarOpen(true);
+    }
+    setDeleteDialogOpen(false);
+    setSelectedUser(null);
+  };
 
   // Derived data with search filtering
   const filteredUsers = useMemo(() => userList.filter((user: Users) => {
@@ -362,6 +493,7 @@ export function UserView() {
                     <TableCell sx={{ minWidth: 100 }}>Gender</TableCell>
                     <TableCell sx={{ minWidth: 100 }}>Status</TableCell>
                     <TableCell sx={{ minWidth: 120 }}>Profile</TableCell>
+                    <TableCell sx={{ minWidth: 100 }} align="right">Actions</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
@@ -407,15 +539,11 @@ export function UserView() {
                           {user.gender ? user.gender.charAt(0).toUpperCase() + user.gender.slice(1) : 'N/A'}
                         </TableCell>
                         <TableCell>
-                          {user.isActive !== false ? (
-                            <Typography variant="body2" sx={{ color: 'success.main' }}>
-                              Active
-                            </Typography>
-                          ) : (
-                            <Typography variant="body2" sx={{ color: 'error.main' }}>
-                              Inactive
-                            </Typography>
-                          )}
+                          <Chip
+                            label={user.isActive !== false ? 'Active' : 'Inactive'}
+                            color={user.isActive !== false ? 'success' : 'default'}
+                            size="small"
+                          />
                         </TableCell>
                         <TableCell>
                           {user.hasCompletedProfile ? (
@@ -428,12 +556,22 @@ export function UserView() {
                             </Typography>
                           )}
                         </TableCell>
+                        <TableCell align="right">
+                          {canManageUser(user) && (
+                            <IconButton
+                              onClick={(e) => handleMenuOpen(e, user)}
+                              size="small"
+                            >
+                              <Iconify icon="eva:more-vertical-fill" />
+                            </IconButton>
+                          )}
+                        </TableCell>
                       </TableRow>
                     );
                   })}
                   {paginatedUsers.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={7} align="center">
+                      <TableCell colSpan={8} align="center">
                         <Typography variant="body2">
                           {filteredUsers.length === 0 ? 'No users found' : 'No users on this page'}
                         </Typography>
@@ -537,6 +675,76 @@ export function UserView() {
           <Button onClick={() => setOpen(false)}>Cancel</Button>
           <Button onClick={handleAddUser} variant="contained" color="primary">
             Submit
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Actions Menu */}
+      <Menu
+        anchorEl={menuAnchor?.element}
+        open={!!menuAnchor}
+        onClose={handleMenuClose}
+        anchorOrigin={{
+          vertical: 'bottom',
+          horizontal: 'right',
+        }}
+        transformOrigin={{
+          vertical: 'top',
+          horizontal: 'right',
+        }}
+      >
+        {menuAnchor?.user.isActive ? (
+          <MenuItem onClick={() => handleDeactivateClick(menuAnchor.user)}>
+            <Iconify icon="solar:user-block-bold" sx={{ mr: 1 }} />
+            Deactivate
+          </MenuItem>
+        ) : (
+          <MenuItem onClick={() => handleReactivateClick(menuAnchor!.user)}>
+            <Iconify icon="solar:user-check-bold" sx={{ mr: 1 }} />
+            Reactivate
+          </MenuItem>
+        )}
+        <MenuItem 
+          onClick={() => handleDeleteClick(menuAnchor!.user)}
+          sx={{ color: 'error.main' }}
+        >
+          <Iconify icon="solar:trash-bin-trash-bold" sx={{ mr: 1 }} />
+          Delete
+        </MenuItem>
+      </Menu>
+
+      {/* Deactivate Confirmation Dialog */}
+      <Dialog open={deactivateDialogOpen} onClose={() => setDeactivateDialogOpen(false)}>
+        <DialogTitle>Deactivate User</DialogTitle>
+        <DialogContent>
+          <Typography>
+            Are you sure you want to deactivate{' '}
+            <strong>{selectedUser?.email || selectedUser?.fullName || 'this user'}</strong>?
+            They will not be able to access their account until reactivated.
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeactivateDialogOpen(false)}>Cancel</Button>
+          <Button onClick={confirmDeactivate} variant="contained" color="warning">
+            Deactivate
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)}>
+        <DialogTitle>Delete User</DialogTitle>
+        <DialogContent>
+          <Typography>
+            Are you sure you want to delete{' '}
+            <strong>{selectedUser?.email || selectedUser?.fullName || 'this user'}</strong>?
+            This will deactivate their account. This action can be undone by reactivating the user.
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeleteDialogOpen(false)}>Cancel</Button>
+          <Button onClick={confirmDelete} variant="contained" color="error">
+            Delete
           </Button>
         </DialogActions>
       </Dialog>
