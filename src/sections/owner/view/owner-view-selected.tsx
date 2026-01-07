@@ -179,9 +179,11 @@ export function BusinessDetail({ onUpdate }: { onUpdate?: () => void }) {
 
 
   // Add this near the top of the component with other state declarations
-const [localProductList, setLocalProductList] = useState(productList || []);
-const [localServiceList, setLocalServiceList] = useState(serviceList || []);
+const [localProductList, setLocalProductList] = useState<Product[]>([]);
+const [localServiceList, setLocalServiceList] = useState<Service[]>([]);
 const [productThumbnailFile, setProductThumbnailFile] = useState<File | null>(null);
+const [loadingProducts, setLoadingProducts] = useState(false);
+const [loadingServices, setLoadingServices] = useState(false);
 
   const [productData, setProductData] = useState<Product>({
     id: '',
@@ -242,8 +244,74 @@ const [productThumbnailFile, setProductThumbnailFile] = useState<File | null>(nu
   const handleSelectServiceRow = (service: Service) => {
     navigate(`/services/${service?.id}`, { state: { service } });
   }
-  // TODO: Migrate to API - GET /api/products?businessId=:id
-  // const productsCollection = useMemo(() => collection(firebaseDB, 'products'), []);
+  // Fetch products and services for this business from API
+  useEffect(() => {
+    if (!business?.id) return;
+
+    const fetchBusinessProducts = async () => {
+      setLoadingProducts(true);
+      try {
+        const response = await apiGet(`/api/businesses/${business.id}/products`, { limit: 1000 });
+        if (response.success && response.data) {
+          const products = response.data.map((prod: any) => ({
+            id: prod.id,
+            product_name: prod.productName || prod.name || '',
+            description: prod.description || '',
+            category: prod.categoryIds || prod.categories?.map((c: any) => c.id || c.name) || [],
+            mainImage: prod.mainImage || '',
+            additionalImages: prod.additionalImages || [],
+            productOwner: prod.businessId || prod.productOwner || business.id,
+            isActive: prod.isActive !== false,
+            reviews: prod.totalReviews || 0,
+            positive_reviews: prod.positiveReviews || 0,
+            total_reviews: prod.totalReviews || 0,
+            total_views: prod.totalViews || 0,
+            comments: prod.comments || [],
+            coverUrl: prod.mainImage || '',
+          }));
+          setLocalProductList(products);
+        }
+      } catch (err) {
+        console.error('Error fetching business products:', err);
+        setLocalProductList([]);
+      } finally {
+        setLoadingProducts(false);
+      }
+    };
+
+    const fetchBusinessServices = async () => {
+      setLoadingServices(true);
+      try {
+        const response = await apiGet(`/api/businesses/${business.id}/services`, { limit: 1000 });
+        if (response.success && response.data) {
+          const services = response.data.map((serv: any) => ({
+            id: serv.id,
+            service_name: serv.serviceName || serv.name || '',
+            description: serv.description || '',
+            category: serv.categoryIds || serv.categories?.map((c: any) => c.id || c.name) || [],
+            mainImage: serv.mainImage || '',
+            additionalImages: serv.additionalImages || [],
+            service_owner: serv.businessId || serv.serviceOwner || business.id,
+            isActive: serv.isActive !== false,
+            reviews: serv.totalReviews || 0,
+            positive_reviews: serv.positiveReviews || 0,
+            total_reviews: serv.totalReviews || 0,
+            total_views: serv.totalViews || 0,
+            comments: serv.comments || [],
+          }));
+          setLocalServiceList(services);
+        }
+      } catch (err) {
+        console.error('Error fetching business services:', err);
+        setLocalServiceList([]);
+      } finally {
+        setLoadingServices(false);
+      }
+    };
+
+    fetchBusinessProducts();
+    fetchBusinessServices();
+  }, [business?.id]);
 
   
   const [productDialogLoading, setProductDialogLoading] = useState(false);
@@ -447,14 +515,12 @@ const [productThumbnailFile, setProductThumbnailFile] = useState<File | null>(nu
 
     const filteredProducts = localProductList ? 
   localProductList.filter((product: Product) =>
-    product.product_name.toLowerCase().includes(searchTerm.toLowerCase()) &&
-    product.productOwner === business.id
+    product.product_name.toLowerCase().includes(searchTerm.toLowerCase())
   ) : [];
 
   const filteredServices = localServiceList ?
   localServiceList.filter((service: Service) =>
-    service.service_name.toLowerCase().includes(searchTerm.toLowerCase()) &&
-    service.service_owner === business.id
+    service.service_name.toLowerCase().includes(searchTerm.toLowerCase())
   ) : [];
 
   // Add calculations here, before the business check
@@ -860,6 +926,7 @@ const [productThumbnailFile, setProductThumbnailFile] = useState<File | null>(nu
       {/** Tab Panels */}
       {activeTab === 0 && (
         <Box sx={{ pt: 3 }}>
+          {loadingProducts && <LinearProgress sx={{ mb: 2 }} />}
 
 
           {/* Dialog Start */}
@@ -987,7 +1054,8 @@ const [productThumbnailFile, setProductThumbnailFile] = useState<File | null>(nu
 
       {activeTab === 1 && (
         <Box sx={{ pt: 3 }}>
-          {/* Placeholder for Services Tab */}
+          {loadingServices && <LinearProgress sx={{ mb: 2 }} />}
+          {/* Services Tab */}
           <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
             <TextField
               placeholder="Search Services"
@@ -1075,7 +1143,7 @@ const [productThumbnailFile, setProductThumbnailFile] = useState<File | null>(nu
             <TablePagination
               rowsPerPageOptions={[5, 10, 25]}
               component="div"
-              count={filteredProducts.length}
+              count={filteredServices.length}
               rowsPerPage={table.rowsPerPage}
               page={table.page}
               onPageChange={table.onChangePage}

@@ -72,7 +72,7 @@ router.get('/:id/services', async (req, res) => {
   try {
     const { page, limit } = req.query;
     const result = await businessServicePrisma.getBusinessServices(req.params.id, {
-      page: page ? parseInt(limit as string) : 1,
+      page: page ? parseInt(page as string) : 1,
       limit: limit ? parseInt(limit as string) : 20,
     });
 
