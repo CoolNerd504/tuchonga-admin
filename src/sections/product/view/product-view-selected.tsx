@@ -321,6 +321,9 @@ function AdditionalImagesUpload({
 }
 
 function CommentsList({ comments }: { comments: ProductOrServiceComment[] }) {
+  // State to track which comments have replies expanded
+  const [expandedReplies, setExpandedReplies] = useState<Record<string, boolean>>({});
+  
   // Filter out deleted comments
   const activeComments = comments.filter(comment => !comment.isDeleted);
   
@@ -337,6 +340,14 @@ function CommentsList({ comments }: { comments: ProductOrServiceComment[] }) {
     acc[parentId].push(reply);
     return acc;
   }, {} as Record<string, ProductOrServiceComment[]>);
+  
+  // Toggle reply expansion
+  const toggleReplies = (commentId: string) => {
+    setExpandedReplies(prev => ({
+      ...prev,
+      [commentId]: !prev[commentId]
+    }));
+  };
   
   // Sort root comments by createdAt (newest first)
   const sortedRootComments = [...rootComments].sort((a, b) => {
@@ -375,6 +386,8 @@ function CommentsList({ comments }: { comments: ProductOrServiceComment[] }) {
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
           {sortedRootComments.map((comment) => {
             const commentReplies = sortReplies(repliesByParent[comment.id] || []);
+            const isExpanded = expandedReplies[comment.id] || false;
+            const hasReplies = commentReplies.length > 0;
             return (
               <Card
                 key={comment.id}
@@ -487,38 +500,51 @@ function CommentsList({ comments }: { comments: ProductOrServiceComment[] }) {
                         }}
                       />
                     )}
-                    {comment.replyCount > 0 && (
-                      <Chip 
-                        size="small" 
-                        icon={<Iconify icon="solar:chat-round-dots-bold" width={16} />}
-                        label={`${comment.replyCount} ${comment.replyCount === 1 ? 'reply' : 'replies'}`} 
-                        color="default"
-                        variant="outlined"
+                    {hasReplies && (
+                      <Button
+                        size="small"
+                        variant="text"
+                        onClick={() => toggleReplies(comment.id)}
+                        startIcon={
+                          <Iconify 
+                            icon={isExpanded ? "eva:arrow-ios-upward-fill" : "eva:arrow-ios-downward-fill"} 
+                            width={16} 
+                          />
+                        }
                         sx={{ 
                           height: 24,
-                          bgcolor: 'action.hover',
+                          minWidth: 'auto',
+                          px: 1,
+                          fontSize: '0.75rem',
+                          color: 'text.secondary',
+                          '&:hover': {
+                            bgcolor: 'action.hover',
+                          },
                         }}
-                      />
+                      >
+                        {comment.replyCount} {comment.replyCount === 1 ? 'reply' : 'replies'}
+                      </Button>
                     )}
                   </Box>
                 </Box>
 
-                {/* Replies Section */}
-                {commentReplies.length > 0 && (
-                  <Box
-                    sx={{
-                      borderTop: '1px solid',
-                      borderColor: 'divider',
-                      bgcolor: 'background.neutral',
-                      pt: 2,
-                      pb: 1,
-                    }}
-                  >
-                    <Box sx={{ px: 2.5, mb: 1.5 }}>
-                      <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, fontSize: '0.75rem' }}>
-                        {commentReplies.length} {commentReplies.length === 1 ? 'Reply' : 'Replies'}
-                      </Typography>
-                    </Box>
+                {/* Replies Section - Collapsible */}
+                {hasReplies && (
+                  <Collapse in={isExpanded}>
+                    <Box
+                      sx={{
+                        borderTop: '1px solid',
+                        borderColor: 'divider',
+                        bgcolor: 'background.neutral',
+                        pt: 2,
+                        pb: 1,
+                      }}
+                    >
+                      <Box sx={{ px: 2.5, mb: 1.5 }}>
+                        <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, fontSize: '0.75rem' }}>
+                          {commentReplies.length} {commentReplies.length === 1 ? 'Reply' : 'Replies'}
+                        </Typography>
+                      </Box>
                     
                     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, px: 2.5 }}>
                       {commentReplies.map((reply) => (
@@ -630,6 +656,7 @@ function CommentsList({ comments }: { comments: ProductOrServiceComment[] }) {
                       ))}
                     </Box>
                   </Box>
+                  </Collapse>
                 )}
               </Card>
             );
