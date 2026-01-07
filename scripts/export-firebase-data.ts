@@ -4,21 +4,32 @@
  * Exports all Firestore collections to JSON files for migration to Prisma + PostgreSQL
  * Handles both Mobile App and Admin Dashboard data
  * 
- * Usage: npx ts-node scripts/export-firebase-data.ts
+ * Usage: npm run migrate:export
+ *        or: tsx scripts/export-firebase-data.ts
  */
 
-import * as admin from 'firebase-admin';
+import admin from 'firebase-admin';
 import * as fs from 'fs';
 import * as path from 'path';
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
+
+// Get current directory for ESM
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 // Initialize Firebase Admin SDK
 // Make sure to set GOOGLE_APPLICATION_CREDENTIALS environment variable
 // or provide serviceAccountKey.json path
-const serviceAccount = require('../serviceAccountKey.json');
+const serviceAccountPath = path.join(__dirname, '..', 'serviceAccountKey.json');
+const serviceAccount = JSON.parse(fs.readFileSync(serviceAccountPath, 'utf-8'));
 
-admin.initializeApp({
-  credential: admin.credential.cert(serviceAccount),
-});
+// Initialize Firebase Admin if not already initialized
+if (!admin.apps.length) {
+  admin.initializeApp({
+    credential: admin.credential.cert(serviceAccount),
+  });
+}
 
 const db = admin.firestore();
 
@@ -359,6 +370,7 @@ async function main() {
 
 // Run the export
 main();
+
 
 
 

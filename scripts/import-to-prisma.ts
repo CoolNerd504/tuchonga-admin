@@ -4,12 +4,19 @@
  * Transforms exported Firebase data and imports into PostgreSQL via Prisma
  * Handles both Mobile App and Admin Dashboard data
  * 
- * Usage: npx ts-node scripts/import-to-prisma.ts
+ * Usage: npm run migrate:import [export-directory]
+ *        or: tsx scripts/import-to-prisma.ts [export-directory]
  */
 
 import { PrismaClient } from '@prisma/client';
 import * as fs from 'fs';
 import * as path from 'path';
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
+
+// Get current directory for ESM
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 const prisma = new PrismaClient();
 
@@ -281,8 +288,10 @@ async function importProducts() {
           mainImage: product.mainImage || null,
           additionalImages: product.additionalImages || [],
           isActive: product.isActive !== undefined ? product.isActive : true,
+          isVerified: product.isVerified !== undefined ? product.isVerified : false, // Default to false for imported items
           businessId,
           productOwner: product.productOwner || null,
+          createdBy: product.createdBy || null, // Will be null for imported items, can be updated later
           totalViews: product.total_views || 0,
           totalReviews: product.total_reviews || 0,
           positiveReviews: product.positive_reviews || 0,
@@ -357,8 +366,10 @@ async function importServices() {
           mainImage: service.mainImage || null,
           additionalImages: service.additionalImages || [],
           isActive: service.isActive !== undefined ? service.isActive : true,
+          isVerified: service.isVerified !== undefined ? service.isVerified : false, // Default to false for imported items
           businessId,
           serviceOwner: service.service_owner || null,
+          createdBy: service.createdBy || null, // Will be null for imported items, can be updated later
           totalViews: service.total_views || 0,
           totalReviews: service.total_reviews || 0,
           positiveReviews: service.positive_reviews || 0,
@@ -416,12 +427,44 @@ async function importReviews() {
   
   for (const review of reviews) {
     try {
+      // Check if user exists
+      const user = await prisma.user.findUnique({ where: { id: review.userId } });
+      if (!user) {
+        console.log(`⚠️  User not found for review ${review.id}: userId=${review.userId}`);
+        continue;
+      }
+
+      // Check if product or service exists
+      const productId = review.product_id;
+      const serviceId = review.service_id;
+      
+      if (productId) {
+        const product = await prisma.product.findUnique({ where: { id: productId } });
+        if (!product) {
+          console.log(`⚠️  Product not found for review ${review.id}: productId=${productId}`);
+          continue;
+        }
+      }
+      
+      if (serviceId) {
+        const service = await prisma.service.findUnique({ where: { id: serviceId } });
+        if (!service) {
+          console.log(`⚠️  Service not found for review ${review.id}: serviceId=${serviceId}`);
+          continue;
+        }
+      }
+
+      if (!productId && !serviceId) {
+        console.log(`⚠️  Skipping review ${review.id}: missing productId and serviceId`);
+        continue;
+      }
+
       await prisma.review.create({
         data: {
           id: review.id,
           userId: review.userId,
-          productId: review.product_id || null,
-          serviceId: review.service_id || null,
+          productId: productId || null,
+          serviceId: serviceId || null,
           sentiment: mapReviewSentiment(review.sentiment),
           text: review.text || null,
           reviewText: review.reviewText || null,
@@ -450,8 +493,20 @@ async function importComments() {
   
   for (const comment of comments) {
     try {
-      // Determine itemType and itemId
-      const itemId = comment.itemId || comment.parentId;
+      // Check if user exists
+      const user = await prisma.user.findUnique({ where: { id: comment.userId } });
+      if (!user) {
+        console.log(`⚠️  User not found for comment ${comment.id}: userId=${comment.userId}`);
+        continue;
+      }
+
+      // Determine itemType and itemId (don't use parentId as itemId)
+      const itemId = comment.itemId;
+      if (!itemId) {
+        console.log(`⚠️  Skipping comment ${comment.id}: missing itemId`);
+        continue;
+      }
+
       const itemType = comment.itemType 
         ? mapItemType(comment.itemType) 
         : (comment.parentType ? mapItemType(comment.parentType) : 'PRODUCT');
@@ -462,10 +517,27 @@ async function importComments() {
       
       if (itemType === 'PRODUCT') {
         const product = await prisma.product.findUnique({ where: { id: itemId } });
-        productId = product?.id || null;
+        if (!product) {
+          console.log(`⚠️  Product not found for comment ${comment.id}: itemId=${itemId}`);
+          continue; // Skip if product doesn't exist
+        }
+        productId = product.id;
       } else {
         const service = await prisma.service.findUnique({ where: { id: itemId } });
-        serviceId = service?.id || null;
+        if (!service) {
+          console.log(`⚠️  Service not found for comment ${comment.id}: itemId=${itemId}`);
+          continue; // Skip if service doesn't exist
+        }
+        serviceId = service.id;
+      }
+
+      // Check if parent comment exists (if parentId is set)
+      if (comment.parentId) {
+        const parentComment = await prisma.comment.findUnique({ where: { id: comment.parentId } });
+        if (!parentComment) {
+          console.log(`⚠️  Parent comment not found for comment ${comment.id}: parentId=${comment.parentId}`);
+          // Continue anyway - might be imported later, or parent might not exist
+        }
       }
       
       await prisma.comment.create({
@@ -512,6 +584,20 @@ async function importCommentReactions() {
   
   for (const reaction of reactions) {
     try {
+      // Check if user exists
+      const user = await prisma.user.findUnique({ where: { id: reaction.userId } });
+      if (!user) {
+        console.log(`⚠️  User not found for reaction ${reaction.id}: userId=${reaction.userId}`);
+        continue;
+      }
+
+      // Check if comment exists
+      const comment = await prisma.comment.findUnique({ where: { id: reaction.commentId } });
+      if (!comment) {
+        console.log(`⚠️  Comment not found for reaction ${reaction.id}: commentId=${reaction.commentId}`);
+        continue;
+      }
+
       await prisma.commentReaction.create({
         data: {
           id: reaction.id,
@@ -541,31 +627,61 @@ async function importQuickRatings() {
   
   for (const rating of ratings) {
     try {
-      // Determine itemType and find product/service
-      const itemType = rating.itemType ? mapItemType(rating.itemType) : 'PRODUCT';
+      // Check if user exists
+      const user = await prisma.user.findUnique({ where: { id: rating.userId } });
+      if (!user) {
+        console.log(`⚠️  User not found for quick rating ${rating.id}: userId=${rating.userId}`);
+        continue;
+      }
+
+      // Extract itemId from various possible fields
+      const itemId = rating.itemId || rating.productId || rating.product_id || rating.serviceId || rating.service_id;
+      if (!itemId) {
+        console.log(`⚠️  Skipping quick rating ${rating.id}: missing itemId/productId/serviceId`);
+        continue;
+      }
+
+      // Determine itemType from source or itemType field
+      let itemType = 'PRODUCT';
+      if (rating.itemType) {
+        itemType = mapItemType(rating.itemType);
+      } else if (rating.source) {
+        itemType = mapItemType(rating.source);
+      } else if (rating.serviceId || rating.service_id) {
+        itemType = 'SERVICE';
+      }
+
       let productId = null;
       let serviceId = null;
       
       if (itemType === 'PRODUCT') {
-        const product = await prisma.product.findUnique({ where: { id: rating.itemId } });
-        productId = product?.id || null;
+        const product = await prisma.product.findUnique({ where: { id: itemId } });
+        if (!product) {
+          console.log(`⚠️  Product not found for quick rating ${rating.id}: itemId=${itemId}`);
+          continue; // Skip if product doesn't exist
+        }
+        productId = product.id;
       } else {
-        const service = await prisma.service.findUnique({ where: { id: rating.itemId } });
-        serviceId = service?.id || null;
+        const service = await prisma.service.findUnique({ where: { id: itemId } });
+        if (!service) {
+          console.log(`⚠️  Service not found for quick rating ${rating.id}: itemId=${itemId}`);
+          continue; // Skip if service doesn't exist
+        }
+        serviceId = service.id;
       }
       
       await prisma.quickRating.create({
         data: {
           id: rating.id,
           userId: rating.userId,
-          itemId: rating.itemId,
+          itemId: itemId,
           itemType,
           productId,
           serviceId,
           rating: rating.rating,
-          lastUpdated: rating.lastUpdated || new Date(),
-          createdAt: rating.createdAt || new Date(),
-          updatedAt: rating.updatedAt || new Date(),
+          lastUpdated: rating.lastUpdated || rating.updatedAt || rating.timestamp || new Date(),
+          createdAt: rating.createdAt || rating.timestamp || new Date(),
+          updatedAt: rating.updatedAt || rating.timestamp || new Date(),
         },
       });
       count++;
@@ -588,16 +704,37 @@ async function importFavorites() {
   
   for (const favorite of favorites) {
     try {
+      // Check if user exists
+      const user = await prisma.user.findUnique({ where: { id: favorite.userId } });
+      if (!user) {
+        console.log(`⚠️  User not found for favorite ${favorite.id}: userId=${favorite.userId}`);
+        continue;
+      }
+
+      // Skip if itemId is missing
+      if (!favorite.itemId) {
+        console.log(`⚠️  Skipping favorite ${favorite.id}: missing itemId`);
+        continue;
+      }
+
       const itemType = favorite.itemType ? mapItemType(favorite.itemType) : 'PRODUCT';
       let productId = null;
       let serviceId = null;
       
       if (itemType === 'PRODUCT') {
         const product = await prisma.product.findUnique({ where: { id: favorite.itemId } });
-        productId = product?.id || null;
+        if (!product) {
+          console.log(`⚠️  Product not found for favorite ${favorite.id}: itemId=${favorite.itemId}`);
+          continue; // Skip if product doesn't exist
+        }
+        productId = product.id;
       } else {
         const service = await prisma.service.findUnique({ where: { id: favorite.itemId } });
-        serviceId = service?.id || null;
+        if (!service) {
+          console.log(`⚠️  Service not found for favorite ${favorite.id}: itemId=${favorite.itemId}`);
+          continue; // Skip if service doesn't exist
+        }
+        serviceId = service.id;
       }
       
       await prisma.favorite.create({
@@ -629,6 +766,9 @@ async function main() {
   
   try {
     // Order matters: import parent entities before children
+    // Only import core data - skip user-generated content (comments, reviews, ratings, favorites)
+    console.log('📋 Importing core data only (skipping user-generated content)...\n');
+    
     await importUsers();
     await importUserAnalytics();
     await importStaff();
@@ -636,20 +776,23 @@ async function main() {
     await importCategories();
     await importProducts();
     await importServices();
-    await importReviews();
-    await importComments();
-    await importCommentReactions();
-    await importQuickRatings();
-    await importFavorites();
+    
+    // Skip user-generated content:
+    // - Reviews
+    // - Comments
+    // - Comment Reactions
+    // - Quick Ratings
+    // - Favorites
+    console.log('\n⏭️  Skipped user-generated content (reviews, comments, ratings, favorites)');
+    console.log('   This will be a clean slate for new user interactions.\n');
     
     console.log('\n' + '='.repeat(60));
     console.log('✅ Import Complete!');
     console.log('='.repeat(60));
     console.log('\n🔍 Next Steps:');
     console.log('   1. Verify data in Prisma Studio: npx prisma studio');
-    console.log('   2. Run data integrity checks');
-    console.log('   3. Test application with new database');
-    console.log('   4. Update application code to use Prisma Client');
+    console.log('   2. Test application with new database');
+    console.log('   3. Users can now create new reviews, comments, and ratings');
     console.log('\n');
   } catch (error) {
     console.error('\n❌ Fatal error during import:', error);
@@ -660,6 +803,7 @@ async function main() {
 
 // Run the import
 main();
+
 
 
 

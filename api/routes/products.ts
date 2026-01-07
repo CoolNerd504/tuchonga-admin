@@ -381,6 +381,21 @@ router.get('/:id', optionalAuth, async (req, res) => {
         totalReplies: repliesCount,
         averageRepliesPerComment: commentCount > 0 ? Math.round((repliesCount / commentCount) * 10) / 10 : 0,
       };
+    } else {
+      // Always include comments structure, even if not requested
+      response.comments = {
+        items: [],
+        total: 0,
+        page: 1,
+        limit: 20,
+        totalPages: 0,
+        hasMore: false,
+      };
+      response.commentStats = {
+        totalComments: 0,
+        totalReplies: 0,
+        averageRepliesPerComment: 0,
+      };
     }
 
     // 7. Reviews (always include for sentiment breakdown calculation)

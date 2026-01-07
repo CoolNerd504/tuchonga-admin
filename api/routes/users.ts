@@ -1,6 +1,7 @@
 import express from 'express';
 import { mobileUserService } from '../../src/services/mobileUserService.js';
-import { verifyToken, verifyAdmin } from '../middleware/auth';
+import { verifyToken, verifyAdmin, verifySuperAdmin } from '../middleware/auth';
+import { prisma } from '../../src/services/prismaService.js';
 
 const router = express.Router();
 
@@ -315,10 +316,46 @@ router.put('/:id', verifyToken, verifyAdmin, async (req, res) => {
 // Deactivate user
 router.post('/:id/deactivate', verifyToken, verifyAdmin, async (req, res) => {
   try {
-    await mobileUserService.deactivateUser(req.params.id);
-    res.json({ success: true, message: 'User deactivated successfully' });
+    const currentUser = (req as any).user;
+    const targetUserId = req.params.id;
+
+    // Prevent deactivating yourself
+    if (currentUser.userId === targetUserId) {
+      return res.status(400).json({
+        success: false,
+        error: 'Cannot deactivate your own account',
+      });
+    }
+
+    // Check if target user is an admin or super_admin
+    const targetUser = await prisma.user.findUnique({
+      where: { id: targetUserId },
+      select: { id: true, role: true, email: true },
+    });
+
+    if (!targetUser) {
+      return res.status(404).json({
+        success: false,
+        error: 'User not found',
+      });
+    }
+
+    // Only super_admin can deactivate other admins
+    if (['admin', 'super_admin'].includes(targetUser.role) && currentUser.role !== 'super_admin') {
+      return res.status(403).json({
+        success: false,
+        error: 'Only super admins can deactivate admin accounts',
+      });
+    }
+
+    await mobileUserService.deactivateUser(targetUserId);
+    res.json({
+      success: true,
+      message: 'User deactivated successfully',
+      data: { userId: targetUserId, email: targetUser.email },
+    });
   } catch (error: any) {
-    console.error('❌ Error in GET /api/users/me:');
+    console.error('❌ Error in POST /api/users/:id/deactivate:');
     console.error('   Error message:', error.message);
     console.error('   Error stack:', error.stack);
     res.status(500).json({ success: false, error: error.message });
@@ -328,23 +365,136 @@ router.post('/:id/deactivate', verifyToken, verifyAdmin, async (req, res) => {
 // Reactivate user
 router.post('/:id/reactivate', verifyToken, verifyAdmin, async (req, res) => {
   try {
-    await mobileUserService.reactivateUser(req.params.id);
-    res.json({ success: true, message: 'User reactivated successfully' });
+    const currentUser = (req as any).user;
+    const targetUserId = req.params.id;
+
+    // Check if target user exists
+    const targetUser = await prisma.user.findUnique({
+      where: { id: targetUserId },
+      select: { id: true, role: true, email: true },
+    });
+
+    if (!targetUser) {
+      return res.status(404).json({
+        success: false,
+        error: 'User not found',
+      });
+    }
+
+    // Only super_admin can reactivate admin accounts
+    if (['admin', 'super_admin'].includes(targetUser.role) && currentUser.role !== 'super_admin') {
+      return res.status(403).json({
+        success: false,
+        error: 'Only super admins can reactivate admin accounts',
+      });
+    }
+
+    await mobileUserService.reactivateUser(targetUserId);
+    res.json({
+      success: true,
+      message: 'User reactivated successfully',
+      data: { userId: targetUserId, email: targetUser.email },
+    });
   } catch (error: any) {
-    console.error('❌ Error in GET /api/users/me:');
+    console.error('❌ Error in POST /api/users/:id/reactivate:');
     console.error('   Error message:', error.message);
     console.error('   Error stack:', error.stack);
     res.status(500).json({ success: false, error: error.message });
   }
 });
 
-// Delete user (soft delete)
+// Delete user (soft delete - deactivates user)
 router.delete('/:id', verifyToken, verifyAdmin, async (req, res) => {
   try {
-    await mobileUserService.deleteUser(req.params.id);
-    res.json({ success: true, message: 'User deleted successfully' });
+    const currentUser = (req as any).user;
+    const targetUserId = req.params.id;
+
+    // Prevent deleting yourself
+    if (currentUser.userId === targetUserId) {
+      return res.status(400).json({
+        success: false,
+        error: 'Cannot delete your own account',
+      });
+    }
+
+    // Check if target user is an admin or super_admin
+    const targetUser = await prisma.user.findUnique({
+      where: { id: targetUserId },
+      select: { id: true, role: true, email: true },
+    });
+
+    if (!targetUser) {
+      return res.status(404).json({
+        success: false,
+        error: 'User not found',
+      });
+    }
+
+    // Only super_admin can delete other admins
+    if (['admin', 'super_admin'].includes(targetUser.role) && currentUser.role !== 'super_admin') {
+      return res.status(403).json({
+        success: false,
+        error: 'Only super admins can delete admin accounts',
+      });
+    }
+
+    await mobileUserService.deleteUser(targetUserId);
+    res.json({
+      success: true,
+      message: 'User deleted successfully (deactivated)',
+      data: { userId: targetUserId, email: targetUser.email },
+    });
   } catch (error: any) {
-    console.error('❌ Error in GET /api/users/me:');
+    console.error('❌ Error in DELETE /api/users/:id:');
+    console.error('   Error message:', error.message);
+    console.error('   Error stack:', error.stack);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Hard delete user (permanently delete from database - super admin only)
+router.delete('/:id/hard', verifyToken, verifySuperAdmin, async (req, res) => {
+  try {
+    const currentUser = (req as any).user;
+    const targetUserId = req.params.id;
+
+    // Prevent deleting yourself
+    if (currentUser.userId === targetUserId) {
+      return res.status(400).json({
+        success: false,
+        error: 'Cannot delete your own account',
+      });
+    }
+
+    // Check if target user exists
+    const targetUser = await prisma.user.findUnique({
+      where: { id: targetUserId },
+      select: { id: true, role: true, email: true },
+    });
+
+    if (!targetUser) {
+      return res.status(404).json({
+        success: false,
+        error: 'User not found',
+      });
+    }
+
+    // Prevent deleting other super admins
+    if (targetUser.role === 'super_admin') {
+      return res.status(403).json({
+        success: false,
+        error: 'Cannot delete other super admin accounts',
+      });
+    }
+
+    await mobileUserService.hardDeleteUser(targetUserId);
+    res.json({
+      success: true,
+      message: 'User permanently deleted successfully',
+      data: { userId: targetUserId, email: targetUser.email },
+    });
+  } catch (error: any) {
+    console.error('❌ Error in DELETE /api/users/:id/hard:');
     console.error('   Error message:', error.message);
     console.error('   Error stack:', error.stack);
     res.status(500).json({ success: false, error: error.message });

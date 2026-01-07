@@ -39,3 +39,9 @@ dist-api
 # Test outputs
 *.log
 test-results/
+
+# Firebase service account key (sensitive)
+serviceAccountKey.json
+
+# Exports directory (contains sensitive data)
+exports/

@@ -286,7 +286,7 @@ router.get('/:id', optionalAuth, async (req, res) => {
       response.isFavorite = false;
     }
 
-    // 6. Comments (if requested)
+    // 6. Comments (always include, even if empty)
     if (includeComments === 'true') {
       const commentsResult = await commentServicePrisma.getServiceComments(service.id, {
         page: parseInt(commentsPage as string),
@@ -380,6 +380,21 @@ router.get('/:id', optionalAuth, async (req, res) => {
         totalComments: commentCount,
         totalReplies: repliesCount,
         averageRepliesPerComment: commentCount > 0 ? Math.round((repliesCount / commentCount) * 10) / 10 : 0,
+      };
+    } else {
+      // Always include comments structure, even if not requested
+      response.comments = {
+        items: [],
+        total: 0,
+        page: 1,
+        limit: 20,
+        totalPages: 0,
+        hasMore: false,
+      };
+      response.commentStats = {
+        totalComments: 0,
+        totalReplies: 0,
+        averageRepliesPerComment: 0,
       };
     }
 
